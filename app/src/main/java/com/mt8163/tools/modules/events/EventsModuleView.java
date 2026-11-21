@@ -98,8 +98,10 @@ public final class EventsModuleView {
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
+            boolean wasAtBottom = autoScroll;
             autoScroll = y + scroll.getHeight() >= entries.getHeight() - 24;
             if (y < oldY && y <= 8 && hasMore && !loadingOlder) loadOlder();
+            else if (!wasAtBottom && autoScroll) refresh();
         });
 
         manager.setListener(() -> {
