@@ -60,6 +60,8 @@ public final class VoltageHook implements PackageHook {
             installAttempted = true;
         }
 
+        loadInitialConfiguration();
+
         Class<?> packetClass;
         try {
             packetClass = XposedHelpers.findClass(
