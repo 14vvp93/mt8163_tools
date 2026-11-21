@@ -89,6 +89,7 @@ public final class VoltageHook implements PackageHook {
 
         Intent request = new Intent(VoltageSettingsStore.ACTION_CONFIG_REQUEST);
         request.setPackage("com.mt8163.tools");
+        request.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
         request.putExtra(VoltageSettingsStore.EXTRA_TOKEN, getSessionToken());
         context.sendBroadcast(request);
     }
