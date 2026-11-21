@@ -106,4 +106,4 @@ if errors:
         print(f"- {error}")
     sys.exit(1)
 
-print("Xposed configuration is consistent: Legacy XposedBridge, runtime minversion 93, compileOnly API 82, scope android.")
+print("Xposed configuration is consistent: Legacy XposedBridge, runtime minversion 93, compileOnly API 82, resource-based scope android.")
