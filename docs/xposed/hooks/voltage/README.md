@@ -1,90 +1,90 @@
 # Voltage
 
-## Призначення
+## Purpose
 
-Voltage коригує програмне значення напруги акумулятора, яке Android отримує від MCU магнітоли.
+Voltage adjusts the software-reported battery voltage that Android receives from the head unit's MCU.
 
-- Змінюється лише значення, яке зберігає Android MCU service.
-- Фізична напруга, вимірювання MCU та робота заряджання не змінюються.
-- Модуль за замовчуванням вимкнений.
+- Only the value stored by the Android MCU service is modified.
+- Physical voltage, MCU measurements, and charging behavior are not changed.
+- The module is disabled by default.
 
-## Точка інтеграції
+## Hook target
 
-| Параметр | Значення |
+| Parameter | Value |
 |---|---|
-| Процес / package | `android` (`system_server`) |
-| Сервіс | `android.carsource.McuService` |
-| Конструктор | `McuService(Context)` |
-| Метод | `onBattery(McuPacket)` |
+| Process / package | `android` (`system_server`) |
+| Service | `android.carsource.McuService` |
+| Constructor | `McuService(Context)` |
+| Method | `onBattery(McuPacket)` |
 | Descriptor | `(Landroid/carsource/McuService$McuPacket;)V` |
-| Тип hook | LSPosed after-hook |
-| Поле результату | `McuService.mBatteryVoltage` |
+| Hook type | LSPosed after-hook |
+| Destination field | `McuService.mBatteryVoltage` |
 | LSPosed scope | `android` |
 
-Hook обробляє пакет **після виконання оригінального** `onBattery()`. Тому штатна перевірка низької напруги та логіка MCU працюють з реальними даними до програмної корекції.
+The hook runs **after the original** `onBattery()` method. Therefore, the stock low-voltage checks and MCU logic process the real data before the software correction is applied.
 
-## Отримання напруги з MCU
+## Reading voltage from the MCU
 
-Обробляються лише battery-пакети:
+Only battery packets are processed:
 
 1. `subCmd() == 3`.
 2. `paramLen() >= 1`.
-3. Значення береться з `param(0)`.
-4. Byte інтерпретується як unsigned і переводиться з десятих вольта:
+3. Read the value from `param(0)`.
+4. Interpret the byte as unsigned and convert tenths of a volt:
 
 ```kotlin
 val rawVoltage = (parameter.toInt() and 0xFF) / 10.0f
 ```
 
-Приклад: `0x78` → `120` → **12.0 V**.
+Example: `0x78` → `120` → **12.0 V**.
 
-Некоректні, відсутні або неповні дані не повинні змінювати значення сервісу.
+Invalid, missing, or incomplete data must not modify the service value.
 
-## Алгоритм корекції
+## Correction algorithm
 
-Параметри:
+Parameters:
 
-- Offset: від **−2.0 до +2.0 V**.
-- Крок налаштування: **0.1 V**.
-- Початковий offset: **0.0 V**.
+- Offset range: **−2.0 to +2.0 V**.
+- Adjustment step: **0.1 V**.
+- Default offset: **0.0 V**.
 
 ```text
 enabled:  effectiveVoltage = rawBatteryVoltage + voltageOffset
 disabled: effectiveVoltage = rawBatteryVoltage
 ```
 
-Сире значення `rawBatteryVoltage` зберігається окремо. Offset завжди застосовується до сирого значення — повторного додавання до вже скоригованої напруги немає.
+The raw value is retained separately as `rawBatteryVoltage`. The offset is always applied to the raw value; it is never added to an already corrected voltage.
 
-Після зміни конфігурації поле `mBatteryVoltage` перераховується з останнього сирого значення. При вимкненні модуля відновлюється остання реальна напруга.
+When the configuration changes, `mBatteryVoltage` is recalculated from the latest raw value. Disabling the module restores the latest actual voltage.
 
-## Конфігурація між процесами
+## Cross-process configuration
 
-App передає повну конфігурацію в процес `android` через package-scoped broadcast:
+The app sends the complete configuration to the `android` process using a package-scoped broadcast:
 
-| Поле | Значення |
+| Field | Value |
 |---|---|
 | Action | `com.mt8163tools.action.VOLTAGE_CONFIG_CHANGED` |
 | Target package | `android` |
 | Extra | `module_enabled` |
 | Extra | `voltage_offset` |
 
-Публікація конфігурації виконується:
-- під час запуску App;
-- після зміни стану Voltage;
-- після зміни offset або Reset.
+The configuration is published:
+- When the app starts.
+- When the Voltage module state changes.
+- When the offset changes or is reset.
 
-Receiver реєструється через Context сервісу після конструктора `McuService`.
+The receiver is registered using the service Context after the `McuService` constructor.
 
-Для початкового читання hook-конфігурації використовується окреме сховище `voltage_hook_config`. На Android 9 застосовується `MODE_WORLD_READABLE` із fallback на `MODE_PRIVATE`, якщо доступ заборонений. UI-значення offset зберігається як `Float` у `voltage_settings/voltage_offset`. Загальний стан увімкнення модуля належить спільному механізму стану модулів.
+Initial hook configuration is read from a separate `voltage_hook_config` store. On Android 9, `MODE_WORLD_READABLE` is used, with a fallback to `MODE_PRIVATE` if access is denied. The UI offset is stored as a `Float` at `voltage_settings/voltage_offset`. The module enabled state belongs to the shared module-state mechanism.
 
-## Синхронізація та обмеження
+## Synchronization and constraints
 
-- Оновлення MCU-пакета й конфігурації синхронізовані одним lock.
-- Offset приймається лише якщо він скінченний і перебуває в межах `−2.0..+2.0 V`.
-- Hook використовує in-memory конфігурацію; disk I/O не виконується в обробці MCU-пакетів.
-- Оригінальний `onBattery()` не підміняється і не обходиться.
-- Не використовуються polling, timers, worker threads, executors або періодичні callback.
+- MCU packet updates and configuration updates are synchronized using the same lock.
+- An offset is accepted only if it is finite and within `−2.0..+2.0 V`.
+- The hook uses in-memory configuration; no disk I/O is performed while processing MCU packets.
+- The original `onBattery()` method is neither replaced nor bypassed.
+- Polling, timers, worker threads, executors, and recurring callbacks are not used.
 
-## Важливий принцип
+## Key principle
 
-**Коригується лише Android-представлення напруги.** MCU продовжує передавати реальне значення, а штатна логіка захисту від низької напруги виконується до застосування offset.
+**Only Android's software-reported voltage is corrected.** The MCU continues to send the actual value, and the stock low-voltage protection logic runs before the offset is applied.
