@@ -1,1 +1,9 @@
-<resources><string name="app_name">MT8163 Tools</string><string name="xposed_description">Modular tools for MT8163 Android head units.</string><string name="module_enabled">Module enabled</string><string name="module_disabled">Module disabled</string></resources>
+<resources>
+    <string name="app_name">MT8163 Tools</string>
+    <string name="xposed_description">Modular tools for MT8163 Android head units.</string>
+    <string name="module_enabled">Module enabled</string>
+    <string name="module_disabled">Module disabled</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="module_status_activated">Module: Activated</string>
+    <string name="module_status_not_activated">Module: Not activated</string>
+</resources>
