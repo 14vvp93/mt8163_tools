@@ -40,7 +40,6 @@ public final class VoltageHook implements PackageHook {
     private static String sessionToken;
     private static Context eventContext;
     private static Object mcuService;
-    private static BroadcastReceiver configReceiver;
     private static BroadcastReceiver bootReceiver;
     private static boolean configReceived;
     private static boolean moduleEnabled;
@@ -130,10 +129,16 @@ public final class VoltageHook implements PackageHook {
 
             if (!bootCompleted) {
                 bootCompleted = readBootCompleted();
-                if (!bootCompleted && !registerBootReceiverLocked(context)) {
-                    logEvent("bootReceiverRegistrationFailed",
-                            "Unable to wait for Android boot completion");
-                    return;
+                if (!bootCompleted) {
+                    if (!registerBootReceiverLocked(context)) {
+                        logEvent("bootReceiverRegistrationFailed",
+                                "Unable to wait for Android boot completion");
+                        return;
+                    }
+                    if (readBootCompleted()) {
+                        bootCompleted = true;
+                        unregisterBootReceiverLocked(context);
+                    }
                 }
             }
         }
@@ -155,7 +160,6 @@ public final class VoltageHook implements PackageHook {
             };
 
             context.registerReceiverAsUser(receiver, UserHandle.SYSTEM, filter, null, null);
-            configReceiver = receiver;
             sessionToken = createToken();
             receiverRegistered = true;
             configReceived = false;
@@ -180,14 +184,7 @@ public final class VoltageHook implements PackageHook {
 
                     synchronized (LOCK) {
                         bootCompleted = true;
-                        if (bootReceiverRegistered) {
-                            try {
-                                receiverContext.unregisterReceiver(bootReceiver);
-                            } catch (RuntimeException ignored) {
-                            }
-                            bootReceiver = null;
-                            bootReceiverRegistered = false;
-                        }
+                        unregisterBootReceiverLocked(receiverContext);
                     }
                     requestConfiguration(receiverContext);
                 }
@@ -202,6 +199,16 @@ public final class VoltageHook implements PackageHook {
             XposedBridge.log("MT8163 Tools: Boot receiver registration failed: " + error);
             return false;
         }
+    }
+
+    private static void unregisterBootReceiverLocked(Context context) {
+        if (!bootReceiverRegistered || bootReceiver == null) return;
+        try {
+            context.unregisterReceiver(bootReceiver);
+        } catch (RuntimeException ignored) {
+        }
+        bootReceiver = null;
+        bootReceiverRegistered = false;
     }
 
     private static boolean readBootCompleted() {
@@ -224,6 +231,7 @@ public final class VoltageHook implements PackageHook {
 
         Intent request = new Intent(VoltageSettingsStore.ACTION_CONFIG_REQUEST);
         request.setPackage("com.mt8163.tools");
+        request.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
         request.putExtra(VoltageSettingsStore.EXTRA_TOKEN, token);
         try {
             context.sendBroadcastAsUser(request, UserHandle.SYSTEM);
