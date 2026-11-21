@@ -10,22 +10,33 @@ public final class EventLogger {
     public static final String EXTRA_SOURCE = "event_source";
     public static final String EXTRA_MESSAGE = "event_message";
     private static final String TARGET_PACKAGE = "com.mt8163.tools";
+    private static final int MAX_MODULE_LENGTH = 80;
+    private static final int MAX_SOURCE_LENGTH = 80;
+    private static final int MAX_MESSAGE_LENGTH = 2000;
 
     private EventLogger() {
     }
 
     public static void log(Context context, String module, String source, String message) {
-        if (context == null || module == null || source == null || message == null
-                || module.trim().isEmpty() || source.trim().isEmpty()
-                || message.trim().isEmpty()) return;
+        if (context == null || !valid(module, MAX_MODULE_LENGTH)
+                || !valid(source, MAX_SOURCE_LENGTH)
+                || !valid(message, MAX_MESSAGE_LENGTH)) return;
 
-        String action = "android".equals(context.getPackageName())
-                ? ACTION_SYSTEM_EVENT : ACTION_EVENT;
-        Intent intent = new Intent(action);
-        intent.setPackage(TARGET_PACKAGE);
-        intent.putExtra(EXTRA_MODULE, module.trim());
-        intent.putExtra(EXTRA_SOURCE, source.trim());
-        intent.putExtra(EXTRA_MESSAGE, message.trim());
-        context.sendBroadcast(intent);
+        try {
+            String packageName = context.getPackageName();
+            String action = "android".equals(packageName)
+                    ? ACTION_SYSTEM_EVENT : ACTION_EVENT;
+            Intent intent = new Intent(action);
+            intent.setPackage(TARGET_PACKAGE);
+            intent.putExtra(EXTRA_MODULE, module.trim());
+            intent.putExtra(EXTRA_SOURCE, source.trim());
+            intent.putExtra(EXTRA_MESSAGE, message.trim());
+            context.sendBroadcast(intent);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private static boolean valid(String value, int maxLength) {
+        return value != null && !value.trim().isEmpty() && value.length() <= maxLength;
     }
 }
