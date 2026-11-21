@@ -2,6 +2,9 @@ name: Manual APK Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - development
 
 permissions:
   contents: read
