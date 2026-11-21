@@ -9,10 +9,13 @@ ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 EXPECTED_ENTRY = "com.mt8163.tools.xposed.XposedEntry"
 errors = []
 
+
 def fail(message):
     errors.append(message)
 
+
 manifest_path = ROOT / "app/src/main/AndroidManifest.xml"
+scope_path = ROOT / "app/src/main/res/values/arrays.xml"
 gradle_path = ROOT / "app/build.gradle"
 entry_path = ROOT / "app/src/main/java/com/mt8163/tools/xposed/XposedEntry.java"
 init_path = ROOT / "app/src/main/assets/xposed_init"
@@ -35,10 +38,23 @@ try:
         fail("Manifest xposedminversion must be exactly 93.")
 
     scope = metadata.get("xposedscope")
-    if scope is None or scope.get(ANDROID_NS + "value") != "android":
-        fail("Manifest xposedscope must target android.")
+    if scope is None or scope.get(ANDROID_NS + "resource") != "@array/xposed_scope":
+        fail("Manifest xposedscope must reference @array/xposed_scope.")
 except (ET.ParseError, OSError, AttributeError) as error:
     fail(f"Cannot validate AndroidManifest.xml: {error}")
+
+try:
+    resources = ET.parse(scope_path).getroot()
+    scope_array = next(
+        (item for item in resources.findall("string-array")
+         if item.get("name") == "xposed_scope"),
+        None,
+    )
+    packages = [item.text for item in scope_array.findall("item")] if scope_array is not None else []
+    if packages != ["android"]:
+        fail("xposed_scope must contain only the android package.")
+except (ET.ParseError, OSError, AttributeError) as error:
+    fail(f"Cannot validate Xposed scope resource: {error}")
 
 try:
     gradle = gradle_path.read_text(encoding="utf-8")
