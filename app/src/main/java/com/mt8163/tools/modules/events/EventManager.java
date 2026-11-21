@@ -3,18 +3,13 @@ package com.mt8163.tools.modules.events;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
-
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class EventManager {
-    public interface Listener {
-        void onEventsChanged();
-    }
-
+    public interface Listener { void onEventsChanged(); }
     private static volatile EventManager instance;
     private final EventDatabase database;
     private final ExecutorService writer = Executors.newSingleThreadExecutor();
@@ -27,77 +22,51 @@ public final class EventManager {
         enabled = context.getSharedPreferences("mt8163_tools", Context.MODE_PRIVATE)
                 .getBoolean("module_events", true);
     }
-
     public static EventManager get(Context context) {
-        if (instance == null) {
-            synchronized (EventManager.class) {
-                if (instance == null) instance = new EventManager(context.getApplicationContext());
-            }
+        if (instance == null) synchronized (EventManager.class) {
+            if (instance == null) instance = new EventManager(context.getApplicationContext());
         }
         return instance;
     }
-
-    public void setEnabled(boolean value) {
-        enabled = value;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setListener(Listener value) {
-        listener = value;
-    }
-
+    public void setEnabled(boolean value) { enabled = value; }
+    public boolean isEnabled() { return enabled; }
+    public void setListener(Listener value) { listener = value; }
     public void log(String module, String source, String message) {
-        if (!enabled || module == null || module.trim().isEmpty()
-                || source == null || message == null) return;
-        final String safeModule = module.trim();
-        final String safeSource = source.trim().isEmpty() ? "General" : source.trim();
-        final String safeMessage = message.trim();
-        if (safeMessage.isEmpty()) return;
+        if (!enabled || module == null || module.trim().isEmpty() || source == null || message == null) return;
+        enqueue(module.trim(), source.trim().isEmpty() ? "General" : source.trim(), message.trim(), false);
+    }
+    public void logLifecycle(String source, String message) {
+        if (source != null && message != null) enqueue("Events", source, message, true);
+    }
+    private void enqueue(String module, String source, String message, boolean lifecycle) {
+        if (message.isEmpty()) return;
         writer.execute(() -> {
-            if (!enabled) return;
+            if (!lifecycle && !enabled) return;
             try {
-                database.insert(System.currentTimeMillis(), safeModule, safeSource, safeMessage);
-                notifyListener();
-            } catch (RuntimeException ignored) {
-            }
+                database.insert(System.currentTimeMillis(), module, source, message);
+                mainHandler.post(() -> {
+                    Listener current = listener;
+                    if (enabled && current != null) current.onEventsChanged();
+                });
+            } catch (RuntimeException ignored) { }
         });
     }
-
     public List<EventRecord> read(List<String> modules, int limit, long beforeId) {
-        if (!enabled) return Collections.emptyList();
-        return database.read(modules, limit, beforeId);
+        return enabled ? database.read(modules, limit, beforeId) : Collections.emptyList();
     }
-
     public List<EventRecord> readAll(List<String> modules) {
-        if (!enabled) return Collections.emptyList();
-        return database.readAll(modules);
+        return enabled ? database.readAll(modules) : Collections.emptyList();
     }
-
-    public List<String> getModules() {
-        if (!enabled) return Collections.emptyList();
-        return database.getModules();
-    }
-
-    public int count() {
-        return enabled ? database.count() : 0;
-    }
-
+    public List<String> getModules() { return enabled ? database.getModules() : Collections.emptyList(); }
+    public int count() { return enabled ? database.count() : 0; }
     public void clear() {
         if (!enabled) return;
         writer.execute(() -> {
-            if (!enabled) return;
-            database.clear();
-            notifyListener();
-        });
-    }
-
-    private void notifyListener() {
-        mainHandler.post(() -> {
-            Listener current = listener;
-            if (enabled && current != null) current.onEventsChanged();
+            if (enabled) database.clear();
+            mainHandler.post(() -> {
+                Listener current = listener;
+                if (enabled && current != null) current.onEventsChanged();
+            });
         });
     }
 }
