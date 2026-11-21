@@ -112,7 +112,7 @@ Activity and UI components. UI displays module state and calls module/Core inter
 
 ### `com.mt8163.tools.xposed`
 
-LSPosed integration layer, isolated from UI:
+Legacy XposedBridge integration layer, isolated from UI:
 
 - `XposedEntry` — framework entry point registered through `assets/xposed_init`.
 - `HookRegistry` — dispatches package-load callbacks to applicable hooks.
@@ -121,11 +121,21 @@ LSPosed integration layer, isolated from UI:
 
 Hook code must use the target process's package name and class loader. A hook failure must be isolated and logged; it must not prevent unrelated hooks from loading.
 
-## Xposed and build configuration
+## Xposed API and build configuration
 
-The current Gradle configuration compiles against legacy Xposed API 82 using `compileOnly`. The framework provides Xposed API classes at runtime; they must not be bundled into the APK.
+The module requires **Xposed runtime API 93 or newer**, declared by `xposedminversion=93` in `AndroidManifest.xml`.
 
-The manifest currently declares the legacy module metadata and `xposedminversion=82`. The LSPosed UI reporting Xposed API 100 is a framework API level and is not the Maven artifact version.
+The source uses the **Legacy XposedBridge API**, not Modern libxposed. The Gradle dependency `de.robv.android.xposed:api:82` is the compile-time API artifact used to resolve the legacy classes and method signatures. It is declared with `compileOnly`: the framework supplies these classes at runtime, and they must never be packaged in the APK.
+
+These values have different roles:
+
+- `xposedminversion=93` — minimum Xposed runtime API required to load the module.
+- `compileOnly de.robv.android.xposed:api:82` — compile-time Legacy API artifact.
+- `minSdk 28` / `targetSdk 28` — Android platform SDK levels; unrelated to Xposed API versions.
+
+The entry point remains `IXposedHookLoadPackage` and is registered through `assets/xposed_init`. Do not replace it with Modern libxposed entry points or `META-INF/xposed` metadata as part of this configuration.
+
+The declared LSPosed scope is `android`, matching the Android system process targeted by the Voltage hook.
 
 ## Module state and process boundaries
 
