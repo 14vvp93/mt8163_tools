@@ -2,18 +2,25 @@
 
 Package: `com.mt8163.tools.xposed`
 
-All LSPosed hook entry points, hook registration, and individual hook implementations belong in this package.
+All LSPosed hooks and their registration belong in this package.
 
-## Structure
+## Files
 
-- `XposedEntry` — modern libxposed module entry point.
-- `HookRegistry` — registers hooks after the framework loads the module.
-- `hooks/` — individual hooks grouped by target component.
+- `XposedEntry` — legacy Xposed package-load entry point.
+- `HookRegistry` — dispatches package-load events to matching hooks.
+- `PackageHook` — contract for individual hook implementations.
+- `hooks/` — target-specific hook classes.
 
 ## Runtime
 
-Target framework: LSPosed 1.9.2 (Xposed API 100), Android 9 (API 28).
+- Framework: LSPosed 1.9.2 (framework reports Xposed API 100).
+- Compile API: legacy Xposed API 82.
+- Device target: Android 9 (API 28).
 
-Use the modern libxposed API 100 only. Do not mix it with the legacy `de.robv.android.xposed` API. Hook implementations must be registered from the module lifecycle callback, not during class initialization.
+The framework supplies the Xposed API at runtime. Gradle must use `compileOnly`; never package Xposed API classes in the APK.
 
-No target-specific hooks are added until their target package and behavior are defined.
+The entry point is registered in `app/src/main/assets/xposed_init`. Set `xposedminversion` to 82 because this module compiles against legacy API 82; the framework's displayed API 100 is not the library version.
+
+Each hook must implement `PackageHook`, match its target package, and use the target package's `classLoader`. Keep each hook isolated so one failure does not block other hooks.
+
+No target-specific hooks are registered yet.
