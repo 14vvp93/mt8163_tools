@@ -20,7 +20,8 @@ public final class VoltageModuleView {
         TextView valueText = root.findViewById(R.id.voltage_offset_value);
         Button resetButton = root.findViewById(R.id.voltage_reset);
 
-        int progress = Math.round(VoltageSettingsStore.getOffset(context) * 10.0f) + 20;
+        int progress = Math.max(0, Math.min(40,
+                Math.round(VoltageSettingsStore.getOffset(context) * 10.0f) + 20));
         offsetBar.setMax(40);
         offsetBar.setProgress(progress);
         valueText.setText(formatOffset((progress - 20) / 10.0f));
@@ -43,12 +44,13 @@ public final class VoltageModuleView {
 
         resetButton.setOnClickListener(view -> {
             offsetBar.setProgress(20);
+            valueText.setText(formatOffset(0.0f));
             saveAndPublish(context, 20);
         });
     }
 
     private static void saveAndPublish(Context context, int progress) {
-        float offset = (progress - 20) / 10.0f;
+        float offset = (Math.max(0, Math.min(40, progress)) - 20) / 10.0f;
         float previous = VoltageSettingsStore.getOffset(context);
         VoltageSettingsStore.saveOffset(context, offset);
         VoltageSettingsStore.publish(context);
