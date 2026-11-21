@@ -2,6 +2,8 @@ package com.mt8163.tools.ui;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,7 +11,6 @@ import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import com.mt8163.tools.BuildConfig;
 import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.EventLogger;
@@ -51,7 +52,7 @@ public final class MainActivity extends Activity {
         overlay = findViewById(R.id.disabled_overlay);
         moduleStatus = findViewById(R.id.module_status);
         TextView version = findViewById(R.id.version_label);
-        version.setText(getString(R.string.version_format, BuildConfig.VERSION_NAME));
+        version.setText(getString(R.string.version_format, getAppVersion()));
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
@@ -59,6 +60,15 @@ public final class MainActivity extends Activity {
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
         showModule(selected);
         updateModuleStatus();
+    }
+
+    private String getAppVersion() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionName == null ? "Unknown" : info.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "Unknown";
+        }
     }
 
     @Override
