@@ -29,6 +29,7 @@ public final class VoltageHook implements PackageHook {
 
     private static boolean installAttempted;
     private static boolean hooksInstalled;
+    private static boolean hookStatusReported;
     private static boolean receiverRegistered;
     private static String installError;
     private static String sessionToken;
@@ -93,7 +94,6 @@ public final class VoltageHook implements PackageHook {
             synchronized (LOCK) {
                 hooksInstalled = true;
             }
-            logEvent("hookInstalled", "MCU constructor and onBattery hooks installed");
         } catch (Throwable error) {
             synchronized (LOCK) {
                 installError = error.toString();
@@ -108,8 +108,14 @@ public final class VoltageHook implements PackageHook {
         synchronized (LOCK) {
             eventContext = context.getApplicationContext();
             mcuService = service;
-            if (!hooksInstalled && installError != null) {
-                logEvent("hookInstallFailed", "MCU hook installation incomplete: " + installError);
+            if (!hookStatusReported) {
+                hookStatusReported = true;
+                if (hooksInstalled) {
+                    logEvent("hookInstalled", "MCU constructor and onBattery hooks installed");
+                } else {
+                    logEvent("hookInstallFailed", "MCU hook installation incomplete: "
+                            + (installError == null ? "unknown error" : installError));
+                }
             }
 
             if (!receiverRegistered) {
