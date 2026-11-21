@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.Process;
 
+import com.mt8163.tools.core.EventLogger;
+
 public final class EventsReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
