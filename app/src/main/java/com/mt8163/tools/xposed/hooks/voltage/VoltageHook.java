@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.UserHandle;
 
@@ -11,44 +12,41 @@ import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
 import com.mt8163.tools.xposed.PackageHook;
 
-import java.lang.reflect.Method;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.Locale;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public final class VoltageHook implements PackageHook {
+    private static final String APP_PACKAGE = "com.mt8163.tools";
     private static final String TARGET_PACKAGE = "android";
     private static final String TARGET_CLASS = "android.carsource.McuService";
+    private static final String HOOK_PREFERENCES = "voltage_hook_config";
+    private static final String KEY_MODULE_ENABLED = "module_enabled";
+    private static final String KEY_VOLTAGE_OFFSET = "voltage_offset";
     private static final float MIN_OUTPUT_VOLTAGE = 0.0f;
     private static final float MAX_OUTPUT_VOLTAGE = 25.5f;
     private static final Object LOCK = new Object();
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private static boolean installAttempted;
-    private static boolean hooksInstalled;
-    private static boolean hookStatusReported;
+    private static boolean constructorHookInstalled;
+    private static boolean batteryHookInstalled;
+    private static boolean initialConfigurationLoaded;
     private static boolean receiverRegistered;
-    private static boolean bootReceiverRegistered;
-    private static boolean bootCompleted;
     private static boolean hasReportedBatteryPacket;
     private static boolean hasReportedVoltageApplied;
-    private static String installError;
-    private static String sessionToken;
+    private static boolean hasReportedVoltage;
+    private static float lastReportedVoltage;
     private static Context eventContext;
     private static Object mcuService;
-    private static BroadcastReceiver bootReceiver;
-    private static boolean configReceived;
+    private static BroadcastReceiver configReceiver;
     private static boolean moduleEnabled;
     private static float voltageOffset;
     private static boolean hasRawVoltage;
     private static float rawBatteryVoltage;
-    private static boolean hasReportedVoltage;
-    private static float lastReportedVoltage;
 
     @Override
     public boolean supports(String packageName) {
@@ -58,17 +56,20 @@ public final class VoltageHook implements PackageHook {
     @Override
     public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
         synchronized (LOCK) {
-            if (installAttempted) {
-                if (installError != null) throw new IllegalStateException(installError);
-                return;
-            }
+            if (installAttempted) return;
             installAttempted = true;
         }
 
+        Class<?> packetClass;
         try {
-            Class<?> packetClass = XposedHelpers.findClass(
+            packetClass = XposedHelpers.findClass(
                     TARGET_CLASS + "$McuPacket", param.classLoader);
+        } catch (Throwable error) {
+            logInstallFailure("MCU packet class lookup failed", error);
+            throw error;
+        }
 
+        try {
             XposedHelpers.findAndHookConstructor(
                     TARGET_CLASS,
                     param.classLoader,
@@ -83,7 +84,14 @@ public final class VoltageHook implements PackageHook {
                             }
                         }
                     });
+            synchronized (LOCK) {
+                constructorHookInstalled = true;
+            }
+        } catch (Throwable error) {
+            logInstallFailure("MCU constructor hook failed", error);
+        }
 
+        try {
             XposedHelpers.findAndHookMethod(
                     TARGET_CLASS,
                     param.classLoader,
@@ -97,220 +105,138 @@ public final class VoltageHook implements PackageHook {
                                             ? hookParam.args[0] : null);
                         }
                     });
-
             synchronized (LOCK) {
-                hooksInstalled = true;
+                batteryHookInstalled = true;
             }
         } catch (Throwable error) {
-            synchronized (LOCK) {
-                installError = error.toString();
+            logInstallFailure("MCU onBattery hook failed", error);
+        }
+
+        synchronized (LOCK) {
+            if (!constructorHookInstalled && !batteryHookInstalled) {
+                throw new IllegalStateException("No Voltage hooks were installed");
             }
-            XposedBridge.log("MT8163 Tools: Voltage hook installation failed: " + error);
-            logEvent("hookInstallFailed", "MCU hook installation failed: " + error);
-            throw error;
         }
     }
 
     private static void onServiceCreated(Context context, Object service) {
         synchronized (LOCK) {
-            eventContext = context.getApplicationContext();
+            eventContext = context;
             mcuService = service;
-
-            if (!hookStatusReported) {
-                hookStatusReported = true;
-                if (hooksInstalled) {
-                    logEvent("hookInstalled", "MCU constructor and onBattery hooks installed");
-                } else {
-                    logEvent("hookInstallFailed", "MCU hook installation incomplete: "
-                            + (installError == null ? "unknown error" : installError));
-                }
-            }
-
-            if (!receiverRegistered && !registerConfigReceiverLocked(context)) return;
-
-            if (!bootCompleted) {
-                bootCompleted = readBootCompleted();
-                if (!bootCompleted) {
-                    if (!registerBootReceiverLocked(context)) {
-                        logEvent("bootReceiverRegistrationFailed",
-                                "Unable to wait for Android boot completion");
-                        return;
-                    }
-                    if (readBootCompleted()) {
-                        bootCompleted = true;
-                        unregisterBootReceiverLocked(context);
-                    }
-                }
-            }
         }
 
-        if (bootCompleted) requestConfiguration(context);
+        loadInitialConfiguration();
+
+        synchronized (LOCK) {
+            if (!receiverRegistered) registerConfigReceiverLocked(context);
+            applyCurrentVoltageLocked();
+        }
+
+        logEvent("hookInstalled", "Voltage hooks initialized");
     }
 
-    private static boolean registerConfigReceiverLocked(Context context) {
+    private static void loadInitialConfiguration() {
+        synchronized (LOCK) {
+            if (initialConfigurationLoaded) return;
+            initialConfigurationLoaded = true;
+        }
+
+        try {
+            XSharedPreferences preferences =
+                    new XSharedPreferences(APP_PACKAGE, HOOK_PREFERENCES);
+            preferences.reload();
+
+            boolean enabled = preferences.getBoolean(KEY_MODULE_ENABLED, false);
+            float offset = preferences.getFloat(KEY_VOLTAGE_OFFSET, 0.0f);
+            if (!VoltageSettingsStore.isValidOffset(offset)) offset = 0.0f;
+
+            synchronized (LOCK) {
+                moduleEnabled = enabled;
+                voltageOffset = offset;
+                applyCurrentVoltageLocked();
+            }
+
+            logEvent("configurationLoaded", String.format(Locale.US,
+                    "Initial settings loaded: enabled=%s, offset=%+.1f V",
+                    enabled, offset));
+        } catch (Throwable error) {
+            logEvent("configurationLoadFailed",
+                    "Unable to read initial Voltage settings: " + error);
+            XposedBridge.log("MT8163 Tools: Voltage settings load failed: " + error);
+        }
+    }
+
+    private static void registerConfigReceiverLocked(Context context) {
         try {
             IntentFilter filter = new IntentFilter(
-                    VoltageSettingsStore.ACTION_CONFIG_RESPONSE);
-            filter.addAction(VoltageSettingsStore.ACTION_CONFIG_CHANGED);
+                    VoltageSettingsStore.ACTION_CONFIG_CHANGED);
 
-            BroadcastReceiver receiver = new BroadcastReceiver() {
+            configReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context receiverContext, Intent intent) {
-                    receiveConfig(intent);
+                    receiveConfiguration(receiverContext, intent, getSendingUid());
                 }
             };
 
-            context.registerReceiverAsUser(receiver, UserHandle.SYSTEM, filter, null, null);
-            sessionToken = createToken();
+            context.registerReceiverAsUser(
+                    configReceiver, UserHandle.SYSTEM, filter, null, null);
             receiverRegistered = true;
-            configReceived = false;
-            logEvent("receiverRegistered", "Voltage configuration receiver registered");
-            return true;
+            logEvent("receiverRegistered", "Voltage settings update receiver registered");
         } catch (RuntimeException error) {
+            configReceiver = null;
             logEvent("receiverRegistrationFailed",
-                    "Voltage configuration receiver registration failed: " + error);
+                    "Voltage settings receiver registration failed: " + error);
             XposedBridge.log("MT8163 Tools: Voltage receiver registration failed: " + error);
-            return false;
         }
     }
 
-    private static boolean registerBootReceiverLocked(Context context) {
-        if (bootReceiverRegistered) return true;
-        try {
-            BroadcastReceiver receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context receiverContext, Intent intent) {
-                    if (intent == null
-                            || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) return;
-
-                    synchronized (LOCK) {
-                        bootCompleted = true;
-                        unregisterBootReceiverLocked(receiverContext);
-                    }
-                    requestConfiguration(receiverContext);
-                }
-            };
-
-            context.registerReceiverAsUser(receiver, UserHandle.SYSTEM,
-                    new IntentFilter(Intent.ACTION_BOOT_COMPLETED), null, null);
-            bootReceiver = receiver;
-            bootReceiverRegistered = true;
-            return true;
-        } catch (RuntimeException error) {
-            XposedBridge.log("MT8163 Tools: Boot receiver registration failed: " + error);
-            return false;
-        }
-    }
-
-    private static void unregisterBootReceiverLocked(Context context) {
-        if (!bootReceiverRegistered || bootReceiver == null) return;
-        try {
-            context.unregisterReceiver(bootReceiver);
-        } catch (RuntimeException ignored) {
-        }
-        bootReceiver = null;
-        bootReceiverRegistered = false;
-    }
-
-    private static boolean readBootCompleted() {
-        try {
-            Class<?> properties = Class.forName("android.os.SystemProperties");
-            Method get = properties.getMethod("get", String.class, String.class);
-            return "1".equals(get.invoke(null, "sys.boot_completed", "0"));
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-            return false;
-        }
-    }
-
-    private static void requestConfiguration(Context context) {
-        String token;
-        synchronized (LOCK) {
-            if (!bootCompleted || !receiverRegistered) return;
-            token = sessionToken;
-        }
-        if (!VoltageSettingsStore.isValidToken(token)) return;
-
-        Intent request = new Intent(VoltageSettingsStore.ACTION_CONFIG_REQUEST);
-        request.setPackage("com.mt8163.tools");
-        request.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-        request.putExtra(VoltageSettingsStore.EXTRA_TOKEN, token);
-        try {
-            context.sendBroadcastAsUser(request, UserHandle.SYSTEM);
-            logEvent("configurationRequested", "Voltage configuration requested");
-        } catch (RuntimeException error) {
-            logEvent("configurationRequestFailed",
-                    "Voltage configuration request failed: " + error);
-        }
-    }
-
-    private static String createToken() {
-        byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        StringBuilder result = new StringBuilder(64);
-        for (byte value : bytes) {
-            result.append(String.format(Locale.US, "%02x", value & 0xff));
-        }
-        return result.toString();
-    }
-
-    private static void receiveConfig(Intent intent) {
-        if (intent == null) return;
-        String action = intent.getAction();
-        boolean response = VoltageSettingsStore.ACTION_CONFIG_RESPONSE.equals(action);
-        boolean changed = VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(action);
-        if (!response && !changed) return;
-
-        Bundle extras = intent.getExtras();
-        if (extras == null) {
-            logEvent("invalidConfiguration", "Configuration message has no extras");
+    private static void receiveConfiguration(
+            Context context, Intent intent, int sendingUid) {
+        if (intent == null
+                || !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
             return;
         }
 
-        Object tokenValue = extras.get(VoltageSettingsStore.EXTRA_TOKEN);
-        Object enabledValue = extras.get(VoltageSettingsStore.EXTRA_ENABLED);
-        Object offsetValue = extras.get(VoltageSettingsStore.EXTRA_OFFSET);
-        if (!(tokenValue instanceof String) || !(enabledValue instanceof Boolean)
-                || !(offsetValue instanceof Number)) {
-            logEvent("invalidConfiguration", "Configuration message has invalid field types");
-            return;
-        }
-
-        String token = (String) tokenValue;
-        float offset = ((Number) offsetValue).floatValue();
-        if (!VoltageSettingsStore.isValidToken(token)
-                || !VoltageSettingsStore.isValidOffset(offset)) {
-            logEvent("invalidConfiguration", "Configuration token or offset is invalid");
-            return;
-        }
-
-        synchronized (LOCK) {
-            if (!sameToken(sessionToken, token)) {
-                logEvent("invalidConfiguration", "Configuration session token mismatch");
+        try {
+            int appUid = context.getPackageManager().getPackageUid(APP_PACKAGE, 0);
+            if (sendingUid != appUid) {
+                logEvent("configurationRejected", "Settings broadcast sender is not the app");
                 return;
             }
-            if (changed && !configReceived) return;
+        } catch (PackageManager.NameNotFoundException error) {
+            logEvent("configurationRejected", "MT8163 Tools package is unavailable");
+            return;
+        }
 
-            boolean enabled = (Boolean) enabledValue;
-            boolean wasEnabled = moduleEnabled;
-            float previousOffset = voltageOffset;
+        Bundle extras = intent.getExtras();
+        if (extras == null) return;
+
+        Object enabledValue = extras.get(VoltageSettingsStore.EXTRA_ENABLED);
+        Object offsetValue = extras.get(VoltageSettingsStore.EXTRA_OFFSET);
+        if (!(enabledValue instanceof Boolean) || !(offsetValue instanceof Number)) {
+            logEvent("configurationRejected", "Settings broadcast has invalid fields");
+            return;
+        }
+
+        boolean enabled = (Boolean) enabledValue;
+        float offset = ((Number) offsetValue).floatValue();
+        if (!VoltageSettingsStore.isValidOffset(offset)) {
+            logEvent("configurationRejected", "Voltage offset is outside the allowed range");
+            return;
+        }
+
+        synchronized (LOCK) {
+            boolean changed = moduleEnabled != enabled
+                    || Float.compare(voltageOffset, offset) != 0;
             moduleEnabled = enabled;
             voltageOffset = offset;
-            if (response) configReceived = true;
             applyCurrentVoltageLocked();
 
-            if (response) {
-                logEvent("configurationLoaded", "Voltage configuration received");
-            } else if (wasEnabled != enabled || Float.compare(previousOffset, offset) != 0) {
+            if (changed) {
                 logEvent("configurationChanged", String.format(Locale.US,
                         "Enabled=%s, offset=%+.1f V", enabled, offset));
             }
         }
-    }
-
-    private static boolean sameToken(String expected, String actual) {
-        if (!VoltageSettingsStore.isValidToken(expected)
-                || !VoltageSettingsStore.isValidToken(actual)) return false;
-        return MessageDigest.isEqual(expected.getBytes(), actual.getBytes());
     }
 
     private static void processBatteryPacket(Object service, Object packet) {
@@ -324,36 +250,25 @@ public final class VoltageHook implements PackageHook {
 
             int subCommand = ((Number) subCommandValue).intValue();
             int parameterCount = ((Number) parameterCountValue).intValue();
-            if (subCommand != 3) return;
-            if (parameterCount < 1) {
-                logEvent("voltageInvalid", "Battery packet has no voltage parameter");
-                return;
-            }
+            if (subCommand != 3 || parameterCount < 1) return;
 
             Object parameterValue = XposedHelpers.callMethod(packet, "param", 0);
-            if (!(parameterValue instanceof Number)) {
-                logEvent("voltageInvalid", "Battery voltage parameter is not numeric");
-                return;
-            }
+            if (!(parameterValue instanceof Number)) return;
 
-            int parameter = ((Number) parameterValue).intValue();
-            float rawVoltage = (parameter & 0xff) / 10.0f;
-            if (!isValidRawVoltage(rawVoltage)) {
-                logEvent("voltageInvalid",
-                        String.format(Locale.US, "Invalid MCU voltage: %.1f V", rawVoltage));
-                return;
-            }
+            float rawVoltage = (((Number) parameterValue).intValue() & 0xff) / 10.0f;
+            if (!isValidRawVoltage(rawVoltage)) return;
 
             synchronized (LOCK) {
                 mcuService = service;
                 rawBatteryVoltage = rawVoltage;
                 hasRawVoltage = true;
+
                 if (!hasReportedBatteryPacket) {
                     hasReportedBatteryPacket = true;
                     logEvent("batteryPacketReceived", String.format(Locale.US,
-                            "MCU battery packet received: subCmd=%d, voltage=%.1f V",
-                            subCommand, rawVoltage));
+                            "MCU battery voltage received: %.1f V", rawVoltage));
                 }
+
                 applyCurrentVoltageLocked();
             }
         } catch (Throwable error) {
@@ -368,32 +283,30 @@ public final class VoltageHook implements PackageHook {
     }
 
     private static void applyCurrentVoltageLocked() {
-        if (mcuService == null || !hasRawVoltage || !configReceived) return;
+        if (mcuService == null || !hasRawVoltage) return;
 
         float requestedVoltage = moduleEnabled
                 ? rawBatteryVoltage + voltageOffset : rawBatteryVoltage;
+        if (Float.isNaN(requestedVoltage) || Float.isInfinite(requestedVoltage)) return;
+
         float outputVoltage = Math.max(MIN_OUTPUT_VOLTAGE,
                 Math.min(MAX_OUTPUT_VOLTAGE, requestedVoltage));
-        boolean limited = Float.compare(requestedVoltage, outputVoltage) != 0;
 
         try {
             XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", outputVoltage);
+
             if (!hasReportedVoltageApplied) {
                 hasReportedVoltageApplied = true;
                 logEvent("voltageApplied", String.format(Locale.US,
                         "mBatteryVoltage updated: %.1f V → %.1f V",
                         rawBatteryVoltage, outputVoltage));
             }
+
             boolean outputChanged = !hasReportedVoltage
                     || Float.compare(lastReportedVoltage, outputVoltage) != 0;
             lastReportedVoltage = outputVoltage;
             hasReportedVoltage = true;
 
-            if (limited && outputChanged) {
-                logEvent("voltageOutputLimited", String.format(Locale.US,
-                        "Requested %.1f V, output limited to %.1f V",
-                        requestedVoltage, outputVoltage));
-            }
             if (moduleEnabled && outputChanged
                     && Float.compare(rawBatteryVoltage, outputVoltage) != 0) {
                 logEvent("voltageCorrected", String.format(Locale.US,
@@ -403,6 +316,11 @@ public final class VoltageHook implements PackageHook {
             logEvent("correctionFailed", "MCU voltage field update failed: " + error);
             XposedBridge.log("MT8163 Tools: Voltage field update failed: " + error);
         }
+    }
+
+    private static void logInstallFailure(String message, Throwable error) {
+        logEvent("hookInstallFailed", message + ": " + error);
+        XposedBridge.log("MT8163 Tools: " + message + ": " + error);
     }
 
     private static void logEvent(String source, String message) {
