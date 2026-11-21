@@ -7,7 +7,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.mt8163.tools.R;
-import com.mt8163.tools.modules.events.EventLogger;
+import com.mt8163.tools.core.EventLogger;
 
 import java.util.Locale;
 
