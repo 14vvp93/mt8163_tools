@@ -15,10 +15,10 @@
             android:value="@string/xposed_description" />
         <meta-data
             android:name="xposedminversion"
-            android:value="82" />
+            android:value="93" />
         <meta-data
             android:name="xposedscope"
-            android:value="system" />
+            android:value="android" />
 
         <activity
             android:name=".ui.MainActivity"
