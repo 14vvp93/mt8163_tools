@@ -7,7 +7,8 @@ import android.content.Intent;
 public final class VoltageConfigReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent == null || !VoltageSettingsStore.ACTION_CONFIG_REQUEST.equals(intent.getAction())) {
+        if (intent == null
+                || !VoltageSettingsStore.ACTION_CONFIG_REQUEST.equals(intent.getAction())) {
             return;
         }
 
@@ -21,8 +22,10 @@ public final class VoltageConfigReceiver extends BroadcastReceiver {
         Intent response = new Intent(VoltageSettingsStore.ACTION_CONFIG_RESPONSE);
         response.setPackage("android");
         response.putExtra(VoltageSettingsStore.EXTRA_TOKEN, token);
-        response.putExtra(VoltageSettingsStore.EXTRA_ENABLED, VoltageSettingsStore.isModuleEnabled(context));
-        response.putExtra(VoltageSettingsStore.EXTRA_OFFSET, VoltageSettingsStore.getOffset(context));
+        response.putExtra(VoltageSettingsStore.EXTRA_ENABLED,
+                VoltageSettingsStore.isModuleEnabled(context));
+        response.putExtra(VoltageSettingsStore.EXTRA_OFFSET,
+                VoltageSettingsStore.getOffset(context));
         context.sendBroadcast(response);
     }
 }

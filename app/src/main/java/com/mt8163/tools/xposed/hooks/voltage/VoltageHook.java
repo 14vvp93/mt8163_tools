@@ -37,17 +37,26 @@ public final class VoltageHook implements PackageHook {
 
     @Override
     public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
-        Class<?> packetClass = XposedHelpers.findClass(TARGET_CLASS + "$McuPacket", param.classLoader);
+        Class<?> packetClass = XposedHelpers.findClass(
+                TARGET_CLASS + "$McuPacket", param.classLoader);
 
-        XposedHelpers.findAndHookConstructor(TARGET_CLASS, param.classLoader, Context.class,
+        XposedHelpers.findAndHookConstructor(
+                TARGET_CLASS,
+                param.classLoader,
+                Context.class,
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam hookParam) {
-                        registerReceiverAndRequestConfig((Context) hookParam.args[0], hookParam.thisObject);
+                        registerReceiverAndRequestConfig(
+                                (Context) hookParam.args[0], hookParam.thisObject);
                     }
                 });
 
-        XposedHelpers.findAndHookMethod(TARGET_CLASS, param.classLoader, "onBattery", packetClass,
+        XposedHelpers.findAndHookMethod(
+                TARGET_CLASS,
+                param.classLoader,
+                "onBattery",
+                packetClass,
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam hookParam) {
@@ -63,7 +72,8 @@ public final class VoltageHook implements PackageHook {
                 return;
             }
 
-            IntentFilter filter = new IntentFilter(VoltageSettingsStore.ACTION_CONFIG_RESPONSE);
+            IntentFilter filter = new IntentFilter(
+                    VoltageSettingsStore.ACTION_CONFIG_RESPONSE);
             filter.addAction(VoltageSettingsStore.ACTION_CONFIG_CHANGED);
             context.registerReceiver(new BroadcastReceiver() {
                 @Override
@@ -71,9 +81,10 @@ public final class VoltageHook implements PackageHook {
                     receiveConfig(intent);
                 }
             }, filter);
-            receiverRegistered = true;
+
             sessionToken = createToken();
             configReceived = false;
+            receiverRegistered = true;
         }
 
         Intent request = new Intent(VoltageSettingsStore.ACTION_CONFIG_REQUEST);
@@ -108,10 +119,16 @@ public final class VoltageHook implements PackageHook {
         if (!response && !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(action)) {
             return;
         }
+        if (!intent.hasExtra(VoltageSettingsStore.EXTRA_ENABLED)
+                || !intent.hasExtra(VoltageSettingsStore.EXTRA_OFFSET)) {
+            return;
+        }
 
         String token = intent.getStringExtra(VoltageSettingsStore.EXTRA_TOKEN);
-        boolean enabled = intent.getBooleanExtra(VoltageSettingsStore.EXTRA_ENABLED, false);
-        float offset = intent.getFloatExtra(VoltageSettingsStore.EXTRA_OFFSET, Float.NaN);
+        boolean enabled = intent.getBooleanExtra(
+                VoltageSettingsStore.EXTRA_ENABLED, false);
+        float offset = intent.getFloatExtra(
+                VoltageSettingsStore.EXTRA_OFFSET, Float.NaN);
         if (!VoltageSettingsStore.isValidOffset(offset)) {
             return;
         }
@@ -139,13 +156,25 @@ public final class VoltageHook implements PackageHook {
         }
 
         try {
-            int subCommand = (Integer) XposedHelpers.callMethod(packet, "subCmd");
-            int parameterCount = (Integer) XposedHelpers.callMethod(packet, "paramLen");
+            Object subCommandValue = XposedHelpers.callMethod(packet, "subCmd");
+            Object parameterCountValue = XposedHelpers.callMethod(packet, "paramLen");
+            if (!(subCommandValue instanceof Number)
+                    || !(parameterCountValue instanceof Number)) {
+                return;
+            }
+
+            int subCommand = ((Number) subCommandValue).intValue();
+            int parameterCount = ((Number) parameterCountValue).intValue();
             if (subCommand != 3 || parameterCount < 1) {
                 return;
             }
 
-            int parameter = (Integer) XposedHelpers.callMethod(packet, "param", 0);
+            Object parameterValue = XposedHelpers.callMethod(packet, "param", 0);
+            if (!(parameterValue instanceof Number)) {
+                return;
+            }
+
+            int parameter = ((Number) parameterValue).intValue();
             float rawVoltage = (parameter & 0xff) / 10.0f;
 
             synchronized (LOCK) {
@@ -168,7 +197,8 @@ public final class VoltageHook implements PackageHook {
                 ? rawBatteryVoltage + voltageOffset
                 : rawBatteryVoltage;
         try {
-            XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", effectiveVoltage);
+            XposedHelpers.setFloatField(
+                    mcuService, "mBatteryVoltage", effectiveVoltage);
         } catch (Throwable error) {
             XposedBridge.log("MT8163 Tools: Voltage field update failed: " + error);
         }
