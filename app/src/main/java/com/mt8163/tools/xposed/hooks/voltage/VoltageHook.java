@@ -74,10 +74,6 @@ public final class VoltageHook implements PackageHook {
             eventContext = context.getApplicationContext();
             mcuService = service;
             if (receiverRegistered) {
-                if (!hookReported) {
-                    hookReported = true;
-                    logEvent("hookInstalled", "MCU battery hook installed");
-                }
                 return;
             }
 
@@ -95,8 +91,12 @@ public final class VoltageHook implements PackageHook {
                 sessionToken = createToken();
                 configReceived = false;
                 receiverRegistered = true;
-                hookReported = true;
-                logEvent("hookInstalled", "MCU battery hook installed");
+                if (!hookReported) {
+                    logEvent("targetClassFound", TARGET_CLASS);
+                    logEvent("targetMethodFound", "onBattery(McuPacket)");
+                    logEvent("hookInstalled", "MCU battery hook installed");
+                    hookReported = true;
+                }
             } catch (Throwable error) {
                 logEvent("hookFailed", "Config receiver registration failed: " + error);
                 XposedBridge.log("MT8163 Tools: Voltage receiver registration failed: " + error);
