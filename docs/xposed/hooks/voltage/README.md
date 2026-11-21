@@ -83,6 +83,45 @@ It follows the existing `PackageHook` / `HookRegistry` integration. The hook tar
 
 The configuration receiver is registered with the `McuService` context after the service constructor.
 
+## Verified MCU Implementation
+
+The implementation details below were checked against the decompiled `boot-carservices.vdex` output in [`public_worker/artifacts/CarServises`](https://github.com/14vvp93/public_worker/tree/main/artifacts/CarServises).
+
+### Packet delivery
+
+`McuService` receives MCU data through Binder transaction `101` in `onTransact()`. It reads the byte array, creates an `McuPacket`, and passes it to `processMCUCommand()`.
+
+The packet layout used by `McuPacket` is:
+
+| Index | Field | Accessor |
+|---:|---|---|
+| `0` | Packet length | `paramLen()` uses this value |
+| `1` | Command ID | `cmd()` |
+| `2` | Subcommand ID | `subCmd()` |
+| `3+` | Parameters | `param(index)` |
+
+`processMCUCommand()` dispatches command `55` (`McuConstant.GID_BATTERY`) to `onBattery()`.
+
+### Original battery handling
+
+`McuService.onBattery(McuPacket)` processes battery data only when `subCmd() == 3`. It decodes the first parameter as an unsigned byte in tenths of a volt:
+
+```text
+rawVoltage = (param(0) & 0xFF) / 10.0
+```
+
+The original method then:
+
+1. Updates the low-battery state when voltage crosses `11.5 V`.
+2. Assigns the decoded value to `mBatteryVoltage`.
+3. Checks the configured reboot threshold and may request a system reboot through `sys.powerctl`.
+
+The reboot threshold defaults to `5.5 V` and is configured by `setLowBatteryThreshold()`. The original method must execute unchanged and must receive the unmodified MCU packet.
+
+### Battery value exposed to clients
+
+`McuService.getBattery()` returns `mBatteryVoltage`. `McuManager.getBattery()` forwards that Binder result to its caller. Therefore, updating `mBatteryVoltage` after the original `onBattery()` call changes the software-reported value seen through the existing MCU service API without changing the MCU packet or physical measurement.
+
 ## Voltage Processing
 
 The original `onBattery()` method executes first and remains unchanged. Voltage runs after it, so the original MCU processing and low-voltage/reboot logic receive the real MCU data.
