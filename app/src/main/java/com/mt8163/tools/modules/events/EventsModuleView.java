@@ -258,7 +258,6 @@ public final class EventsModuleView {
                 .setNegativeButton("Скасувати", null)
                 .setPositiveButton("Очистити", (dialog, which) -> {
                     manager.clear();
-                    manager.logLifecycle("clearHistory", "Event history cleared");
                     Toast.makeText(activity, "Історію очищено", Toast.LENGTH_SHORT).show();
                 })
                 .show();
