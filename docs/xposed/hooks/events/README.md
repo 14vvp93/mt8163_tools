@@ -1,5 +1,7 @@
-# Events hooks
+# Events Hook Integration
 
-Documentation for event-observation hooks. Java source belongs in `app/src/main/java/com/mt8163/tools/xposed/hooks/events/`.
+Events is a regular application module, not an Xposed hook. It receives events through the Core `com.mt8163.tools.core.EventLogger` interface.
 
-Events consumes events through Core's neutral interface. Other modules must not depend on Events. Define each target package and observed behavior before adding a hook.
+Xposed hooks in individual modules submit their own operational events through this interface. Events owns storage, filtering, display, copy, and export. Other modules must not depend on the Events module implementation.
+
+Module documentation: [docs/modules/events/README.md](../../../modules/events/README.md)
