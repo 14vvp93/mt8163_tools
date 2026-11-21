@@ -63,7 +63,7 @@ The app sends the complete configuration to the `android` process using a packag
 
 | Field | Value |
 |---|---|
-| Action | `com.mt8163tools.action.VOLTAGE_CONFIG_CHANGED` |
+| Action | `com.mt8163.tools.action.VOLTAGE_OFFSET_CHANGED` |
 | Target package | `android` |
 | Extra | `module_enabled` |
 | Extra | `voltage_offset` |
