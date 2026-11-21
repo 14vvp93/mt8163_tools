@@ -99,11 +99,11 @@ public final class EventsModuleView {
 
         scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
             autoScroll = y + scroll.getHeight() >= entries.getHeight() - 24;
-            if (y <= 8 && hasMore && !loadingOlder) loadOlder();
+            if (y < oldY && y <= 8 && hasMore && !loadingOlder) loadOlder();
         });
 
         manager.setListener(() -> {
-            if (manager != null && manager.isEnabled()) refresh();
+            if (manager != null && manager.isEnabled() && autoScroll) refresh();
         });
         refresh();
         return root;
@@ -149,6 +149,7 @@ public final class EventsModuleView {
                     }
                 })
                 .setPositiveButton("Застосувати", (dialog, which) -> {
+                    if (selectedModules.isEmpty()) allModules = true;
                     filterButton.setText(allModules ? "Усі модулі  ▾"
                             : String.join(", ", selectedModules) + "  ▾");
                     manager.logLifecycle("filterChanged", filterButton.getText().toString());
