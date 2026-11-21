@@ -6,5 +6,4 @@
     <string name="version_format">Version %1$s</string>
     <string name="module_status_activated">Module: Activated</string>
     <string name="module_status_not_activated">Module: Not activated</string>
-    <string name="module_status_check_lsposed">Module: Check LSPosed</string>
 </resources>
