@@ -70,7 +70,8 @@ public final class EventsModuleView {
 
         LinearLayout root = new LinearLayout(owner);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(24, 20, 24, 12);
+        root.setPadding(28, 20, 28, 16);
+        root.setBackgroundColor(Color.rgb(17, 19, 22));
 
         LinearLayout actions = new LinearLayout(owner);
         actions.setGravity(Gravity.CENTER_VERTICAL);
@@ -78,16 +79,19 @@ public final class EventsModuleView {
         addButton(owner, actions, "Копіювати", v -> copy());
         addButton(owner, actions, "Очистити", v -> clear());
         addButton(owner, actions, "Експорт", v -> export());
-        root.addView(actions, new LinearLayout.LayoutParams(-1, 52));
+        root.addView(actions, new LinearLayout.LayoutParams(-1, 64));
 
         filterButton = new Button(owner);
         filterButton.setText("Усі модулі  ▾");
+        filterButton.setTextSize(16);
+        filterButton.setMinHeight(60);
         filterButton.setOnClickListener(v -> chooseFilter());
-        root.addView(filterButton, new LinearLayout.LayoutParams(-1, 48));
+        root.addView(filterButton, new LinearLayout.LayoutParams(-1, 60));
 
         count = new TextView(owner);
         count.setTextColor(Color.LTGRAY);
-        count.setPadding(4, 10, 4, 10);
+        count.setTextSize(15);
+        count.setPadding(6, 12, 6, 12);
         root.addView(count);
 
         scroll = new ScrollView(owner);
@@ -115,8 +119,9 @@ public final class EventsModuleView {
                                   String label, View.OnClickListener listener) {
         Button button = new Button(context);
         button.setText(label);
-        button.setTextSize(10);
+        button.setTextSize(15);
         button.setAllCaps(false);
+        button.setMinHeight(60);
         row.addView(button, new LinearLayout.LayoutParams(0, -1, 1));
         button.setOnClickListener(listener);
     }
@@ -219,8 +224,8 @@ public final class EventsModuleView {
     private static TextView createRecordView(EventRecord record) {
         TextView line = new TextView(activity);
         line.setTextColor(Color.WHITE);
-        line.setTextSize(12);
-        line.setPadding(10, 10, 10, 10);
+        line.setTextSize(15);
+        line.setPadding(14, 12, 14, 12);
         String date = DATE.format(new Date(record.timestamp));
         String module = "[" + record.module + "]";
         String source = "[" + record.source + "]";
