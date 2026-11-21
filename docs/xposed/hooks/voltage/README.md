@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Voltage is an MT8163 Tools feature module that applies a configurable offset to the software-reported battery voltage in Android.
+Voltage applies a configurable offset to the software-reported battery voltage in Android.
 
 It changes only `McuService.mBatteryVoltage`. It does not change the MCU measurement, physical voltage, charging behavior, or the original low-voltage protection logic.
 
@@ -10,159 +10,97 @@ The module is disabled by default.
 
 ## Module UI
 
-Voltage is presented through the application's existing module screen.
+The Voltage screen contains:
 
-The controls appear in this order:
+1. **Module Enabled** — the module switch in the shared module header.
+2. **Voltage Offset** — a slider from `-2.0 V` to `+2.0 V` in `0.1 V` steps. Default: `0.0 V`.
+3. **Reset** — sets the offset to `0.0 V` without changing the module enabled state.
 
-1. **Module Enabled** — enables or disables voltage correction.
-2. **Voltage Offset** — selects an offset from `-2.0 V` to `+2.0 V` in `0.1 V` steps. Default: `0.0 V`.
-3. **Reset** — sets the offset to `0.0 V` without changing Module Enabled.
+The selected offset remains saved while the module is disabled.
 
-The selected offset remains saved while the module is disabled. When disabled, the hook uses the unmodified raw voltage.
-
-The module is registered through the existing Core module architecture:
+## Module Integration
 
 - Module ID: `voltage`
 - Module class: `com.mt8163.tools.modules.voltage.VoltageModule`
-- Layout resource: `R.layout.module_voltage`
+- Layout: `R.layout.module_voltage`
 - Module contract: `com.mt8163.tools.core.ModuleContract`
-- Registration and ordering: `com.mt8163.tools.core.ModuleRegistry`
+- Registry: `com.mt8163.tools.core.ModuleRegistry`
+- Hook class: `com.mt8163.tools.xposed.hooks.voltage.VoltageHook`
+- LSPosed scope: `android`
 
-The Voltage layout is the UI entry point for these controls. UI code uses Core/module interfaces and does not call Xposed hook classes.
+The UI stores the offset in the private `voltage_settings` preference file under `voltage_offset`. The enabled state uses the existing `mt8163_tools` module-state preference.
 
-## Settings and Configuration
+## Configuration Protocol
 
-The application stores the module enabled state through the shared module-state mechanism. The offset is stored as a `Float` in the Voltage settings:
+The hook registers its receiver after the `McuService(Context)` constructor and sends one explicit configuration request to the MT8163 Tools package.
 
-```text
-Preference file: voltage_settings
-Key:            voltage_offset
-Default:        0.0
-```
+Actions:
 
-The app publishes the complete Voltage configuration to the Android process:
+- `com.mt8163.tools.action.VOLTAGE_CONFIG_REQUEST`
+- `com.mt8163.tools.action.VOLTAGE_CONFIG_RESPONSE`
+- `com.mt8163.tools.action.VOLTAGE_CONFIG_CHANGED`
 
-```text
-Action:  com.mt8163tools.action.VOLTAGE_CONFIG_CHANGED
-Package: android
+All messages contain a 64-character hexadecimal session token. The hook creates a new 256-bit token for each request. The app stores the token and includes it in the response and subsequent updates.
 
-Extras:
-  module_enabled: boolean
-  voltage_offset: float
-```
+The app request receiver is exported and protected by `android.permission.DUMP`, so ordinary applications cannot trigger it. Responses and updates are explicitly addressed to package `android`; the hook accepts them only when the session token matches.
 
-The complete configuration is published:
+Configuration extras:
 
-- After the application loads its saved settings.
-- Whenever Module Enabled changes.
-- Whenever Voltage Offset changes or Reset is pressed.
+- `session_token`: session token
+- `module_enabled`: boolean
+- `voltage_offset`: float in the range `-2.0..+2.0`
 
-The hook also loads its initial configuration from the dedicated `voltage_hook_config` cross-process preference store. On Android 9, the agreed implementation uses `MODE_WORLD_READABLE`, with a `MODE_PRIVATE` fallback if the readable mode cannot be created. Runtime broadcasts update the hook's in-memory configuration.
+The hook starts with correction disabled. It enables configuration only after receiving a valid response. If no app response is available, the original battery voltage remains unchanged.
 
-The app-side publisher and hook-side receiver must use the same action, package, extra names, preference file, and keys.
+No cross-process preferences, `MODE_WORLD_READABLE`, or `XSharedPreferences` are used.
 
-## Xposed Integration
-
-Voltage hook code belongs to:
-
-```text
-app/src/main/java/com/mt8163/tools/xposed/hooks/voltage/
-```
-
-It follows the existing `PackageHook` / `HookRegistry` integration. The hook targets the `android` package, which runs the Android `system_server` process.
+## Xposed Target
 
 | Target | Value |
 |---|---|
+| Package | `android` |
 | Class | `android.carsource.McuService` |
 | Constructor | `McuService(Context)` |
 | Method | `onBattery(McuPacket)` |
 | Descriptor | `(Landroid/carsource/McuService$McuPacket;)V` |
 | Hook timing | After-hook |
 | Field updated | `McuService.mBatteryVoltage` |
-| LSPosed scope | `android` |
 
-The configuration receiver is registered with the `McuService` context after the service constructor.
+The hook leaves the original method and MCU packet unchanged.
 
-## Verified MCU Implementation
+## Verified MCU Processing
 
-The implementation details below were checked against the decompiled `boot-carservices.vdex` output in [`public_worker/artifacts/CarServises`](https://github.com/14vvp93/public_worker/tree/main/artifacts/CarServises).
+The implementation was checked against the decompiled source in [public_worker/artifacts/CarServises](https://github.com/14vvp93/public_worker/tree/main/artifacts/CarServises).
 
-### Packet delivery
-
-`McuService` receives MCU data through Binder transaction `101` in `onTransact()`. It reads the byte array, creates an `McuPacket`, and passes it to `processMCUCommand()`.
-
-The packet layout used by `McuPacket` is:
-
-| Index | Field | Accessor |
-|---:|---|---|
-| `0` | Packet length | `paramLen()` uses this value |
-| `1` | Command ID | `cmd()` |
-| `2` | Subcommand ID | `subCmd()` |
-| `3+` | Parameters | `param(index)` |
-
-`processMCUCommand()` dispatches command `55` (`McuConstant.GID_BATTERY`) to `onBattery()`.
-
-### Original battery handling
-
-`McuService.onBattery(McuPacket)` processes battery data only when `subCmd() == 3`. It decodes the first parameter as an unsigned byte in tenths of a volt:
+`McuService.onBattery(McuPacket)` processes battery data when `subCmd() == 3`. It reads the first parameter as an unsigned byte in tenths of a volt:
 
 ```text
 rawVoltage = (param(0) & 0xFF) / 10.0
 ```
 
-The original method then:
+The original method updates low-battery state, assigns `mBatteryVoltage`, and evaluates the original reboot threshold. The default reboot threshold is `5.5 V`. This original logic executes before the Voltage after-hook.
 
-1. Updates the low-battery state when voltage crosses `11.5 V`.
-2. Assigns the decoded value to `mBatteryVoltage`.
-3. Checks the configured reboot threshold and may request a system reboot through `sys.powerctl`.
-
-The reboot threshold defaults to `5.5 V` and is configured by `setLowBatteryThreshold()`. The original method must execute unchanged and must receive the unmodified MCU packet.
-
-### Battery value exposed to clients
-
-`McuService.getBattery()` returns `mBatteryVoltage`. `McuManager.getBattery()` forwards that Binder result to its caller. Therefore, updating `mBatteryVoltage` after the original `onBattery()` call changes the software-reported value seen through the existing MCU service API without changing the MCU packet or physical measurement.
+`McuService.getBattery()` returns `mBatteryVoltage`, which is forwarded to clients through `McuManager.getBattery()`.
 
 ## Voltage Processing
 
-The original `onBattery()` method executes first and remains unchanged. Voltage runs after it, so the original MCU processing and low-voltage/reboot logic receive the real MCU data.
-
-Only battery packets are processed:
-
-- `subCmd() == 3`
-- `paramLen() >= 1`
-- Voltage byte: `param(0)`
-
-The byte is unsigned and represents tenths of a volt:
-
-```text
-rawVoltage = (parameter & 0xFF) / 10.0
-```
-
-For example, `0x78` represents `12.0 V`.
-
-The hook retains the decoded value separately as `rawBatteryVoltage`. It calculates the field value from that raw value:
+For each valid battery packet, the hook retains the raw decoded voltage and calculates the reported value from that raw value:
 
 ```text
 if module_enabled:
-    effectiveVoltage = rawBatteryVoltage + voltage_offset
+    effectiveVoltage = rawVoltage + voltage_offset
 else:
-    effectiveVoltage = rawBatteryVoltage
+    effectiveVoltage = rawVoltage
 ```
 
-The offset is never added to a previously corrected value.
-
-When a valid battery packet arrives, the hook stores the new raw voltage and updates `mBatteryVoltage`. When configuration changes, it recalculates `mBatteryVoltage` from the retained raw value, if available. Disabling the module restores the raw value. Reset sets the offset to zero and leaves the enabled state unchanged.
+The offset is never added to a previously corrected value. When configuration changes, the hook recalculates the field from the retained raw voltage.
 
 ## Runtime Rules
 
-- Packet updates and configuration updates use the same lock.
-- Accept only finite offsets within `-2.0..+2.0 V`.
-- Invalid or incomplete packet data must not overwrite the last valid voltage.
-- Invalid configuration must not replace the last valid configuration.
-- The packet-processing path uses in-memory configuration and performs no disk I/O.
-- Do not use polling, timers, worker threads, executors, or recurring callbacks.
-- A UI state change updates the running hook through the configuration broadcast; it does not reinstall the hook.
-
-## Scope
-
-Voltage has one function: apply the configured offset to the software-reported value in `McuService.mBatteryVoltage`, after the original MCU service method has completed.
+- Packet and configuration updates use the same lock.
+- Only finite offsets within `-2.0..+2.0 V` are accepted.
+- Invalid packet data does not replace the last valid raw voltage.
+- Invalid configuration does not replace the last valid configuration.
+- Packet processing performs no disk I/O.
+- No polling, timers, worker threads, executors, or recurring callbacks are used.
+- UI changes update the running hook through `VOLTAGE_CONFIG_CHANGED`; the hook is not reinstalled.

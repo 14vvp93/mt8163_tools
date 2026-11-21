@@ -1,0 +1,176 @@
+package com.mt8163.tools.xposed.hooks.voltage;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+
+import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
+import com.mt8163.tools.xposed.PackageHook;
+
+import java.security.SecureRandom;
+
+import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
+public final class VoltageHook implements PackageHook {
+    private static final String TARGET_PACKAGE = "android";
+    private static final String TARGET_CLASS = "android.carsource.McuService";
+    private static final Object LOCK = new Object();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private static String sessionToken;
+    private static Object mcuService;
+    private static boolean receiverRegistered;
+    private static boolean configReceived;
+    private static boolean moduleEnabled;
+    private static float voltageOffset;
+    private static boolean hasRawVoltage;
+    private static float rawBatteryVoltage;
+
+    @Override
+    public boolean supports(String packageName) {
+        return TARGET_PACKAGE.equals(packageName);
+    }
+
+    @Override
+    public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
+        Class<?> packetClass = XposedHelpers.findClass(TARGET_CLASS + "$McuPacket", param.classLoader);
+
+        XposedHelpers.findAndHookConstructor(TARGET_CLASS, param.classLoader, Context.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam hookParam) {
+                        registerReceiverAndRequestConfig((Context) hookParam.args[0], hookParam.thisObject);
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod(TARGET_CLASS, param.classLoader, "onBattery", packetClass,
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam hookParam) {
+                        processBatteryPacket(hookParam.thisObject, hookParam.args[0]);
+                    }
+                });
+    }
+
+    private static void registerReceiverAndRequestConfig(Context context, Object service) {
+        synchronized (LOCK) {
+            mcuService = service;
+            if (receiverRegistered) {
+                return;
+            }
+
+            IntentFilter filter = new IntentFilter(VoltageSettingsStore.ACTION_CONFIG_RESPONSE);
+            filter.addAction(VoltageSettingsStore.ACTION_CONFIG_CHANGED);
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context receiverContext, Intent intent) {
+                    receiveConfig(intent);
+                }
+            }, filter);
+            receiverRegistered = true;
+            sessionToken = createToken();
+            configReceived = false;
+        }
+
+        Intent request = new Intent(VoltageSettingsStore.ACTION_CONFIG_REQUEST);
+        request.setPackage("com.mt8163.tools");
+        request.putExtra(VoltageSettingsStore.EXTRA_TOKEN, getSessionToken());
+        context.sendBroadcast(request);
+    }
+
+    private static String getSessionToken() {
+        synchronized (LOCK) {
+            return sessionToken;
+        }
+    }
+
+    private static String createToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        StringBuilder result = new StringBuilder(64);
+        for (byte value : bytes) {
+            result.append(String.format("%02x", value & 0xff));
+        }
+        return result.toString();
+    }
+
+    private static void receiveConfig(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+
+        String action = intent.getAction();
+        boolean response = VoltageSettingsStore.ACTION_CONFIG_RESPONSE.equals(action);
+        if (!response && !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(action)) {
+            return;
+        }
+
+        String token = intent.getStringExtra(VoltageSettingsStore.EXTRA_TOKEN);
+        boolean enabled = intent.getBooleanExtra(VoltageSettingsStore.EXTRA_ENABLED, false);
+        float offset = intent.getFloatExtra(VoltageSettingsStore.EXTRA_OFFSET, Float.NaN);
+        if (!VoltageSettingsStore.isValidOffset(offset)) {
+            return;
+        }
+
+        synchronized (LOCK) {
+            if (sessionToken == null || !sessionToken.equals(token)) {
+                return;
+            }
+            if (!response && !configReceived) {
+                return;
+            }
+
+            moduleEnabled = enabled;
+            voltageOffset = offset;
+            if (response) {
+                configReceived = true;
+            }
+            applyCurrentVoltageLocked();
+        }
+    }
+
+    private static void processBatteryPacket(Object service, Object packet) {
+        if (service == null || packet == null) {
+            return;
+        }
+
+        try {
+            int subCommand = (Integer) XposedHelpers.callMethod(packet, "subCmd");
+            int parameterCount = (Integer) XposedHelpers.callMethod(packet, "paramLen");
+            if (subCommand != 3 || parameterCount < 1) {
+                return;
+            }
+
+            int parameter = (Integer) XposedHelpers.callMethod(packet, "param", 0);
+            float rawVoltage = (parameter & 0xff) / 10.0f;
+
+            synchronized (LOCK) {
+                mcuService = service;
+                rawBatteryVoltage = rawVoltage;
+                hasRawVoltage = true;
+                applyCurrentVoltageLocked();
+            }
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Voltage packet processing failed: " + error);
+        }
+    }
+
+    private static void applyCurrentVoltageLocked() {
+        if (mcuService == null || !hasRawVoltage || !configReceived) {
+            return;
+        }
+
+        float effectiveVoltage = moduleEnabled
+                ? rawBatteryVoltage + voltageOffset
+                : rawBatteryVoltage;
+        try {
+            XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", effectiveVoltage);
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Voltage field update failed: " + error);
+        }
+    }
+}
