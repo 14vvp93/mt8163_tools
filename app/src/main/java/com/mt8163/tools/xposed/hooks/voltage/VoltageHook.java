@@ -36,6 +36,7 @@ public final class VoltageHook implements PackageHook {
     private static boolean bootReceiverRegistered;
     private static boolean bootCompleted;
     private static boolean hasReportedBatteryPacket;
+    private static boolean hasReportedVoltageApplied;
     private static String installError;
     private static String sessionToken;
     private static Context eventContext;
@@ -377,6 +378,12 @@ public final class VoltageHook implements PackageHook {
 
         try {
             XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", outputVoltage);
+            if (!hasReportedVoltageApplied) {
+                hasReportedVoltageApplied = true;
+                logEvent("voltageApplied", String.format(Locale.US,
+                        "mBatteryVoltage updated: %.1f V → %.1f V",
+                        rawBatteryVoltage, outputVoltage));
+            }
             boolean outputChanged = !hasReportedVoltage
                     || Float.compare(lastReportedVoltage, outputVoltage) != 0;
             lastReportedVoltage = outputVoltage;
