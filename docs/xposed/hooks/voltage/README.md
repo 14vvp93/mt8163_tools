@@ -104,3 +104,17 @@ The offset is never added to a previously corrected value. When configuration ch
 - Packet processing performs no disk I/O.
 - No polling, timers, worker threads, executors, or recurring callbacks are used.
 - UI changes update the running hook through `VOLTAGE_CONFIG_CHANGED`; the hook is not reinstalled.
+
+## Events Integration
+
+Voltage submits events through the Core `EventLogger` interface. The Events module stores and displays them when it is enabled.
+
+Reported sources include:
+
+- `hookInstalled` and `hookFailed`
+- `configurationLoaded`, `configurationChanged`, and `invalidConfiguration`
+- `settingsChanged`
+- `voltageInvalid`, `hookException`, and `correctionFailed`
+- `voltageCorrected`
+
+`voltageCorrected` is emitted only when the value written to `mBatteryVoltage` differs from its previous value. Repeated identical output values are not logged. Raw packet values are not logged during normal operation.
