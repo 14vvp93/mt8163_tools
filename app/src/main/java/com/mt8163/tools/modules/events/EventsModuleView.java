@@ -6,7 +6,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Typeface;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.graphics.Color;
 import android.net.Uri;
 import android.view.Gravity;
@@ -145,8 +147,15 @@ public final class EventsModuleView {
         line.setTextColor(Color.WHITE);
         line.setTextSize(12);
         line.setPadding(10, 10, 10, 10);
-        line.setText(DATE.format(new Date(record.timestamp)) + " [" + record.module + "][" +
-                record.source + "]: " + record.message);
+        String date = DATE.format(new Date(record.timestamp));
+        String module = "[" + record.module + "]";
+        String source = "[" + record.source + "]";
+        SpannableStringBuilder text = new SpannableStringBuilder(date + " " + module + source + ": " + record.message);
+        int moduleStart = date.length() + 1;
+        int sourceStart = moduleStart + module.length();
+        text.setSpan(new ForegroundColorSpan(Color.RED), moduleStart, sourceStart, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new ForegroundColorSpan(Color.rgb(76, 175, 80)), sourceStart, sourceStart + source.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        line.setText(text);
         entries.addView(line);
     }
 
@@ -199,8 +208,18 @@ public final class EventsModuleView {
                 }).show();
     }
 
+    public static void destroy() {
+        if (manager != null) manager.setListener(null);
+        activity = null;
+        entries = null;
+        scroll = null;
+        count = null;
+        manager = null;
+    }
+
     public static boolean onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != EXPORT_REQUEST) return false;
+        if (activity == null || manager == null) return true;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return true;
         Uri uri = data.getData();
         try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) {
