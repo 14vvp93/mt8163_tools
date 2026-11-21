@@ -26,13 +26,30 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Read app version
+        id: version
+        shell: bash
+        run: |
+          VERSION_NAME="$(sed -n "s/^[[:space:]]*versionName[[:space:]]*'\\([^']*\\)'.*/\\1/p" app/build.gradle | head -n 1)"
+          if [ -z "$VERSION_NAME" ]; then
+            echo "Unable to read versionName from app/build.gradle"
+            exit 1
+          fi
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/mt8163_tools_${{ steps.version.outputs.name }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MT8163-Tools-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: MT8163Tools_${{ steps.version.outputs.name }}
+          path: dist/mt8163_tools_${{ steps.version.outputs.name }}.apk
           if-no-files-found: error
           retention-days: 14
