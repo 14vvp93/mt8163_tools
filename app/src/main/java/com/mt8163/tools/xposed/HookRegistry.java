@@ -14,15 +14,14 @@ public final class HookRegistry {
     }
 
     public static void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) {
-        for (PackageHook hook : HOOKS) {
-            if (hook == null || !hook.supports(param.packageName)) {
-                continue;
-            }
+        if (param == null || param.packageName == null) return;
 
+        for (PackageHook hook : HOOKS) {
+            if (hook == null || !hook.supports(param.packageName)) continue;
             try {
                 hook.install(param);
             } catch (Throwable error) {
-                XposedBridge.log("MT8163 Tools: hook failed for "
+                XposedBridge.log("MT8163 Tools: hook installation failed for "
                         + param.packageName + ": " + error);
             }
         }
