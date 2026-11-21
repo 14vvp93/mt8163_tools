@@ -32,7 +32,6 @@ public final class MainActivity extends Activity {
     private FrameLayout header;
     private FrameLayout content;
     private View overlay;
-    private TextView moduleStatus;
     private int selected;
 
     @Override
@@ -49,12 +48,8 @@ public final class MainActivity extends Activity {
         header = findViewById(R.id.header_container);
         content = findViewById(R.id.content_container);
         overlay = findViewById(R.id.disabled_overlay);
-        moduleStatus = findViewById(R.id.module_status);
         TextView version = findViewById(R.id.version_label);
         version.setText(getString(R.string.version_format, getAppVersion()));
-
-        moduleStatus.setText(R.string.module_status_check_lsposed);
-        moduleStatus.setTextColor(getColor(R.color.module_status_inactive));
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
