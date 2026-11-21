@@ -26,7 +26,8 @@ try:
         for item in app.findall("meta-data")
     } if app is not None else {}
 
-    if metadata.get("xposedmodule") is None or metadata["xposedmodule"].get(ANDROID_NS + "value") != "true":
+    module = metadata.get("xposedmodule")
+    if module is None or module.get(ANDROID_NS + "value") != "true":
         fail("Manifest must declare xposedmodule=true.")
 
     min_version = metadata.get("xposedminversion")
@@ -41,16 +42,16 @@ except (ET.ParseError, OSError, AttributeError) as error:
 
 try:
     gradle = gradle_path.read_text(encoding="utf-8")
-    if not re.search(r"(?m)^\s*compileOnly\s+['\"]de\\.robv\\.android\\.xposed:api:82['\"]", gradle):
+    if not any("compileOnly" in line and "de.robv.android.xposed:api:82" in line
+               for line in gradle.splitlines()):
         fail("Legacy Xposed API 82 must remain a compileOnly dependency.")
-    if re.search(r"(?m)^\s*(implementation|api|runtimeOnly)\s+['\"].*de\\.robv\\.android\\.xposed", gradle):
+    if re.search(r"""(?m)^\s*(implementation|api|runtimeOnly)\s+['"].*de\.robv\.android\.xposed""", gradle):
         fail("XposedBridge API must not be packaged as an application/runtime dependency.")
 except OSError as error:
     fail(f"Cannot read app/build.gradle: {error}")
 
 try:
-    init_entry = init_path.read_text(encoding="utf-8").strip()
-    if init_entry != EXPECTED_ENTRY:
+    if init_path.read_text(encoding="utf-8").strip() != EXPECTED_ENTRY:
         fail(f"assets/xposed_init must contain only {EXPECTED_ENTRY}.")
 except OSError as error:
     fail(f"Cannot read assets/xposed_init: {error}")
@@ -76,11 +77,11 @@ for source in source_root.rglob("*"):
     if source.suffix not in {".java", ".kt"}:
         continue
     try:
-        text = source.read_text(encoding="utf-8")
+        source_text = source.read_text(encoding="utf-8")
     except OSError as error:
         fail(f"Cannot read {source.relative_to(ROOT)}: {error}")
         continue
-    if "io.github.libxposed" in text:
+    if "io.github.libxposed" in source_text:
         fail(f"Modern libxposed reference found in {source.relative_to(ROOT)}; this project uses Legacy XposedBridge.")
 
 if errors:
