@@ -48,14 +48,5 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".modules.voltage.VoltageConfigReceiver"
-            android:exported="true"
-            android:permission="android.permission.DUMP">
-            <intent-filter>
-                <action android:name="com.mt8163.tools.action.VOLTAGE_CONFIG_REQUEST" />
-            </intent-filter>
-        </receiver>
-
     </application>
 </manifest>
