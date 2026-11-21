@@ -259,6 +259,7 @@ public final class EventsModuleView {
                 .setMessage("Буде видалено всю історію подій (не лише видимі записи).")
                 .setNegativeButton("Скасувати", null)
                 .setPositiveButton("Очистити", (dialog, which) -> {
+                    autoScroll = true;
                     manager.clear();
                     Toast.makeText(activity, "Історію очищено", Toast.LENGTH_SHORT).show();
                 })
