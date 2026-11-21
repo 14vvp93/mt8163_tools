@@ -84,7 +84,7 @@ public final class MainActivity extends Activity {
             }
 
             adapter.notifyDataSetChanged();
-            if (enabled && "events".equals(module.getId())) showModule(selected);
+            if ("events".equals(module.getId())) showModule(selected);
             else updateState();
         });
         header.addView(headerView);
