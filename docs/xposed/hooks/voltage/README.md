@@ -111,7 +111,8 @@ Voltage submits events through the Core `EventLogger` interface. The Events modu
 
 Reported sources include:
 
-- `hookInstalled` and `hookFailed`
+- `moduleEnabled` and `moduleDisabled`
+- `targetClassFound`, `targetMethodFound`, `hookInstalled`, and `hookFailed`
 - `configurationLoaded`, `configurationChanged`, and `invalidConfiguration`
 - `settingsChanged`
 - `voltageInvalid`, `hookException`, and `correctionFailed`
