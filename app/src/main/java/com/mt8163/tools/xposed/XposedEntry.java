@@ -4,7 +4,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public final class XposedEntry implements IXposedHookLoadPackage {
-    private static volatile boolean appProcessActivated;
+    private static final String ACTIVATION_PROPERTY = "com.mt8163.tools.xposed.app_activated";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) {
@@ -13,13 +13,13 @@ public final class XposedEntry implements IXposedHookLoadPackage {
         }
 
         if ("com.mt8163.tools".equals(param.packageName)) {
-            appProcessActivated = true;
+            System.setProperty(ACTIVATION_PROPERTY, "true");
         }
 
         HookRegistry.handleLoadPackage(param);
     }
 
     public static boolean isAppProcessActivated() {
-        return appProcessActivated;
+        return "true".equals(System.getProperty(ACTIVATION_PROPERTY, "false"));
     }
 }
