@@ -10,10 +10,10 @@ import android.widget.ListView;
 
 import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
+import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.core.ModuleContract;
 import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
-import com.mt8163.tools.modules.events.EventLogger;
 import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.events.EventsModuleView;
 import com.mt8163.tools.modules.voltage.VoltageModuleView;
