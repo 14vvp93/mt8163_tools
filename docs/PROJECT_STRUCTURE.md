@@ -8,6 +8,9 @@ This document describes the repository layout and the responsibility of each lay
 MT8163 Tools/
 ├── docs/
 │   ├── PROJECT_STRUCTURE.md
+│   ├── modules/
+│   │   ├── voltage/
+│   │   └── events/
 │   └── xposed/
 │       ├── README.md
 │       └── hooks/
@@ -65,6 +68,7 @@ The tree is a logical map of the current architecture. Some module-specific hook
 All project documentation belongs here. Do not put Markdown documentation in `app/src/main/`.
 
 - `PROJECT_STRUCTURE.md` — repository and package architecture.
+- `modules/` — feature-module behavior, UI, configuration and integration.
 - `xposed/` — LSPosed integration design, API notes, hook organization and implementation rules.
 
 ### `app/`
