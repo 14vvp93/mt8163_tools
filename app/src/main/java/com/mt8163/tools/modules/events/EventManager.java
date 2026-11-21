@@ -113,6 +113,8 @@ public final class EventManager {
                 if (!enabled) return;
                 try {
                     database.clear();
+                    database.insert(System.currentTimeMillis(), "Events",
+                            "clearHistory", "Event history cleared");
                     main.post(() -> {
                         Listener current = listener;
                         if (enabled && current != null) current.onEventsChanged();
