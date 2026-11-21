@@ -33,6 +33,8 @@ public final class VoltageHook implements PackageHook {
     private static float voltageOffset;
     private static boolean hasRawVoltage;
     private static float rawBatteryVoltage;
+    private static boolean hasReportedVoltage;
+    private static float lastReportedVoltage;
 
     @Override
     public boolean supports(String packageName) {
@@ -73,9 +75,7 @@ public final class VoltageHook implements PackageHook {
         synchronized (LOCK) {
             eventContext = context.getApplicationContext();
             mcuService = service;
-            if (receiverRegistered) {
-                return;
-            }
+            if (receiverRegistered) return;
 
             try {
                 IntentFilter filter = new IntentFilter(
@@ -212,14 +212,15 @@ public final class VoltageHook implements PackageHook {
                 ? rawBatteryVoltage + voltageOffset
                 : rawBatteryVoltage;
         try {
-            float previousVoltage = XposedHelpers.getFloatField(
-                    mcuService, "mBatteryVoltage");
-            if (Float.compare(previousVoltage, effectiveVoltage) == 0) return;
-
             XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", effectiveVoltage);
-            if (moduleEnabled) {
+            boolean outputChanged = !hasReportedVoltage
+                    || Float.compare(lastReportedVoltage, effectiveVoltage) != 0;
+            lastReportedVoltage = effectiveVoltage;
+            hasReportedVoltage = true;
+            if (moduleEnabled && outputChanged
+                    && Float.compare(rawBatteryVoltage, effectiveVoltage) != 0) {
                 logEvent("voltageCorrected", String.format(Locale.US,
-                        "%.1f V → %.1f V", previousVoltage, effectiveVoltage));
+                        "%.1f V → %.1f V", rawBatteryVoltage, effectiveVoltage));
             }
         } catch (Throwable error) {
             logEvent("correctionFailed", "MCU voltage field update failed: " + error);

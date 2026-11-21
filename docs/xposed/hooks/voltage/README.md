@@ -118,4 +118,4 @@ Reported sources include:
 - `voltageInvalid`, `hookException`, and `correctionFailed`
 - `voltageCorrected`
 
-`voltageCorrected` is emitted only when the value written to `mBatteryVoltage` differs from its previous value. Repeated identical output values are not logged. Raw packet values are not logged during normal operation.
+`voltageCorrected` is emitted only when the effective corrected output differs from the last reported effective output and from the raw MCU voltage. Repeated identical output values are not logged. The comparison does not use `mBatteryVoltage` as the previous value because the original `onBattery()` method writes the raw value before the after-hook runs. Raw packet values are not logged during normal operation.

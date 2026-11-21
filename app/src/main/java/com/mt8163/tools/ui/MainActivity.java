@@ -67,13 +67,9 @@ public final class MainActivity extends Activity {
 
             if ("events".equals(module.getId())) {
                 EventManager events = EventManager.get(this);
-                if (enabled) {
-                    events.setEnabled(true);
-                    events.logLifecycle("moduleEnabled", "Events module enabled");
-                } else {
-                    events.logLifecycle("moduleDisabled", "Events module disabled");
-                    events.setEnabled(false);
-                }
+                events.setEnabled(enabled);
+                events.logLifecycle(enabled ? "moduleEnabled" : "moduleDisabled",
+                        enabled ? "Events module enabled" : "Events module disabled");
             }
 
             if ("voltage".equals(module.getId())) {
@@ -103,8 +99,7 @@ public final class MainActivity extends Activity {
 
     private void updateState() {
         boolean enabled = modules.get(selected).isEnabled();
-        content.setEnabled(enabled);
-        content.setAlpha(enabled ? 1.0f : 0.32f);
+        content.setVisibility(enabled ? View.VISIBLE : View.GONE);
         overlay.setVisibility(enabled ? View.GONE : View.VISIBLE);
     }
 

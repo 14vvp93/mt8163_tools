@@ -163,17 +163,21 @@ public final class EventsModuleView {
 
     private static void refresh() {
         if (manager == null || !manager.isEnabled() || entries == null) return;
-        List<EventRecord> records = manager.read(filter(), PAGE_SIZE + 1, Long.MAX_VALUE);
-        entries.removeAllViews();
-        hasMore = records.size() > PAGE_SIZE;
-        if (hasMore) records.remove(records.size() - 1);
-        oldestLoadedId = records.isEmpty() ? Long.MAX_VALUE
-                : records.get(records.size() - 1).id;
-        for (int i = records.size() - 1; i >= 0; i--) addRecord(records.get(i));
-        count.setText(records.size() + " завантажено · максимум "
-                + EventDatabase.MAX_RECORDS + " · прокрутіть угору для старіших");
-        autoScroll = true;
-        if (autoScroll) scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+        EventManager current = manager;
+        current.readAsync(filter(), PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
+            if (manager != current || entries == null || activity == null || !current.isEnabled()) return;
+            entries.removeAllViews();
+            hasMore = records.size() > PAGE_SIZE;
+            if (hasMore) records.remove(records.size() - 1);
+            oldestLoadedId = records.isEmpty() ? Long.MAX_VALUE
+                    : records.get(records.size() - 1).id;
+            for (int i = records.size() - 1; i >= 0; i--) addRecord(records.get(i));
+            count.setText(records.size() + " завантажено · втрачено "
+                    + current.getDroppedCount() + " · максимум "
+                    + EventDatabase.MAX_RECORDS + " · прокрутіть угору для старіших");
+            autoScroll = true;
+            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+        });
     }
 
     private static void loadOlder() {
@@ -181,26 +185,31 @@ public final class EventsModuleView {
         loadingOlder = true;
         int oldHeight = entries.getHeight();
         int oldScrollY = scroll.getScrollY();
-        List<EventRecord> records = manager.read(filter(), PAGE_SIZE + 1, oldestLoadedId);
-        hasMore = records.size() > PAGE_SIZE;
-        if (hasMore) records.remove(records.size() - 1);
-        if (!records.isEmpty()) {
-            oldestLoadedId = records.get(records.size() - 1).id;
-            for (int i = 0; i < records.size(); i++) addRecordAtTop(records.get(i));
-        }
-        int loaded = entries.getChildCount();
-        count.setText(loaded + " завантажено · максимум " + EventDatabase.MAX_RECORDS);
-        scroll.post(() -> {
-            if (entries != null && scroll != null) {
-                scroll.scrollTo(0, oldScrollY + entries.getHeight() - oldHeight);
+        EventManager current = manager;
+        current.readAsync(filter(), PAGE_SIZE + 1, oldestLoadedId, records -> {
+            if (manager != current || entries == null || scroll == null) {
+                loadingOlder = false;
+                return;
             }
-            loadingOlder = false;
+            hasMore = records.size() > PAGE_SIZE;
+            if (hasMore) records.remove(records.size() - 1);
+            if (!records.isEmpty()) {
+                oldestLoadedId = records.get(records.size() - 1).id;
+                for (int i = 0; i < records.size(); i++) addRecordAtTop(records.get(i));
+            }
+            count.setText(entries.getChildCount() + " завантажено · втрачено "
+                    + current.getDroppedCount() + " · максимум " + EventDatabase.MAX_RECORDS);
+            scroll.post(() -> {
+                if (entries != null && scroll != null) {
+                    scroll.scrollTo(0, oldScrollY + entries.getHeight() - oldHeight);
+                }
+                loadingOlder = false;
+            });
         });
     }
 
     private static void addRecordAtTop(EventRecord record) {
-        TextView line = createRecordView(record);
-        entries.addView(line, 0);
+        entries.addView(createRecordView(record), 0);
     }
 
     private static void addRecord(EventRecord record) {
@@ -227,8 +236,7 @@ public final class EventsModuleView {
         return line;
     }
 
-    private static String exportText(boolean currentFilter) {
-        List<EventRecord> records = manager.readAll(currentFilter ? filter() : null);
+    private static String exportText(List<EventRecord> records) {
         StringBuilder text = new StringBuilder();
         for (int i = records.size() - 1; i >= 0; i--) {
             EventRecord record = records.get(i);
@@ -241,16 +249,22 @@ public final class EventsModuleView {
     }
 
     private static void copy() {
-        String text = exportText(true);
-        if (text.isEmpty()) {
-            Toast.makeText(activity, "Немає записів для копіювання", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        ClipboardManager clipboard =
-                (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboard == null) return;
-        clipboard.setPrimaryClip(ClipData.newPlainText("MT8163 Events", text));
-        Toast.makeText(activity, "Журнал скопійовано", Toast.LENGTH_SHORT).show();
+        EventManager current = manager;
+        Activity owner = activity;
+        if (current == null || owner == null) return;
+        current.readAllAsync(filter(), records -> {
+            if (manager != current || activity != owner) return;
+            String text = exportText(records);
+            if (text.isEmpty()) {
+                Toast.makeText(owner, "Немає записів для копіювання", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ClipboardManager clipboard =
+                    (ClipboardManager) owner.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) return;
+            clipboard.setPrimaryClip(ClipData.newPlainText("MT8163 Events", text));
+            Toast.makeText(owner, "Журнал скопійовано", Toast.LENGTH_SHORT).show();
+        });
     }
 
     private static void clear() {
@@ -302,16 +316,20 @@ public final class EventsModuleView {
         if (activity == null || manager == null) return true;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return true;
 
+        Activity owner = activity;
+        EventManager current = manager;
         Uri uri = data.getData();
-        try (OutputStream output = activity.getContentResolver().openOutputStream(uri)) {
-            if (output == null) throw new IllegalStateException("Cannot open export destination");
-            output.write(exportText("filtered".equals(exportMode))
-                    .getBytes(StandardCharsets.UTF_8));
-            Toast.makeText(activity, "Експорт завершено", Toast.LENGTH_SHORT).show();
-        } catch (Exception error) {
-            Toast.makeText(activity, "Помилка експорту: " + error.getMessage(),
-                    Toast.LENGTH_LONG).show();
-        }
+        current.readAllAsync("filtered".equals(exportMode) ? filter() : null, records -> {
+            if (activity != owner || manager != current) return;
+            try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
+                if (output == null) throw new IllegalStateException("Cannot open export destination");
+                output.write(exportText(records).getBytes(StandardCharsets.UTF_8));
+                Toast.makeText(owner, "Експорт завершено", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                Toast.makeText(owner, "Помилка експорту: " + error.getMessage(),
+                        Toast.LENGTH_LONG).show();
+            }
+        });
         return true;
     }
 }

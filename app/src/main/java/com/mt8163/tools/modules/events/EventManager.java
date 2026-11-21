@@ -7,10 +7,13 @@ import android.os.Looper;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public final class EventManager {
     public interface Listener {
@@ -19,12 +22,15 @@ public final class EventManager {
 
     private static volatile EventManager instance;
     private final EventDatabase database;
+    private final Object writeLock = new Object();
     private final ThreadPoolExecutor writer = new ThreadPoolExecutor(
             1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(512));
+    private final ExecutorService reader = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicLong dropped = new AtomicLong();
     private volatile boolean enabled;
     private volatile Listener listener;
+    private long generation;
 
     private EventManager(Context context) {
         database = new EventDatabase(context);
@@ -42,7 +48,14 @@ public final class EventManager {
     }
 
     public void setEnabled(boolean value) {
-        enabled = value;
+        synchronized (writeLock) {
+            if (enabled == value) return;
+            enabled = value;
+            if (!value) {
+                generation++;
+                writer.getQueue().clear();
+            }
+        }
     }
 
     public boolean isEnabled() {
@@ -58,35 +71,71 @@ public final class EventManager {
     }
 
     public void log(String module, String source, String message) {
-        if (!enabled || module == null || module.trim().isEmpty()
+        if (module == null || module.trim().isEmpty()
                 || source == null || message == null) return;
         enqueue(module.trim(), source.trim().isEmpty() ? "General" : source.trim(),
-                message.trim());
+                message.trim(), false);
     }
 
     public void logLifecycle(String source, String message) {
         if (source != null && message != null) {
-            enqueue("Events", source, message);
+            enqueue("Events", source, message, true);
         }
     }
 
-    private void enqueue(String module, String source, String message) {
+    private void enqueue(String module, String source, String message, boolean lifecycle) {
         if (message.isEmpty()) return;
+        final long taskGeneration;
+        synchronized (writeLock) {
+            if (!enabled && !lifecycle) return;
+            taskGeneration = generation;
+        }
         try {
             writer.execute(() -> {
-                try {
-                    database.insert(System.currentTimeMillis(), module, source, message);
-                    main.post(() -> {
-                        Listener current = listener;
-                        if (enabled && current != null) current.onEventsChanged();
-                    });
-                } catch (RuntimeException ignored) {
-                    dropped.incrementAndGet();
+                synchronized (writeLock) {
+                    if (!lifecycle && (!enabled || taskGeneration != generation)) return;
+                    try {
+                        database.insert(System.currentTimeMillis(), module, source, message);
+                    } catch (RuntimeException error) {
+                        dropped.incrementAndGet();
+                        return;
+                    }
                 }
+                notifyListener();
             });
         } catch (RejectedExecutionException error) {
             dropped.incrementAndGet();
         }
+    }
+
+    private void notifyListener() {
+        main.post(() -> {
+            Listener current = listener;
+            if (enabled && current != null) current.onEventsChanged();
+        });
+    }
+
+    public void readAsync(List<String> modules, int limit, long beforeId,
+                          Consumer<List<EventRecord>> callback) {
+        if (callback == null) return;
+        if (!enabled) {
+            main.post(() -> callback.accept(Collections.emptyList()));
+            return;
+        }
+        try {
+            reader.execute(() -> {
+                List<EventRecord> records = enabled
+                        ? database.read(modules, limit, beforeId) : Collections.emptyList();
+                main.post(() -> callback.accept(enabled ? records : Collections.emptyList()));
+            });
+        } catch (RejectedExecutionException error) {
+            dropped.incrementAndGet();
+            main.post(() -> callback.accept(Collections.emptyList()));
+        }
+    }
+
+    public void readAllAsync(List<String> modules, Consumer<List<EventRecord>> callback) {
+        readAsync(modules, EventDatabase.MAX_RECORDS, Long.MAX_VALUE, callback);
     }
 
     public List<EventRecord> read(List<String> modules, int limit, long beforeId) {
@@ -107,23 +156,27 @@ public final class EventManager {
 
     public void clear() {
         if (!enabled) return;
-        try {
-            writer.execute(() -> {
-                if (!enabled) return;
-                try {
-                    database.clear();
-                    database.insert(System.currentTimeMillis(), "Events",
-                            "clearHistory", "Event history cleared");
-                    main.post(() -> {
-                        Listener current = listener;
-                        if (enabled && current != null) current.onEventsChanged();
-                    });
-                } catch (RuntimeException error) {
-                    dropped.incrementAndGet();
-                }
-            });
-        } catch (RejectedExecutionException error) {
-            dropped.incrementAndGet();
+        synchronized (writeLock) {
+            generation++;
+            writer.getQueue().clear();
+            try {
+                writer.execute(() -> {
+                    synchronized (writeLock) {
+                        if (!enabled) return;
+                        try {
+                            database.clear();
+                            database.insert(System.currentTimeMillis(), "Events",
+                                    "clearHistory", "Event history cleared");
+                        } catch (RuntimeException error) {
+                            dropped.incrementAndGet();
+                            return;
+                        }
+                    }
+                    notifyListener();
+                });
+            } catch (RejectedExecutionException error) {
+                dropped.incrementAndGet();
+            }
         }
     }
 }
