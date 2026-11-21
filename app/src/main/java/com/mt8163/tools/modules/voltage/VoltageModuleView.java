@@ -7,6 +7,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.mt8163.tools.R;
+import com.mt8163.tools.modules.events.EventLogger;
 
 import java.util.Locale;
 
@@ -47,8 +48,15 @@ public final class VoltageModuleView {
     }
 
     private static void saveAndPublish(Context context, int progress) {
-        VoltageSettingsStore.saveOffset(context, (progress - 20) / 10.0f);
+        float offset = (progress - 20) / 10.0f;
+        float previous = VoltageSettingsStore.getOffset(context);
+        VoltageSettingsStore.saveOffset(context, offset);
         VoltageSettingsStore.publish(context);
+        if (Float.compare(previous, offset) != 0) {
+            EventLogger.log(context, "Voltage", "settingsChanged",
+                    String.format(Locale.US, "Voltage offset: %+.1f V → %+.1f V",
+                            previous, offset));
+        }
     }
 
     private static String formatOffset(float offset) {
