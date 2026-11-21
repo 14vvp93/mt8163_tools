@@ -21,7 +21,6 @@ import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.events.EventsModuleView;
 import com.mt8163.tools.modules.voltage.VoltageModuleView;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
-import com.mt8163.tools.xposed.XposedEntry;
 
 import java.util.List;
 
@@ -54,12 +53,14 @@ public final class MainActivity extends Activity {
         TextView version = findViewById(R.id.version_label);
         version.setText(getString(R.string.version_format, getAppVersion()));
 
+        moduleStatus.setText(R.string.module_status_check_lsposed);
+        moduleStatus.setTextColor(getColor(R.color.module_status_inactive));
+
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
         selected = modules.size() - 1;
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
         showModule(selected);
-        updateModuleStatus();
     }
 
     private String getAppVersion() {
@@ -69,22 +70,6 @@ public final class MainActivity extends Activity {
         } catch (PackageManager.NameNotFoundException e) {
             return "Unknown";
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateModuleStatus();
-    }
-
-    private void updateModuleStatus() {
-        boolean activated = XposedEntry.isAppProcessActivated();
-        moduleStatus.setText(activated
-                ? R.string.module_status_activated
-                : R.string.module_status_not_activated);
-        moduleStatus.setTextColor(getColor(activated
-                ? R.color.module_status_active
-                : R.color.module_status_inactive));
     }
 
     private void showModule(int position) {
