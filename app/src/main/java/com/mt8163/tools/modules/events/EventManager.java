@@ -61,20 +61,19 @@ public final class EventManager {
         if (!enabled || module == null || module.trim().isEmpty()
                 || source == null || message == null) return;
         enqueue(module.trim(), source.trim().isEmpty() ? "General" : source.trim(),
-                message.trim(), false);
+                message.trim());
     }
 
     public void logLifecycle(String source, String message) {
         if (source != null && message != null) {
-            enqueue("Events", source, message, true);
+            enqueue("Events", source, message);
         }
     }
 
-    private void enqueue(String module, String source, String message, boolean lifecycle) {
+    private void enqueue(String module, String source, String message) {
         if (message.isEmpty()) return;
         try {
             writer.execute(() -> {
-                if (!lifecycle && !enabled) return;
                 try {
                     database.insert(System.currentTimeMillis(), module, source, message);
                     main.post(() -> {
