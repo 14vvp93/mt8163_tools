@@ -813,7 +813,7 @@ public final class MediaRestorer {
                 logEvent(context, "bluetoothRestoreTimeout",
                         "10-second restoration deadline reached");
                 finishResources();
-            } else if (state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED)) {
+            } else if (state.get() == State.PLAY_COMMITTED) {
                 logEvent(context, "bluetoothRestoreTimeout",
                         "Deadline reached after PLAY was committed");
                 finishResources();
