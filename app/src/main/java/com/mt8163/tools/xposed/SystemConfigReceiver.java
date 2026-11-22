@@ -38,10 +38,12 @@ public final class SystemConfigReceiver {
                 }
             };
 
+            boolean mediaRegistered = false;
             try {
                 context.registerReceiver(receiver,
                         new IntentFilter(MediaSettingsStore.ACTION_CONFIG_CHANGED),
                         MediaSettingsStore.CONFIG_PERMISSION, null);
+                mediaRegistered = true;
                 context.registerReceiver(receiver,
                         new IntentFilter(VoltageSettingsStore.ACTION_CONFIG_CHANGED),
                         VoltageSettingsStore.CONFIG_PERMISSION, null);
@@ -51,13 +53,16 @@ public final class SystemConfigReceiver {
                 registered = true;
                 XposedBridge.log("MT8163 Tools: System configuration receiver registered");
             } catch (Throwable error) {
-                try {
-                    context.unregisterReceiver(receiver);
-                } catch (RuntimeException ignored) {
+                if (mediaRegistered) {
+                    try {
+                        context.unregisterReceiver(receiver);
+                    } catch (RuntimeException ignored) {
+                    }
                 }
+                registered = false;
                 XposedBridge.log(
-                        "MT8163 Tools: System configuration receiver registration failed: "
-                                + error);
+                        "MT8163 Tools: System configuration receiver registration failed; "
+                                + "will retry at the next SystemServer startup stage: " + error);
             }
         }
     }
