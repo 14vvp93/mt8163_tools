@@ -1,10 +1,7 @@
 package com.mt8163.tools.xposed.hooks.voltage;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.Bundle;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
@@ -33,14 +30,10 @@ public final class VoltageHook implements PackageHook {
     private static boolean initialConfigurationLoaded;
     private static boolean configurationLoadInProgress;
     private static long configurationGeneration;
-    private static boolean receiverRegistered;
-    private static boolean receiverRegistrationInProgress;
-    private static boolean receiverRegistrationFailureLogged;
     private static boolean hasReportedBatteryPacket;
     private static boolean hasReportedVoltageApplied;
     private static Context eventContext;
     private static Object mcuService;
-    private static BroadcastReceiver configReceiver;
     private static boolean moduleEnabled;
     private static float voltageOffset;
     private static boolean hasRawVoltage;
@@ -136,9 +129,6 @@ public final class VoltageHook implements PackageHook {
             mcuService = service;
         }
 
-        synchronized (LOCK) {
-            if (!receiverRegistered) registerConfigReceiverLocked(context);
-        }
         loadInitialConfiguration();
 
         synchronized (LOCK) {
@@ -146,6 +136,15 @@ public final class VoltageHook implements PackageHook {
         }
 
         logEvent("hookInstalled", "Voltage hooks initialized");
+    }
+
+    public static void initializeConfiguration(Context context) {
+        if (context != null) {
+            synchronized (LOCK) {
+                eventContext = context;
+            }
+        }
+        loadInitialConfiguration();
     }
 
     private static void loadInitialConfiguration() {
@@ -197,42 +196,7 @@ public final class VoltageHook implements PackageHook {
         }
     }
 
-    private static void registerConfigReceiverLocked(Context context) {
-        if (context == null || receiverRegistered || receiverRegistrationInProgress) return;
-        receiverRegistrationInProgress = true;
-
-        try {
-            IntentFilter filter = new IntentFilter(
-                    VoltageSettingsStore.ACTION_CONFIG_CHANGED);
-
-            BroadcastReceiver receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context receiverContext, Intent intent) {
-                    receiveConfiguration(intent);
-                }
-            };
-
-            context.registerReceiver(
-                    receiver, filter, VoltageSettingsStore.CONFIG_PERMISSION, null);
-            configReceiver = receiver;
-            receiverRegistered = true;
-            receiverRegistrationFailureLogged = false;
-            initialConfigurationLoaded = false;
-            logEvent("receiverRegistered", "Voltage settings update receiver registered");
-        } catch (RuntimeException error) {
-            configReceiver = null;
-            if (!receiverRegistrationFailureLogged) {
-                receiverRegistrationFailureLogged = true;
-                logEvent("receiverRegistrationFailed",
-                        "Voltage settings receiver registration failed: " + error);
-                XposedBridge.log("MT8163 Tools: Voltage receiver registration failed: " + error);
-            }
-        } finally {
-            receiverRegistrationInProgress = false;
-        }
-    }
-
-    private static void receiveConfiguration(Intent intent) {
+    public static void onConfigurationChanged(Intent intent) {
         if (intent == null
                 || !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
             return;
@@ -291,13 +255,6 @@ public final class VoltageHook implements PackageHook {
             if (!(parameterValue instanceof Number)) return;
 
             float rawVoltage = (((Number) parameterValue).intValue() & 0xff) / 10.0f;
-
-            boolean reloadConfiguration;
-            synchronized (LOCK) {
-                if (!receiverRegistered) registerConfigReceiverLocked(eventContext);
-                reloadConfiguration = receiverRegistered && !initialConfigurationLoaded;
-            }
-            if (reloadConfiguration) loadInitialConfiguration();
 
             if (rawVoltage == 0.0f) {
                 synchronized (LOCK) {
