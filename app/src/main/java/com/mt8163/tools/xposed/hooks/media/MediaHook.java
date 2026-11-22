@@ -494,13 +494,12 @@ public final class MediaHook implements PackageHook {
                             context, packageName, playbackState, foreground,
                             restoreMedia, restoreBluetooth, MediaHook::finishRestore);
 
+                    boolean cancelOperation;
                     synchronized (LOCK) {
-                        if (restoreInProgress && moduleEnabled && accState) {
-                            activeRestoration = operation;
-                        } else {
-                            operation.cancel();
-                        }
+                        cancelOperation = !restoreInProgress || !moduleEnabled || !accState;
+                        if (!cancelOperation) activeRestoration = operation;
                     }
+                    if (cancelOperation) operation.cancel();
                 }
             }, null, Activity.RESULT_CANCELED, null, null);
         } catch (RuntimeException error) {
