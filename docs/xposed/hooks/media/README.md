@@ -169,7 +169,18 @@ The Media UI displays the persisted source package, playback state, and foregrou
 
 `MainActivity` reads the stored Snapshot when opening the module and updates the view when a new Snapshot broadcast is received. It does not persist the Snapshot itself.
 
-The hook reports diagnostic events through Core's `EventLogger`. Events is an independent module and is not a dependency of Media.
+The hook reports diagnostic events through Core's `EventLogger`. System-process events are sent with the `SYSTEM_EVENT` action and received by `SystemEventsReceiver`; application-process events use `EventsReceiver`. Both paths pass validated records to `EventManager`, which writes them asynchronously to the Events SQLite database.
+
+Media diagnostic records use module name `Media`. They cover:
+- ACC hook installation, valid state transitions, and rejected ACC values
+- Configuration changes and hook/configuration errors
+- Snapshot capture, Bluetooth snapshot binding, persistence success, and persistence failure
+- Standard-player PAUSE dispatch and missing-session/error cases
+- Restore request, selected source/state, and Activity launch decisions
+- Standard MediaSession listener registration, matching session detection, PLAY dispatch, timeout, cancellation, and failure
+- Bluetooth vendor MediaSession detection, listener registration, service binding, A2DP/AVRCP connection results, PLAY dispatch, timeout, cancellation, and failure
+
+Events are retained only when the Events module is enabled. If Events is disabled, incoming records are intentionally ignored. The Events module remains independent: Media does not require its UI or database APIs and communicates only through Core's event broadcast contract.
 
 ## Implementation status
 
