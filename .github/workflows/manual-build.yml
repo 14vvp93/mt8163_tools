@@ -1,4 +1,4 @@
-name: Manual APK Build
+name: APK Build
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: manual-apk-build-${{ github.ref }}
+  group: apk-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
