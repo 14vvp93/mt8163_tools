@@ -3,6 +3,9 @@ package com.mt8163.tools.modules.voltage;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.Log;
+
+import com.mt8163.tools.core.EventLogger;
 
 public final class VoltageSettingsStore {
     public static final String ACTION_CONFIG_CHANGED =
@@ -60,7 +63,12 @@ public final class VoltageSettingsStore {
 
         try {
             app.sendBroadcast(intent);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            String message = "Failed to send configuration broadcast: "
+                    + error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
+            Log.e("MT8163Tools", message, error);
+            EventLogger.log(app, "Voltage", "configurationBroadcast", message);
         }
     }
 
