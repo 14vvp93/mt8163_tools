@@ -46,7 +46,7 @@ public final class MediaSettingsStore {
                 .putBoolean(EXTRA_ENABLED, enabled)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth)
-                .apply();
+                .commit();
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage("android");
@@ -78,7 +78,7 @@ public final class MediaSettingsStore {
         if (context == null) return;
         context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
-                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, enabled).apply();
+                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, enabled).commit();
         publish(context);
     }
 
@@ -86,7 +86,7 @@ public final class MediaSettingsStore {
         if (context == null) return;
         context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
-                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, enabled).apply();
+                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, enabled).commit();
         publish(context);
     }
 
