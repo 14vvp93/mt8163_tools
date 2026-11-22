@@ -277,6 +277,7 @@ public final class VoltageHook implements PackageHook {
                 synchronized (LOCK) {
                     mcuService = service;
                     hasRawVoltage = false;
+                    hasReportedVoltageApplied = false;
                 }
                 return;
             }
