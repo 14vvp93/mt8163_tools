@@ -14,6 +14,10 @@ public final class MediaSettingsStore {
     public static final String EXTRA_PLAYBACK_STATE = "playback_state";
     public static final String EXTRA_IS_FOREGROUND = "is_foreground";
 
+    public static final String PLAYBACK_PLAYING = "playing";
+    public static final String PLAYBACK_PAUSED = "paused";
+    public static final String PLAYBACK_UNKNOWN = "unknown";
+
     private static final String MODULE_SETTINGS = "mt8163_tools";
     private static final String HOOK_SETTINGS = "media_hook_config";
     private static final String STATE_SETTINGS = "media_state";
@@ -36,15 +40,25 @@ public final class MediaSettingsStore {
         app.sendBroadcast(intent);
     }
 
-    public static void saveSnapshot(Context context, String packageName,
-                                     String playbackState, boolean isForeground) {
-        if (context == null) return;
+    public static boolean saveSnapshot(Context context, String packageName,
+                                       String playbackState, boolean isForeground) {
+        if (context == null) return false;
 
-        stateSettings(context.getApplicationContext()).edit()
-                .putString(EXTRA_SOURCE_PACKAGE, packageName == null ? "" : packageName)
-                .putString(EXTRA_PLAYBACK_STATE, playbackState == null ? "" : playbackState)
-                .putBoolean(EXTRA_IS_FOREGROUND, isForeground)
-                .apply();
+        try {
+            return stateSettings(context.getApplicationContext()).edit()
+                    .putString(EXTRA_SOURCE_PACKAGE, packageName == null ? "" : packageName)
+                    .putString(EXTRA_PLAYBACK_STATE, normalizePlaybackState(playbackState))
+                    .putBoolean(EXTRA_IS_FOREGROUND, isForeground)
+                    .commit();
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    public static String normalizePlaybackState(String state) {
+        if (PLAYBACK_PLAYING.equalsIgnoreCase(state)) return PLAYBACK_PLAYING;
+        if (PLAYBACK_PAUSED.equalsIgnoreCase(state)) return PLAYBACK_PAUSED;
+        return PLAYBACK_UNKNOWN;
     }
 
     public static String getSourcePackage(Context context) {
