@@ -160,6 +160,9 @@ public final class VoltageHook implements PackageHook {
         try {
             XSharedPreferences preferences =
                     new XSharedPreferences(APP_PACKAGE, HOOK_PREFERENCES);
+            if (!preferences.getFile().canRead()) {
+                throw new IllegalStateException("Voltage settings are not readable by LSPosed");
+            }
             preferences.reload();
 
             boolean enabled = preferences.getBoolean(KEY_MODULE_ENABLED, false);
