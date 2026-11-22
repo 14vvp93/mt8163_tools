@@ -493,18 +493,20 @@ public final class MediaRestorer {
 
         private void startWorkerIfReady() {
             final IBinder service;
+            final boolean workerBusy;
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || binder == null
                         || !sessionReady || workerSubmitted) return;
                 service = binder;
-                if (!BLUETOOTH_WORKER_BUSY.compareAndSet(false, true)) {
-                    workerSubmitted = true;
-                    logEvent(context, "bluetoothRestoreBusy",
-                            "Previous Bluetooth Binder operation has not returned");
-                    fail();
-                    return;
-                }
                 workerSubmitted = true;
+                workerBusy = !BLUETOOTH_WORKER_BUSY.compareAndSet(false, true);
+            }
+
+            if (workerBusy) {
+                logEvent(context, "bluetoothRestoreBusy",
+                        "Previous Bluetooth Binder operation has not returned");
+                fail();
+                return;
             }
 
             try {
