@@ -42,11 +42,15 @@ public final class MediaSettingsStore {
         boolean restoreBluetooth = modulePreferences.getBoolean(
                 EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
 
-        hookSettings(app).edit()
+        boolean saved = hookSettings(app).edit()
                 .putBoolean(EXTRA_ENABLED, enabled)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth)
                 .commit();
+        if (!saved) {
+            com.mt8163.tools.core.EventLogger.log(
+                    app, "Media", "configurationSave", "Failed to persist hook settings");
+        }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage("android");
