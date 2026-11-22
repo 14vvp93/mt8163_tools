@@ -7,6 +7,8 @@ import android.content.SharedPreferences;
 public final class MediaSettingsStore {
     public static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
+    public static final String CONFIG_PERMISSION =
+            "com.mt8163.tools.permission.UPDATE_MEDIA_CONFIG";
     public static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     public static final String ACTION_RESTORE_REQUEST =
