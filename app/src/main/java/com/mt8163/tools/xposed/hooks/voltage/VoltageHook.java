@@ -34,6 +34,8 @@ public final class VoltageHook implements PackageHook {
     private static boolean configurationLoadInProgress;
     private static long configurationGeneration;
     private static boolean receiverRegistered;
+    private static boolean receiverRegistrationInProgress;
+    private static boolean receiverRegistrationFailureLogged;
     private static boolean hasReportedBatteryPacket;
     private static boolean hasReportedVoltageApplied;
     private static Context eventContext;
@@ -132,9 +134,11 @@ public final class VoltageHook implements PackageHook {
         synchronized (LOCK) {
             eventContext = context;
             mcuService = service;
-            if (!receiverRegistered) registerConfigReceiverLocked(context);
         }
 
+        synchronized (LOCK) {
+            if (!receiverRegistered) registerConfigReceiverLocked(context);
+        }
         loadInitialConfiguration();
 
         synchronized (LOCK) {
@@ -191,11 +195,14 @@ public final class VoltageHook implements PackageHook {
     }
 
     private static void registerConfigReceiverLocked(Context context) {
+        if (context == null || receiverRegistered || receiverRegistrationInProgress) return;
+        receiverRegistrationInProgress = true;
+
         try {
             IntentFilter filter = new IntentFilter(
                     VoltageSettingsStore.ACTION_CONFIG_CHANGED);
 
-            configReceiver = new BroadcastReceiver() {
+            BroadcastReceiver receiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context receiverContext, Intent intent) {
                     receiveConfiguration(intent);
@@ -203,14 +210,22 @@ public final class VoltageHook implements PackageHook {
             };
 
             context.registerReceiver(
-                    configReceiver, filter, VoltageSettingsStore.CONFIG_PERMISSION, null);
+                    receiver, filter, VoltageSettingsStore.CONFIG_PERMISSION, null);
+            configReceiver = receiver;
             receiverRegistered = true;
+            receiverRegistrationFailureLogged = false;
+            initialConfigurationLoaded = false;
             logEvent("receiverRegistered", "Voltage settings update receiver registered");
         } catch (RuntimeException error) {
             configReceiver = null;
-            logEvent("receiverRegistrationFailed",
-                    "Voltage settings receiver registration failed: " + error);
-            XposedBridge.log("MT8163 Tools: Voltage receiver registration failed: " + error);
+            if (!receiverRegistrationFailureLogged) {
+                receiverRegistrationFailureLogged = true;
+                logEvent("receiverRegistrationFailed",
+                        "Voltage settings receiver registration failed: " + error);
+                XposedBridge.log("MT8163 Tools: Voltage receiver registration failed: " + error);
+            }
+        } finally {
+            receiverRegistrationInProgress = false;
         }
     }
 
@@ -273,6 +288,14 @@ public final class VoltageHook implements PackageHook {
             if (!(parameterValue instanceof Number)) return;
 
             float rawVoltage = (((Number) parameterValue).intValue() & 0xff) / 10.0f;
+
+            boolean reloadConfiguration;
+            synchronized (LOCK) {
+                if (!receiverRegistered) registerConfigReceiverLocked(eventContext);
+                reloadConfiguration = receiverRegistered && !initialConfigurationLoaded;
+            }
+            if (reloadConfiguration) loadInitialConfiguration();
+
             if (rawVoltage == 0.0f) {
                 synchronized (LOCK) {
                     mcuService = service;
