@@ -22,7 +22,7 @@ public final class SystemBootstrap {
             XposedHelpers.findAndHookMethod(
                     "com.android.server.SystemServer",
                     classLoader,
-                    "startBootstrapServices",
+                    "startCoreServices",
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
