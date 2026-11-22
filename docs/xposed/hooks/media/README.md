@@ -27,6 +27,8 @@ The hook observes:
 - Action: `android.mcu.device.action.ACC`
 - Extra: `AccStatus`
 
+ACC OFF is handled in `beforeHookedMethod` so the source state is captured before the MCU receiver processes shutdown. ACC ON is handled in `afterHookedMethod` so restoration starts after the MCU receiver has processed the power-on event.
+
 The extra accepts a Boolean or Number. Boolean values are used directly; numeric zero means OFF and any nonzero value means ON. Missing or unsupported values are ignored.
 
 The first valid ACC broadcast initializes the in-memory state. An initial ON starts restoration; an initial OFF does not create a Snapshot because no ON-to-OFF transition has been observed. Snapshot capture begins only after the hook has observed ON and then OFF.
