@@ -1,5 +1,6 @@
 package com.mt8163.tools.modules.media;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -19,6 +20,8 @@ public final class MediaSnapshotReceiver extends BroadcastReceiver {
         boolean isForeground = intent.getBooleanExtra(
                 MediaSettingsStore.EXTRA_IS_FOREGROUND, false);
 
-        MediaSettingsStore.saveSnapshot(context, packageName, playbackState, isForeground);
+        boolean saved = MediaSettingsStore.saveSnapshot(
+                context, packageName, playbackState, isForeground);
+        setResultCode(saved ? Activity.RESULT_OK : Activity.RESULT_CANCELED);
     }
 }
