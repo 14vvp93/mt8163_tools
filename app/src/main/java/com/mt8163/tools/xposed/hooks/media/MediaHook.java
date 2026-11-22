@@ -214,6 +214,9 @@ public final class MediaHook implements PackageHook {
         try {
             XSharedPreferences preferences =
                     new XSharedPreferences(APP_PACKAGE, CONFIG_FILE);
+            if (!preferences.getFile().canRead()) {
+                throw new IllegalStateException("Media settings are not readable by LSPosed");
+            }
             preferences.reload();
 
             boolean enabled = preferences.getBoolean(EXTRA_ENABLED, false);
