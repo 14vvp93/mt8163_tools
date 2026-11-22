@@ -229,6 +229,7 @@ public final class MediaHook implements PackageHook {
 
         synchronized (LOCK) {
             if (receiverRegistered) return;
+            receiverRegistered = true;
         }
 
         try {
@@ -268,10 +269,10 @@ public final class MediaHook implements PackageHook {
                 }
             };
             context.registerReceiver(receiver, filter, CONFIG_PERMISSION, null);
-            synchronized (LOCK) {
-                receiverRegistered = true;
-            }
         } catch (RuntimeException error) {
+            synchronized (LOCK) {
+                receiverRegistered = false;
+            }
             reportError("configReceiver", error);
         }
     }
