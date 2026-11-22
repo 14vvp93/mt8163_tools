@@ -52,6 +52,9 @@ public final class MediaHook implements PackageHook {
 
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
+    private static boolean receiverRegistrationInProgress;
+    private static long configurationGeneration;
+    private static BroadcastReceiver configReceiver;
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
@@ -131,6 +134,8 @@ public final class MediaHook implements PackageHook {
                     synchronized (LOCK) {
                         windowManagerService = param.thisObject;
                     }
+                    if (systemContext == null) systemContext = getSystemContext();
+                    registerConfigReceiver();
                 }
             });
         } catch (Throwable error) {
@@ -201,19 +206,30 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void loadConfiguration() {
+        final long generation;
+        synchronized (LOCK) {
+            generation = configurationGeneration;
+        }
+
         try {
             XSharedPreferences preferences =
                     new XSharedPreferences(APP_PACKAGE, CONFIG_FILE);
             preferences.reload();
-            moduleEnabled = preferences.getBoolean(EXTRA_ENABLED, false);
-            restoreBackgroundMedia = preferences.getBoolean(
-                    EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
-            restoreBackgroundBluetooth = preferences.getBoolean(
-                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
+
+            boolean enabled = preferences.getBoolean(EXTRA_ENABLED, false);
+            boolean restoreMedia = preferences.getBoolean(
+                    EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+            boolean restoreBluetooth = preferences.getBoolean(
+                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+
+            synchronized (LOCK) {
+                if (configurationGeneration != generation) return;
+                moduleEnabled = enabled;
+                restoreBackgroundMedia = restoreMedia;
+                restoreBackgroundBluetooth = restoreBluetooth;
+            }
+            logEvent("configurationLoaded", "Media settings loaded: enabled=" + enabled);
         } catch (Throwable error) {
-            moduleEnabled = false;
-            restoreBackgroundMedia = false;
-            restoreBackgroundBluetooth = false;
             reportError("configurationLoad", error);
         }
     }
@@ -223,50 +239,58 @@ public final class MediaHook implements PackageHook {
         if (context == null) return;
 
         synchronized (LOCK) {
-            if (receiverRegistered) return;
-            receiverRegistered = true;
+            if (receiverRegistered || receiverRegistrationInProgress) return;
+            receiverRegistrationInProgress = true;
         }
 
-        try {
-            IntentFilter filter = new IntentFilter(ACTION_CONFIG_CHANGED);
-            BroadcastReceiver receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context receiverContext, Intent intent) {
-                    if (intent == null || !ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
-                        return;
-                    }
-
-                    BluetoothMusicClient cancelClient = null;
-                    MediaRestorer.Cancellable cancelRestore = null;
-                    boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
-                    synchronized (LOCK) {
-                        moduleEnabled = enabled;
-                        restoreBackgroundMedia = intent.getBooleanExtra(
-                                EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
-                        restoreBackgroundBluetooth = intent.getBooleanExtra(
-                                EXTRA_RESTORE_BACKGROUND_BLUETOOTH,
-                                restoreBackgroundBluetooth);
-
-                        if (!enabled) {
-                            snapshotInProgress = false;
-                            restorePending = false;
-                            restoreInProgress = false;
-                            cancelClient = bluetoothClient;
-                            bluetoothClient = null;
-                            cancelRestore = activeRestoration;
-                            activeRestoration = null;
-                        }
-                    }
-
-                    if (cancelClient != null) cancelClient.disconnect();
-                    if (cancelRestore != null) cancelRestore.cancel();
-                    logEvent("configurationChanged", "Media enabled: " + enabled);
+        BroadcastReceiver receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context receiverContext, Intent intent) {
+                if (intent == null || !ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
+                    return;
                 }
-            };
-            context.registerReceiver(receiver, filter, CONFIG_PERMISSION, null);
+
+                BluetoothMusicClient cancelClient = null;
+                MediaRestorer.Cancellable cancelRestore = null;
+                boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
+                synchronized (LOCK) {
+                    configurationGeneration++;
+                    moduleEnabled = enabled;
+                    restoreBackgroundMedia = intent.getBooleanExtra(
+                            EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
+                    restoreBackgroundBluetooth = intent.getBooleanExtra(
+                            EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
+
+                    if (!enabled) {
+                        snapshotInProgress = false;
+                        restorePending = false;
+                        restoreInProgress = false;
+                        cancelClient = bluetoothClient;
+                        bluetoothClient = null;
+                        cancelRestore = activeRestoration;
+                        activeRestoration = null;
+                    }
+                }
+
+                if (cancelClient != null) cancelClient.disconnect();
+                if (cancelRestore != null) cancelRestore.cancel();
+                logEvent("configurationChanged", "Media enabled: " + enabled);
+            }
+        };
+
+        try {
+            context.registerReceiver(receiver,
+                    new IntentFilter(ACTION_CONFIG_CHANGED), CONFIG_PERMISSION, null);
+            synchronized (LOCK) {
+                configReceiver = receiver;
+                receiverRegistered = true;
+                receiverRegistrationInProgress = false;
+            }
+            logEvent("receiverRegistered", "Media settings update receiver registered");
+            loadConfiguration();
         } catch (RuntimeException error) {
             synchronized (LOCK) {
-                receiverRegistered = false;
+                receiverRegistrationInProgress = false;
             }
             reportError("configReceiver", error);
         }
