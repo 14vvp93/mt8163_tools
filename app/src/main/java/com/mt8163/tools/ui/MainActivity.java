@@ -2,14 +2,11 @@ package com.mt8163.tools.ui;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ListView;
-import android.widget.TextView;
 
 import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
@@ -48,23 +45,12 @@ public final class MainActivity extends Activity {
         header = findViewById(R.id.header_container);
         content = findViewById(R.id.content_container);
         overlay = findViewById(R.id.disabled_overlay);
-        TextView version = findViewById(R.id.version_label);
-        version.setText(getString(R.string.version_format, getAppVersion()));
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
         selected = modules.size() - 1;
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
         showModule(selected);
-    }
-
-    private String getAppVersion() {
-        try {
-            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-            return info.versionName == null ? "Unknown" : info.versionName;
-        } catch (PackageManager.NameNotFoundException e) {
-            return "Unknown";
-        }
     }
 
     private void showModule(int position) {
