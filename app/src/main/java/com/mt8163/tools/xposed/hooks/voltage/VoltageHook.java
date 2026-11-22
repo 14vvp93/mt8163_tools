@@ -27,8 +27,6 @@ public final class VoltageHook implements PackageHook {
     private static final String HOOK_PREFERENCES = "voltage_hook_config";
     private static final String KEY_MODULE_ENABLED = "module_enabled";
     private static final String KEY_VOLTAGE_OFFSET = "voltage_offset";
-    private static final float MIN_OUTPUT_VOLTAGE = 0.0f;
-    private static final float MAX_OUTPUT_VOLTAGE = 25.5f;
     private static final Object LOCK = new Object();
 
     private static boolean installAttempted;
@@ -233,7 +231,6 @@ public final class VoltageHook implements PackageHook {
             moduleEnabled = enabled;
             voltageOffset = offset;
             initialConfigurationLoaded = true;
-            configurationLoadFailureReported = false;
             applyCurrentVoltageLocked();
 
             if (changed) {
@@ -282,19 +279,15 @@ public final class VoltageHook implements PackageHook {
     }
 
     private static boolean isValidRawVoltage(float value) {
-        return !Float.isNaN(value) && !Float.isInfinite(value)
-                && value > 0.0f && value <= MAX_OUTPUT_VOLTAGE;
+        return value > 0.0f;
     }
 
     private static void applyCurrentVoltageLocked() {
-        if (mcuService == null || !hasRawVoltage) return;
+        if (mcuService == null || !hasRawVoltage || !moduleEnabled
+                || rawBatteryVoltage == 0.0f || voltageOffset == 0.0f) return;
 
-        float requestedVoltage = moduleEnabled
-                ? rawBatteryVoltage + voltageOffset : rawBatteryVoltage;
-        if (Float.isNaN(requestedVoltage) || Float.isInfinite(requestedVoltage)) return;
-
-        float outputVoltage = Math.max(MIN_OUTPUT_VOLTAGE,
-                Math.min(MAX_OUTPUT_VOLTAGE, requestedVoltage));
+        float outputVoltage = rawBatteryVoltage + voltageOffset;
+        if (Float.isNaN(outputVoltage) || Float.isInfinite(outputVoltage)) return;
 
         try {
             XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", outputVoltage);

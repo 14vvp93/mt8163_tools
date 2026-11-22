@@ -14,7 +14,7 @@ The Voltage screen contains:
 2. **Voltage Offset** — a slider from `-2.0 V` to `+2.0 V` in `0.1 V` steps. Default: `0.0 V`.
 3. **Reset** — sets the offset to `0.0 V` without changing the enabled state.
 
-The selected offset remains saved while the module is disabled.
+The selected offset remains saved while the module is disabled. A zero offset means no correction; the hook leaves the MCU-provided field untouched.
 
 ## Module Integration
 

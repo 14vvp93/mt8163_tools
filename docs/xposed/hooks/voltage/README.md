@@ -38,13 +38,13 @@ The original method updates low-battery state, assigns `mBatteryVoltage`, and ev
 For each battery packet with a valid subcommand and parameter, the hook retains the decoded raw value and calculates the reported value from that raw value:
 
 ```text
-if module_enabled:
+if module_enabled and rawVoltage != 0 and voltage_offset != 0:
     outputVoltage = rawVoltage + voltage_offset
 else:
-    outputVoltage = rawVoltage
+    leave mBatteryVoltage unchanged
 ```
 
-The offset is never added to a previously corrected value. Configuration changes recalculate the field from the retained raw voltage. A raw value of `0.0 V` is accepted and replaces the previous raw value; it is not treated as missing data.
+The offset is never added to a previously corrected value. A packet carrying `0.0 V` is ignored by the hook: it does not replace the cached raw value and does not write to `mBatteryVoltage`. When the UI offset is `0.0 V`, or the module is disabled, the hook also leaves `mBatteryVoltage` untouched. The original MCU method therefore remains responsible for the reported value in all three cases.
 
 No output-voltage clamp is applied. The offset is finite and limited to `-2.0..+2.0 V` by the module settings.
 
