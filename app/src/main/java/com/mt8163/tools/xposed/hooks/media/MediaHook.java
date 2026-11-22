@@ -238,38 +238,51 @@ public final class MediaHook implements PackageHook {
 
     private static void ensureBluetooth(Context context, long generation,
                                         boolean requestSnapshot) {
+        BluetoothMusicClient client;
+        boolean created = false;
         synchronized (LOCK) {
             if (!moduleEnabled || generation != sourceGeneration
                     || !isBluetoothSource(lastSourcePackage)) return;
-            if (bluetoothClient != null) return;
 
-            BluetoothMusicClient client = new BluetoothMusicClient(context,
-                    new BluetoothMusicClient.Listener() {
-                        @Override
-                        public void onSnapshot(String state) {
-                            completeBluetoothSnapshot(context, generation, state);
-                        }
+            client = bluetoothClient;
+            if (client == null) {
+                client = new BluetoothMusicClient(context,
+                        new BluetoothMusicClient.Listener() {
+                            @Override
+                            public void onSnapshot(String state) {
+                                completeBluetoothSnapshot(context, generation, state);
+                            }
 
-                        @Override
-                        public void onPlaybackState(String state) {
-                            publishBluetoothPlaybackState(context, generation, state);
-                        }
+                            @Override
+                            public void onPlaybackState(String state) {
+                                publishBluetoothPlaybackState(context, generation, state);
+                            }
 
-                        @Override
-                        public void onConnectionLost() {
-                            publishBluetoothPlaybackState(context, generation, "unavailable");
-                        }
-                    });
-            bluetoothClient = client;
-            if (!client.connect()) {
-                bluetoothClient = null;
-                completeBluetoothSnapshot(context, generation, "unavailable");
-                logEvent(context, "bluetoothBindFailed",
-                        "Unable to bind BluetoothMusicService");
-            } else {
-                logEvent(context, "bluetoothBinding",
-                        "Binding BluetoothMusicService for active Bluetooth source");
+                            @Override
+                            public void onConnectionLost() {
+                                publishBluetoothPlaybackState(context, generation, "unavailable");
+                            }
+                        });
+                bluetoothClient = client;
+                created = true;
             }
+        }
+
+        if (!created) {
+            if (requestSnapshot) client.requestSnapshot();
+            return;
+        }
+
+        if (!client.connect()) {
+            synchronized (LOCK) {
+                if (bluetoothClient == client) bluetoothClient = null;
+            }
+            completeBluetoothSnapshot(context, generation, "unavailable");
+            logEvent(context, "bluetoothBindFailed",
+                    "Unable to bind BluetoothMusicService");
+        } else {
+            logEvent(context, "bluetoothBinding",
+                    "Binding BluetoothMusicService for active Bluetooth source");
         }
     }
 
