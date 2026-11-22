@@ -36,8 +36,6 @@ public final class MediaHook implements PackageHook {
     private static final Object LOCK = new Object();
 
     private static boolean hooksInstalled;
-    private static boolean accHookInstalled;
-    private static boolean windowManagerHookInstalled;
     private static boolean receiverRegistered;
     private static boolean moduleEnabled;
     private static boolean accState;
@@ -84,9 +82,6 @@ public final class MediaHook implements PackageHook {
                             handleAccIntent(context, (Intent) param.args[1]);
                         }
                     });
-            synchronized (LOCK) {
-                accHookInstalled = true;
-            }
             logEvent("accHookInstalled", "MCU ACC receiver hook installed");
         } catch (Throwable error) {
             reportError("accHook", error);
@@ -104,9 +99,6 @@ public final class MediaHook implements PackageHook {
                     }
                 }
             });
-            synchronized (LOCK) {
-                windowManagerHookInstalled = true;
-            }
         } catch (Throwable error) {
             reportError("windowManagerHook", error);
         }
@@ -126,9 +118,11 @@ public final class MediaHook implements PackageHook {
         }
 
         boolean startSnapshot = false;
+        boolean changed;
         synchronized (LOCK) {
             boolean previousState = accState;
             accState = nextState;
+            changed = previousState != accState;
 
             if (previousState && !accState && moduleEnabled && !snapshotInProgress) {
                 snapshotInProgress = true;
@@ -136,7 +130,7 @@ public final class MediaHook implements PackageHook {
             }
         }
 
-        logEvent("accStateChanged", "ACC state: " + nextState);
+        if (changed) logEvent("accStateChanged", "ACC state: " + nextState);
         if (startSnapshot) captureSnapshot();
     }
 
