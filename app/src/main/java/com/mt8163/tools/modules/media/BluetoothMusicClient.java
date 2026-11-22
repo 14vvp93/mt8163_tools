@@ -12,6 +12,7 @@ import android.os.RemoteException;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class BluetoothMusicClient {
     public interface Listener {
@@ -34,6 +35,7 @@ public final class BluetoothMusicClient {
                 thread.setDaemon(true);
                 return thread;
             });
+    private static final AtomicBoolean BINDER_WORKER_BUSY = new AtomicBoolean();
 
     private final Context context;
     private final Listener listener;
@@ -55,9 +57,21 @@ public final class BluetoothMusicClient {
                 return;
             }
 
+            if (!BINDER_WORKER_BUSY.compareAndSet(false, true)) {
+                finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
+                return;
+            }
+
             try {
-                BINDER_WORKER.execute(() -> querySnapshot(binder));
+                BINDER_WORKER.execute(() -> {
+                    try {
+                        querySnapshot(binder);
+                    } finally {
+                        BINDER_WORKER_BUSY.set(false);
+                    }
+                });
             } catch (RuntimeException error) {
+                BINDER_WORKER_BUSY.set(false);
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
             }
         }
