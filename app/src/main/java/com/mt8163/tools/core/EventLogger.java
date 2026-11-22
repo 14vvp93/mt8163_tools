@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.UserHandle;
 
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
@@ -146,7 +145,7 @@ public final class EventLogger {
     private static void send(Context context, Intent intent, boolean systemProcess) {
         try {
             if (systemProcess) {
-                context.sendBroadcastAsUser(intent, UserHandle.SYSTEM);
+                context.sendBroadcast(intent);
             } else {
                 context.sendBroadcast(intent);
             }

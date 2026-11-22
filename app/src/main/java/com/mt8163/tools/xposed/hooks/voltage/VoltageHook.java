@@ -4,9 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.UserHandle;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
@@ -174,12 +172,12 @@ public final class VoltageHook implements PackageHook {
             configReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context receiverContext, Intent intent) {
-                    receiveConfiguration(receiverContext, intent, getSendingUid());
+                    receiveConfiguration(intent);
                 }
             };
 
-            context.registerReceiverAsUser(
-                    configReceiver, UserHandle.SYSTEM, filter, null, null);
+            context.registerReceiver(
+                    configReceiver, filter, VoltageSettingsStore.CONFIG_PERMISSION, null);
             receiverRegistered = true;
             logEvent("receiverRegistered", "Voltage settings update receiver registered");
         } catch (RuntimeException error) {
@@ -190,21 +188,9 @@ public final class VoltageHook implements PackageHook {
         }
     }
 
-    private static void receiveConfiguration(
-            Context context, Intent intent, int sendingUid) {
+    private static void receiveConfiguration(Intent intent) {
         if (intent == null
                 || !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
-            return;
-        }
-
-        try {
-            int appUid = context.getPackageManager().getPackageUid(APP_PACKAGE, 0);
-            if (sendingUid != appUid) {
-                logEvent("configurationRejected", "Settings broadcast sender is not the app");
-                return;
-            }
-        } catch (PackageManager.NameNotFoundException error) {
-            logEvent("configurationRejected", "MT8163 Tools package is unavailable");
             return;
         }
 
