@@ -18,6 +18,7 @@ public final class MediaHook implements PackageHook {
     private static final String APP_PACKAGE = "com.mt8163.tools";
     private static final String SOURCE_SERVICE_CLASS = "android.sourceservice.SourceService";
     private static final String SOURCE_INFO_CLASS = "android.sourceservice.SourceInfo";
+    private static final String BLUETOOTH_SOURCE_PACKAGE = "com.autochips.bluetooth";
     private static final String CONFIG_FILE = "media_hook_config";
     private static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
@@ -38,6 +39,7 @@ public final class MediaHook implements PackageHook {
     private static BroadcastReceiver receiver;
     private static String lastSourcePackage;
     private static String lastPlaybackState;
+    private static BluetoothMusicClient bluetoothClient;
 
     @Override
     public boolean supports(String packageName) {
@@ -133,6 +135,7 @@ public final class MediaHook implements PackageHook {
                                 moduleEnabled = (Boolean) enabled;
                             }
                             if (moduleEnabled) publishSnapshot(receiverContext);
+                            else disableBluetooth();
                         }
                     } else if (ACTION_REQUEST_SNAPSHOT.equals(action) && moduleEnabled) {
                         publishSnapshot(receiverContext);
@@ -172,10 +175,11 @@ public final class MediaHook implements PackageHook {
                 Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
                 String packageName = packageValue instanceof String ? (String) packageValue : "";
                 String state = stateValue instanceof String ? (String) stateValue : "";
-                publishStateLocked(context, packageName, state, true);
                 logEvent(context, "snapshotReceived",
                         "Source package: " + display(packageName) + ", playback state: "
                                 + display(state));
+                handleSourceChanged(context, packageName);
+                if (!isBluetoothSource(packageName)) handlePlaybackState(context, state);
             } catch (Throwable error) {
                 reportError(context, "snapshot", error);
                 publishStateLocked(context, "", "", true);
@@ -199,6 +203,70 @@ public final class MediaHook implements PackageHook {
         if (changed) {
             logEvent(context, "sourceChanged", "Audio source package: " + display(value));
         }
+
+        if (isBluetoothSource(value)) enableBluetooth(context);
+        else disableBluetooth();
+    }
+
+    private static void enableBluetooth(Context context) {
+        synchronized (LOCK) {
+            if (!moduleEnabled || !isBluetoothSource(lastSourcePackage)
+                    || bluetoothClient != null) return;
+
+            BluetoothMusicClient client = new BluetoothMusicClient(context,
+                    new BluetoothMusicClient.Listener() {
+                        @Override
+                        public void onPlaybackState(String state) {
+                            publishBluetoothState(context, state);
+                        }
+
+                        @Override
+                        public void onConnectionLost() {
+                            publishBluetoothState(context, "unavailable");
+                        }
+                    });
+            bluetoothClient = client;
+            if (!client.connect()) {
+                bluetoothClient = null;
+                publishBluetoothState(context, "unavailable");
+                logEvent(context, "bluetoothBindFailed",
+                        "Unable to bind BluetoothMusicService");
+            } else {
+                logEvent(context, "bluetoothBinding",
+                        "Binding BluetoothMusicService for active Bluetooth source");
+            }
+        }
+    }
+
+    private static void disableBluetooth() {
+        BluetoothMusicClient client;
+        synchronized (LOCK) {
+            client = bluetoothClient;
+            bluetoothClient = null;
+        }
+        if (client != null) {
+            client.disconnect();
+            logEvent(systemContext, "bluetoothUnbound",
+                    "Bluetooth source is no longer active");
+        }
+    }
+
+    private static void publishBluetoothState(Context context, String state) {
+        String value = state == null ? "unavailable" : state;
+        synchronized (LOCK) {
+            if (!moduleEnabled || !isBluetoothSource(lastSourcePackage)) return;
+            boolean changed = !value.equals(lastPlaybackState);
+            lastPlaybackState = value;
+            publishStateLocked(context, null, value, false);
+            if (changed) {
+                logEvent(context, "bluetoothPlaybackStateChanged",
+                        "Bluetooth playback state: " + display(value));
+            }
+        }
+    }
+
+    private static boolean isBluetoothSource(String packageName) {
+        return BLUETOOTH_SOURCE_PACKAGE.equals(packageName);
     }
 
     private static void handlePlaybackState(Context context, String state) {
@@ -207,7 +275,7 @@ public final class MediaHook implements PackageHook {
         boolean changed;
 
         synchronized (LOCK) {
-            if (!moduleEnabled) return;
+            if (!moduleEnabled || isBluetoothSource(lastSourcePackage)) return;
             changed = !value.equals(lastPlaybackState);
             lastPlaybackState = value;
             publishStateLocked(context, null, value, false);
