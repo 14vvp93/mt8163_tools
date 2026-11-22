@@ -11,17 +11,26 @@ public final class HookRegistry {
             new MediaHook(),
             new VoltageHook()
     };
+    private static volatile XC_LoadPackage.LoadPackageParam systemParam;
 
     private HookRegistry() {
     }
 
     public static void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) {
         if (param == null || param.packageName == null) return;
+        if (!"android".equals(param.packageName)) return;
 
-        if ("android".equals(param.packageName)) {
-            SystemBootstrap.install(param.classLoader);
-        }
+        systemParam = param;
+        installModuleHooks(param);
+        SystemBootstrap.install(param.classLoader);
+    }
 
+    public static void retryModuleHooks() {
+        XC_LoadPackage.LoadPackageParam param = systemParam;
+        if (param != null) installModuleHooks(param);
+    }
+
+    private static void installModuleHooks(XC_LoadPackage.LoadPackageParam param) {
         for (PackageHook hook : HOOKS) {
             if (hook == null || !hook.supports(param.packageName)) continue;
             try {
