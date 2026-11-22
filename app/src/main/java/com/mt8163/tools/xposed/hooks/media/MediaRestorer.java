@@ -121,7 +121,10 @@ public final class MediaRestorer {
         private boolean listenerRegistered;
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
                 this::onSessionsChanged;
-        private final Runnable timeout = () -> finish(null);
+        private final Runnable timeout = () -> {
+            logEvent(context, "mediaRestoreTimeout", "5-second MediaSession wait expired: " + packageName);
+            finish(null);
+        };
 
         StandardRestore(Context context, String packageName, boolean launchActivity,
                         String state, Completion completion) {
@@ -235,6 +238,7 @@ public final class MediaRestorer {
 
         @Override
         public void cancel() {
+            logEvent(context, "mediaRestoreCancelled", "Restoration cancelled: " + packageName);
             finish(null);
         }
     }
@@ -348,7 +352,9 @@ public final class MediaRestorer {
             try {
                 manager.addOnActiveSessionsChangedListener(listener, null, handler);
                 listenerRegistered = true;
+                logEvent(context, "bluetoothSessionListenerRegistered", "Waiting for vendor MediaSession");
             } catch (RuntimeException error) {
+                logEvent(context, "bluetoothSessionListenerFailed", error.toString());
                 fail();
             }
         }
@@ -513,10 +519,15 @@ public final class MediaRestorer {
         try {
             PackageManager packageManager = context.getPackageManager();
             Intent intent = packageManager.getLaunchIntentForPackage(packageName);
-            if (intent == null) return;
+            if (intent == null) {
+                logEvent(context, "mediaActivityLaunchFailed", "No launch Activity for " + packageName);
+                return;
+            }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-        } catch (RuntimeException ignored) {
+            logEvent(context, "mediaActivityLaunched", "Activity started: " + packageName);
+        } catch (RuntimeException error) {
+            logEvent(context, "mediaActivityLaunchFailed", error.toString());
         }
     }
 
@@ -526,7 +537,9 @@ public final class MediaRestorer {
             intent.setComponent(new ComponentName(BLUETOOTH_PACKAGE, BLUETOOTH_ACTIVITY));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-        } catch (RuntimeException ignored) {
+            logEvent(context, "bluetoothActivityLaunched", "BtMusicActivity started");
+        } catch (RuntimeException error) {
+            logEvent(context, "bluetoothActivityLaunchFailed", error.toString());
         }
     }
 
