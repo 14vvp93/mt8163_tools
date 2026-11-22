@@ -182,7 +182,7 @@ The hook reports diagnostic events through Core's `EventLogger`. System-process 
 Media diagnostic records use module name `Media`. They cover:
 - ACC hook installation, valid state transitions, and rejected ACC values
 - Configuration changes and hook/configuration errors
-- Snapshot capture, Bluetooth snapshot binding, persistence success, and persistence failure
+- Snapshot persistence success (`snapshotSaved`) with explicit `sourcePackage`, `playbackState`, and `isForeground` values; persistence failure (`snapshotSaveFailed`) also includes the attempted values and failure reason
 - Standard-player PAUSE dispatch and missing-session/error cases
 - Restore request, selected source/state, and Activity launch decisions
 - Standard MediaSession listener registration, matching session detection, PLAY dispatch, timeout, cancellation, and failure
