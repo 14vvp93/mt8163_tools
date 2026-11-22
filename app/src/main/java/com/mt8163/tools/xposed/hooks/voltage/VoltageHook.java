@@ -243,6 +243,13 @@ public final class VoltageHook implements PackageHook {
             if (!(parameterValue instanceof Number)) return;
 
             float rawVoltage = (((Number) parameterValue).intValue() & 0xff) / 10.0f;
+            if (rawVoltage == 0.0f) {
+                synchronized (LOCK) {
+                    mcuService = service;
+                    hasRawVoltage = false;
+                }
+                return;
+            }
             if (!isValidRawVoltage(rawVoltage)) return;
 
             synchronized (LOCK) {
