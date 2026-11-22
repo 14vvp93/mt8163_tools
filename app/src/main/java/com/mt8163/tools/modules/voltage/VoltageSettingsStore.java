@@ -51,10 +51,14 @@ public final class VoltageSettingsStore {
         boolean enabled = isModuleEnabled(app);
         float offset = getOffset(app);
 
-        hookSettings(app).edit()
+        boolean saved = hookSettings(app).edit()
                 .putBoolean(KEY_HOOK_ENABLED, enabled)
                 .putFloat(KEY_HOOK_OFFSET, offset)
                 .commit();
+        if (!saved) {
+            EventLogger.log(app, "Voltage", "configurationSave",
+                    "Failed to persist hook settings");
+        }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage(TARGET_PACKAGE);
