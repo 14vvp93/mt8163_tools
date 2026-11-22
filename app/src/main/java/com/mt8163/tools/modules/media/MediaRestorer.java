@@ -704,29 +704,32 @@ public final class MediaRestorer {
 
             try {
                 BLUETOOTH_WORKER.execute(() -> {
-                    boolean expired;
+                    boolean expired = false;
+                    boolean committed;
                     synchronized (lock) {
-                        expired = SystemClock.elapsedRealtime() >= deadlineElapsedRealtime;
+                        if (state.get() == State.ACTIVE && a2dpConnected && avrcpConnected
+                                && connectionVersion == profileStateVersion
+                                && SystemClock.elapsedRealtime() >= deadlineElapsedRealtime) {
+                            expired = state.compareAndSet(State.ACTIVE, State.CANCELLED);
+                        }
+
+                        committed = !expired && state.get() == State.ACTIVE
+                                && a2dpConnected && avrcpConnected
+                                && connectionVersion == profileStateVersion
+                                && state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED);
+                        if (!committed) playTaskSubmitted = false;
+                    }
+
+                    if (!committed) {
+                        BLUETOOTH_WORKER_BUSY.set(false);
                         if (expired) {
-                            state.compareAndSet(State.ACTIVE, State.CANCELLED);
+                            logEvent(context, "bluetoothRestoreTimeout",
+                                    "10-second deadline reached before PLAY commit");
+                            finishResources();
+                        } else {
+                            handler.post(this::updatePlayDelay);
                         }
-                        if (expired || state.get() != State.ACTIVE || !a2dpConnected
-                                || !avrcpConnected
-                                || connectionVersion != profileStateVersion
-                                || !state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) {
-                            playTaskSubmitted = false;
-                            BLUETOOTH_WORKER_BUSY.set(false);
-                            if (expired) {
-                                handler.post(() -> {
-                                    logEvent(context, "bluetoothRestoreTimeout",
-                                            "10-second deadline reached before PLAY commit");
-                                    finishResources();
-                                });
-                            } else {
-                                handler.post(this::updatePlayDelay);
-                            }
-                            return;
-                        }
+                        return;
                     }
 
                     try {
