@@ -174,7 +174,7 @@ public final class MediaHook implements PackageHook {
             Object value = intent.getExtras() == null
                     ? null : intent.getExtras().get(ACC_EXTRA);
             if (value instanceof Boolean) return (Boolean) value;
-            if (value instanceof Number) return ((Number) value).intValue() != 0;
+            if (value instanceof Number) return ((Number) value).doubleValue() != 0.0d;
         } catch (RuntimeException ignored) {
         }
         return null;
