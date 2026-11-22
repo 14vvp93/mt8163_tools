@@ -157,6 +157,26 @@ public final class BluetoothMusicClient {
         }
     }
 
+    public void requestSnapshot() {
+        IBinder current;
+        String state;
+        synchronized (lock) {
+            if (closed) return;
+            current = service;
+            state = initialSnapshotSent ? lastPlaybackState : null;
+        }
+
+        if (state != null) {
+            listener.onSnapshot(state);
+        } else if (current != null) {
+            try {
+                publishInitialSnapshot(current);
+            } catch (RemoteException | RuntimeException error) {
+                handleDisconnect();
+            }
+        }
+    }
+
     private void handleDisconnect() {
         synchronized (lock) {
             if (closed) return;
