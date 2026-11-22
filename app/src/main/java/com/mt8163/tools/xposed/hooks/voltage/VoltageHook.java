@@ -27,10 +27,12 @@ public final class VoltageHook implements PackageHook {
     private static final String KEY_VOLTAGE_OFFSET = "voltage_offset";
     private static final Object LOCK = new Object();
 
-    private static boolean installAttempted;
+    private static boolean installInProgress;
     private static boolean constructorHookInstalled;
     private static boolean batteryHookInstalled;
     private static boolean initialConfigurationLoaded;
+    private static boolean configurationLoadInProgress;
+    private static long configurationGeneration;
     private static boolean receiverRegistered;
     private static boolean hasReportedBatteryPacket;
     private static boolean hasReportedVoltageApplied;
@@ -52,62 +54,73 @@ public final class VoltageHook implements PackageHook {
     @Override
     public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
         synchronized (LOCK) {
-            if (installAttempted) return;
-            installAttempted = true;
-        }
-
-        loadInitialConfiguration();
-
-        Class<?> packetClass;
-        try {
-            packetClass = XposedHelpers.findClass(
-                    TARGET_CLASS + "$McuPacket", param.classLoader);
-        } catch (Throwable error) {
-            logInstallFailure("MCU packet class lookup failed", error);
-            throw error;
+            if (installInProgress || (constructorHookInstalled && batteryHookInstalled)) return;
+            installInProgress = true;
         }
 
         try {
-            XposedHelpers.findAndHookConstructor(
-                    TARGET_CLASS,
-                    param.classLoader,
-                    Context.class,
-                    new XC_MethodHook() {
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam hookParam) {
-                            Object contextArg = hookParam.args != null && hookParam.args.length > 0
-                                    ? hookParam.args[0] : null;
-                            if (contextArg instanceof Context) {
-                                onServiceCreated((Context) contextArg, hookParam.thisObject);
-                            }
-                        }
-                    });
+            loadInitialConfiguration();
+
             synchronized (LOCK) {
-                constructorHookInstalled = true;
+                if (!constructorHookInstalled) {
+                    try {
+                        XposedHelpers.findAndHookConstructor(
+                                TARGET_CLASS,
+                                param.classLoader,
+                                Context.class,
+                                new XC_MethodHook() {
+                                    @Override
+                                    protected void afterHookedMethod(MethodHookParam hookParam) {
+                                        Object contextArg = hookParam.args != null
+                                                && hookParam.args.length > 0
+                                                ? hookParam.args[0] : null;
+                                        if (contextArg instanceof Context) {
+                                            onServiceCreated((Context) contextArg,
+                                                    hookParam.thisObject);
+                                        }
+                                    }
+                                });
+                        constructorHookInstalled = true;
+                    } catch (Throwable error) {
+                        logInstallFailure("MCU constructor hook failed", error);
+                    }
+                }
             }
-        } catch (Throwable error) {
-            logInstallFailure("MCU constructor hook failed", error);
-        }
 
-        try {
-            XposedHelpers.findAndHookMethod(
-                    TARGET_CLASS,
-                    param.classLoader,
-                    "onBattery",
-                    packetClass,
-                    new XC_MethodHook() {
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam hookParam) {
-                            processBatteryPacket(hookParam.thisObject,
-                                    hookParam.args != null && hookParam.args.length > 0
-                                            ? hookParam.args[0] : null);
-                        }
-                    });
+            boolean needsBatteryHook;
             synchronized (LOCK) {
-                batteryHookInstalled = true;
+                needsBatteryHook = !batteryHookInstalled;
             }
-        } catch (Throwable error) {
-            logInstallFailure("MCU onBattery hook failed", error);
+
+            if (needsBatteryHook) {
+                try {
+                    Class<?> packetClass = XposedHelpers.findClass(
+                            TARGET_CLASS + "$McuPacket", param.classLoader);
+
+                    XposedHelpers.findAndHookMethod(
+                            TARGET_CLASS,
+                            param.classLoader,
+                            "onBattery",
+                            packetClass,
+                            new XC_MethodHook() {
+                                @Override
+                                protected void afterHookedMethod(MethodHookParam hookParam) {
+                                    processBatteryPacket(hookParam.thisObject,
+                                            hookParam.args != null && hookParam.args.length > 0
+                                                    ? hookParam.args[0] : null);
+                                }
+                            });
+                    synchronized (LOCK) {
+                        batteryHookInstalled = true;
+                    }
+                } catch (Throwable error) {
+                    logInstallFailure("MCU onBattery hook failed", error);
+                }
+            }
+        } finally {
+            synchronized (LOCK) {
+                installInProgress = false;
+            }
         }
 
         synchronized (LOCK) {
@@ -121,12 +134,12 @@ public final class VoltageHook implements PackageHook {
         synchronized (LOCK) {
             eventContext = context;
             mcuService = service;
+            if (!receiverRegistered) registerConfigReceiverLocked(context);
         }
 
         loadInitialConfiguration();
 
         synchronized (LOCK) {
-            if (!receiverRegistered) registerConfigReceiverLocked(context);
             applyCurrentVoltageLocked();
         }
 
@@ -134,9 +147,12 @@ public final class VoltageHook implements PackageHook {
     }
 
     private static void loadInitialConfiguration() {
+        final long generation;
+
         synchronized (LOCK) {
-            if (initialConfigurationLoaded) return;
-            initialConfigurationLoaded = true;
+            if (initialConfigurationLoaded || configurationLoadInProgress) return;
+            configurationLoadInProgress = true;
+            generation = configurationGeneration;
         }
 
         try {
@@ -148,19 +164,31 @@ public final class VoltageHook implements PackageHook {
             float offset = preferences.getFloat(KEY_VOLTAGE_OFFSET, 0.0f);
             if (!VoltageSettingsStore.isValidOffset(offset)) offset = 0.0f;
 
+            boolean applied = false;
             synchronized (LOCK) {
-                moduleEnabled = enabled;
-                voltageOffset = offset;
-                applyCurrentVoltageLocked();
+                if (configurationGeneration == generation
+                        && !initialConfigurationLoaded) {
+                    moduleEnabled = enabled;
+                    voltageOffset = offset;
+                    initialConfigurationLoaded = true;
+                    applyCurrentVoltageLocked();
+                    applied = true;
+                }
             }
 
-            logEvent("configurationLoaded", String.format(Locale.US,
-                    "Initial settings loaded: enabled=%s, offset=%+.1f V",
-                    enabled, offset));
+            if (applied) {
+                logEvent("configurationLoaded", String.format(Locale.US,
+                        "Initial settings loaded: enabled=%s, offset=%+.1f V",
+                        enabled, offset));
+            }
         } catch (Throwable error) {
             logEvent("configurationLoadFailed",
                     "Unable to read initial Voltage settings: " + error);
             XposedBridge.log("MT8163 Tools: Voltage settings load failed: " + error);
+        } finally {
+            synchronized (LOCK) {
+                configurationLoadInProgress = false;
+            }
         }
     }
 
@@ -216,6 +244,7 @@ public final class VoltageHook implements PackageHook {
                     || Float.compare(voltageOffset, offset) != 0;
             moduleEnabled = enabled;
             voltageOffset = offset;
+            configurationGeneration++;
             initialConfigurationLoaded = true;
             applyCurrentVoltageLocked();
 
