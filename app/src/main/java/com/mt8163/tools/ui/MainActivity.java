@@ -79,9 +79,6 @@ public final class MainActivity extends Activity {
                 boolean isForeground = intent.getBooleanExtra(
                         MediaSettingsStore.EXTRA_IS_FOREGROUND, false);
 
-                MediaSettingsStore.saveSnapshot(
-                        context, packageName, playbackState, isForeground);
-
                 if (mediaView == null || selected < 0
                         || !"media".equals(modules.get(selected).getId())) return;
 
