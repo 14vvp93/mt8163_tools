@@ -242,6 +242,10 @@ public final class MediaRestorer {
         private final ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
+                if (service == null) {
+                    fail();
+                    return;
+                }
                 synchronized (lock) {
                     if (state.get() != State.ACTIVE) return;
                     binder = service;
