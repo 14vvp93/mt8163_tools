@@ -22,6 +22,7 @@ public final class BluetoothMusicClient {
             "com.hcn.bluetooth.service.BluetoothMusicService";
     private static final String SERVICE_DESCRIPTOR =
             "com.hcn.bluetooth.service.IBluetoothMusicService";
+    private static final int TRANSACTION_IS_A2DP_PLAYING = 3;
     private static final long BIND_TIMEOUT_MS = 5000L;
 
     private final Context context;
@@ -50,13 +51,9 @@ public final class BluetoothMusicClient {
             Thread queryThread = new Thread(() -> {
                 String state;
                 try {
-                    boolean a2dpConnected = queryBoolean(binder, 1);
-                    boolean avrcpConnected = queryBoolean(binder, 2);
-                    boolean playing = queryBoolean(binder, 3);
-                    state = a2dpConnected && avrcpConnected
-                            ? (playing ? MediaSettingsStore.PLAYBACK_PLAYING
-                            : MediaSettingsStore.PLAYBACK_PAUSED)
-                            : MediaSettingsStore.PLAYBACK_UNKNOWN;
+                    state = queryBoolean(binder, TRANSACTION_IS_A2DP_PLAYING)
+                            ? MediaSettingsStore.PLAYBACK_PLAYING
+                            : MediaSettingsStore.PLAYBACK_PAUSED;
                 } catch (RemoteException | RuntimeException error) {
                     state = MediaSettingsStore.PLAYBACK_UNKNOWN;
                 }
