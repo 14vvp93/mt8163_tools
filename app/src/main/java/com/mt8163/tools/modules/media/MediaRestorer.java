@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
+import android.os.SystemClock;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
@@ -128,6 +129,7 @@ public final class MediaRestorer {
         private final MediaSessionManager manager;
         private final Handler handler = new Handler(Looper.getMainLooper());
         private final Object lock = new Object();
+        private long deadlineElapsedRealtime;
 
         private final AtomicReference<State> state =
                 new AtomicReference<>(State.ACTIVE);
@@ -424,6 +426,7 @@ public final class MediaRestorer {
                 return;
             }
 
+            deadlineElapsedRealtime = SystemClock.elapsedRealtime() + BLUETOOTH_TIMEOUT_MS;
             if (!handler.postDelayed(timeout, BLUETOOTH_TIMEOUT_MS)) {
                 fail("Unable to schedule Bluetooth restoration timeout");
                 return;
@@ -701,14 +704,27 @@ public final class MediaRestorer {
 
             try {
                 BLUETOOTH_WORKER.execute(() -> {
+                    boolean expired;
                     synchronized (lock) {
-                        if (state.get() != State.ACTIVE || !a2dpConnected
+                        expired = SystemClock.elapsedRealtime() >= deadlineElapsedRealtime;
+                        if (expired) {
+                            state.compareAndSet(State.ACTIVE, State.CANCELLED);
+                        }
+                        if (expired || state.get() != State.ACTIVE || !a2dpConnected
                                 || !avrcpConnected
                                 || connectionVersion != profileStateVersion
                                 || !state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) {
                             playTaskSubmitted = false;
                             BLUETOOTH_WORKER_BUSY.set(false);
-                            handler.post(this::updatePlayDelay);
+                            if (expired) {
+                                handler.post(() -> {
+                                    logEvent(context, "bluetoothRestoreTimeout",
+                                            "10-second deadline reached before PLAY commit");
+                                    finishResources();
+                                });
+                            } else {
+                                handler.post(this::updatePlayDelay);
+                            }
                             return;
                         }
                     }
@@ -797,7 +813,7 @@ public final class MediaRestorer {
                 logEvent(context, "bluetoothRestoreTimeout",
                         "10-second restoration deadline reached");
                 finishResources();
-            } else if (state.get() == State.PLAY_COMMITTED) {
+            } else if (state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED)) {
                 logEvent(context, "bluetoothRestoreTimeout",
                         "Deadline reached after PLAY was committed");
                 finishResources();
