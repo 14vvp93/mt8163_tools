@@ -1,11 +1,16 @@
 package com.mt8163.tools.xposed.hooks.media;
 
+import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioManager;
+import android.os.SystemClock;
+import android.view.KeyEvent;
 
 import com.mt8163.tools.core.EventLogger;
+import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
 import com.mt8163.tools.xposed.PackageHook;
 
@@ -203,7 +208,7 @@ public final class MediaHook implements PackageHook {
     private static void captureSnapshot() {
         Context context = systemContext;
         String packageName = "";
-        String playbackState = "unavailable";
+        String playbackState = MediaSettingsStore.PLAYBACK_UNKNOWN;
         boolean isForeground = false;
 
         try {
@@ -222,8 +227,8 @@ public final class MediaHook implements PackageHook {
 
             Object musicInfo = XposedHelpers.callMethod(info, "getMusicInfo");
             Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
-            playbackState = stateValue instanceof String
-                    ? ((String) stateValue).trim() : "unavailable";
+            playbackState = MediaSettingsStore.normalizePlaybackState(
+                    stateValue instanceof String ? ((String) stateValue).trim() : null);
         } catch (Throwable error) {
             reportError("snapshot", error);
         }
@@ -234,12 +239,14 @@ public final class MediaHook implements PackageHook {
     private static void captureBluetoothSnapshot(Context context, String packageName,
                                                 boolean isForeground) {
         if (context == null) {
-            completeSnapshot(null, packageName, "unavailable", isForeground);
+            completeSnapshot(null, packageName,
+                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
             return;
         }
 
         BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
-                completeSnapshot(context, packageName, state, isForeground));
+                completeSnapshot(context, packageName,
+                    MediaSettingsStore.normalizePlaybackState(state), isForeground));
         boolean accepted;
         synchronized (LOCK) {
             accepted = snapshotInProgress && moduleEnabled;
@@ -255,7 +262,8 @@ public final class MediaHook implements PackageHook {
                 if (bluetoothClient == client) bluetoothClient = null;
             }
             client.disconnect();
-            completeSnapshot(context, packageName, "unavailable", isForeground);
+            completeSnapshot(context, packageName,
+                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
             logEvent("bluetoothBindFailed", "Unable to bind BluetoothMusicService");
         }
     }
@@ -269,24 +277,61 @@ public final class MediaHook implements PackageHook {
         }
 
         String source = packageName == null ? "" : packageName;
-        String state = playbackState == null ? "unavailable" : playbackState;
+        String state = MediaSettingsStore.normalizePlaybackState(playbackState);
 
-        if (context != null) {
-            Intent intent = new Intent(ACTION_STATE_CHANGED);
-            intent.setPackage(APP_PACKAGE);
-            intent.putExtra(EXTRA_SOURCE_PACKAGE, source);
-            intent.putExtra(EXTRA_PLAYBACK_STATE, state);
-            intent.putExtra(EXTRA_IS_FOREGROUND, isForeground);
-            try {
-                context.sendBroadcast(intent);
-            } catch (RuntimeException error) {
-                reportError("snapshotBroadcast", error);
-            }
+        if (context == null) {
+            logEvent("snapshotBroadcast", "System context unavailable; snapshot was not saved");
+            return;
         }
 
-        logEvent("snapshotReceived", "Source: " + display(source)
-                + ", playback: " + display(state)
-                + ", foreground: " + isForeground);
+        Intent intent = new Intent(ACTION_STATE_CHANGED);
+        intent.setPackage(APP_PACKAGE);
+        intent.putExtra(EXTRA_SOURCE_PACKAGE, source);
+        intent.putExtra(EXTRA_PLAYBACK_STATE, state);
+        intent.putExtra(EXTRA_IS_FOREGROUND, isForeground);
+        try {
+            context.sendOrderedBroadcast(intent, null, new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context resultContext, Intent resultIntent) {
+                    if (getResultCode() != Activity.RESULT_OK) {
+                        logEvent("snapshotSaveFailed", "Snapshot was not persisted; pause skipped");
+                        return;
+                    }
+
+                    logEvent("snapshotReceived", "Source: " + display(source)
+                            + ", playback: " + state
+                            + ", foreground: " + isForeground);
+
+                    if (MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
+                        pauseActivePlayer();
+                    }
+                }
+            }, null, Activity.RESULT_CANCELED, null, null);
+        } catch (RuntimeException error) {
+            reportError("snapshotBroadcast", error);
+        }
+    }
+
+    private static void pauseActivePlayer() {
+        Context context = systemContext;
+        if (context == null) return;
+
+        try {
+            AudioManager audioManager = (AudioManager)
+                    context.getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager == null) return;
+
+            long eventTime = SystemClock.uptimeMillis();
+            audioManager.dispatchMediaKeyEvent(new KeyEvent(
+                    eventTime, eventTime, KeyEvent.ACTION_DOWN,
+                    KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
+            audioManager.dispatchMediaKeyEvent(new KeyEvent(
+                    eventTime, eventTime, KeyEvent.ACTION_UP,
+                    KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
+            logEvent("playerPause", "MEDIA_PAUSE dispatched");
+        } catch (Throwable error) {
+            reportError("playerPause", error);
+        }
     }
 
     private static boolean isSourceForeground(String packageName) {
