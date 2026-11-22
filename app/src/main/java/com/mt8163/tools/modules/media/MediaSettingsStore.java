@@ -56,8 +56,17 @@ public final class MediaSettingsStore {
     }
 
     public static String normalizePlaybackState(String state) {
-        if (PLAYBACK_PLAYING.equalsIgnoreCase(state)) return PLAYBACK_PLAYING;
-        if (PLAYBACK_PAUSED.equalsIgnoreCase(state)) return PLAYBACK_PAUSED;
+        if (state == null) return PLAYBACK_UNKNOWN;
+
+        String value = state.trim();
+        if (PLAYBACK_PLAYING.equalsIgnoreCase(value)
+                || "start".equalsIgnoreCase(value)
+                || "write".equalsIgnoreCase(value)
+                || "fast_forwarding".equalsIgnoreCase(value)
+                || "rewinding".equalsIgnoreCase(value)) {
+            return PLAYBACK_PLAYING;
+        }
+        if (PLAYBACK_PAUSED.equalsIgnoreCase(value)) return PLAYBACK_PAUSED;
         return PLAYBACK_UNKNOWN;
     }
 
