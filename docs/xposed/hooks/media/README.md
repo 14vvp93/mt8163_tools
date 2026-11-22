@@ -63,14 +63,15 @@ Do not query the standard Media source and Bluetooth in parallel.
 
 ### Snapshot persistence and shutdown behavior
 
-The application receives the ordered broadcast in `MediaSnapshotReceiver` and persists all three Snapshot fields synchronously. It returns `RESULT_OK` only when the save succeeds.
+After the Snapshot has been captured in memory, the ACC OFF sequence is:
 
-The system hook proceeds only after receiving the successful ordered-broadcast result:
+1. For a standard media source with state `playing`, dispatch `KEYCODE_MEDIA_PAUSE` DOWN and UP through `AudioManager`.
+2. For Bluetooth, do not send PAUSE; the head unit handles Bluetooth pause itself.
+3. For `paused` or `unknown`, do not send PAUSE.
+4. After the PAUSE dispatch step (or its intentional omission), send the captured Snapshot to the application through the explicit ordered broadcast.
+5. `MediaSnapshotReceiver` persists all three Snapshot fields synchronously and returns `RESULT_OK` only when the save succeeds.
 
-- Standard media + `playing`: dispatch `KEYCODE_MEDIA_PAUSE` DOWN and UP through `AudioManager`.
-- Bluetooth: do not send PAUSE; the head unit handles Bluetooth pause itself.
-- `paused` or `unknown`: do not send PAUSE.
-- Snapshot persistence failure: do not send PAUSE.
+PAUSE is sent before persistence. Therefore, a persistence failure does not undo a PAUSE that has already been dispatched. The hook must not wait for PAUSE confirmation before saving the Snapshot.
 
 The Bluetooth snapshot connection and callback resources must be released after completion. Do not call `requestA2dp()` or `unRegMusicClientBinder()`; these methods can change routing or stop/release A2DP.
 
@@ -118,19 +119,19 @@ Bluetooth restoration uses the vendor service and its Binder API, not the standa
 
 1. Launch `BtMusicActivity` only when required by the Snapshot and the background-window option.
 2. When playback restoration requires the vendor service, bind explicitly to `BluetoothMusicService` with `BIND_AUTO_CREATE`. Binding the service must not implicitly launch `BtMusicActivity`.
-3. Register the vendor `IMusicCallback`.
-4. Query the initial A2DP and AVRCP connection states using `isA2dpConnected()` (transaction 1) and `isAvrcpConnected()` (transaction 2). Use callback events for subsequent changes.
-5. Observe active MediaSessions and identify the vendor session by either exact tag:
+3. Observe active MediaSessions and identify a vendor session by either exact tag:
    - `A2dpMediaBrowserService`
    - `BluetoothMediaBrowserService`
-6. Treat the matching session as the readiness signal for the vendor's internal MediaController.
-7. If and only if the Snapshot state is `playing`, send `send_Avrcp_Cmd(0)` once the vendor controller is ready.
-8. For `paused` or `unknown`, do not send PLAY.
-9. Unregister the callback and unbind when restoration completes or fails.
+4. Use the matching session as the readiness signal for the vendor's internal MediaController. Do not separately query the initial A2DP/AVRCP connection states or register connection-state callbacks for this readiness decision.
+5. If and only if the Snapshot state is `playing`, send `send_Avrcp_Cmd(0)` once the vendor session is detected.
+6. For `paused` or `unknown`, do not send PLAY.
+7. Unregister any temporary callback and unbind when restoration completes or fails.
 
 Do not call `requestA2dp()` or `unRegMusicClientBinder()`. The former can request audio routing and launch Bluetooth UI; the latter can stop playback and release A2DP.
 
-The active-session signal is indirect: the vendor service has its own listener that discovers these session tags and assigns its internal MediaController. Runtime validation is required to confirm that our listener observes the session only after the vendor controller has been assigned. Also verify the device's `persist.sys.BTMusicAutoPlay` behavior so vendor AutoPlay cannot unexpectedly override a Snapshot of `paused`.
+The active-session signal is indirect: the vendor service has its own listener that discovers these session tags and assigns its internal MediaController. Runtime validation is required to confirm that our listener observes the session only after the vendor controller has been assigned.
+
+A matching MediaSession proves that the vendor media session exists; it does not, by itself, prove that an A2DP device is currently connected. Do not use session presence as a general Bluetooth connection-state result. The vendor PLAY transaction itself checks its internal A2DP state and may not execute while A2DP is disconnected. Verify this behavior on the head unit, including how the session behaves across Bluetooth disconnect/reconnect and how `persist.sys.BTMusicAutoPlay` affects a Snapshot of `paused`.
 
 ## Resource and execution rules
 
@@ -139,6 +140,7 @@ The active-session signal is indirect: the vendor service has its own listener t
 - Do not use polling or periodic checks.
 - Remove temporary listeners and callbacks on every completion path.
 - Unbind services after the required Binder work.
+- Dispatch standard-player PAUSE before sending the Snapshot for persistence.
 - Do not wait for PAUSE confirmation after ACC OFF.
 - Do not keep background monitoring active after restoration.
 
