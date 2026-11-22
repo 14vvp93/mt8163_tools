@@ -10,6 +10,9 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 public final class BluetoothMusicClient {
     public interface Listener {
         void onSnapshot(String state);
@@ -25,6 +28,13 @@ public final class BluetoothMusicClient {
     private static final int TRANSACTION_IS_A2DP_PLAYING = 3;
     private static final long BIND_TIMEOUT_MS = 5000L;
 
+    private static final ExecutorService BINDER_WORKER =
+            Executors.newSingleThreadExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "MediaBluetoothSnapshot");
+                thread.setDaemon(true);
+                return thread;
+            });
+
     private final Context context;
     private final Listener listener;
     private final Object lock = new Object();
@@ -35,34 +45,18 @@ public final class BluetoothMusicClient {
     private boolean bound;
     private boolean closed;
     private boolean completed;
+    private boolean queryStarted;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            synchronized (lock) {
-                if (closed || completed) return;
-            }
-
             if (binder == null) {
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
                 return;
             }
 
-            Thread queryThread = new Thread(() -> {
-                String state;
-                try {
-                    state = queryBoolean(binder, TRANSACTION_IS_A2DP_PLAYING)
-                            ? MediaSettingsStore.PLAYBACK_PLAYING
-                            : MediaSettingsStore.PLAYBACK_PAUSED;
-                } catch (RemoteException | RuntimeException error) {
-                    state = MediaSettingsStore.PLAYBACK_UNKNOWN;
-                }
-
-                finish(state);
-            }, "MediaBluetoothQuery");
-            queryThread.setDaemon(true);
             try {
-                queryThread.start();
+                BINDER_WORKER.execute(() -> querySnapshot(binder));
             } catch (RuntimeException error) {
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
             }
@@ -85,6 +79,7 @@ public final class BluetoothMusicClient {
     };
 
     public BluetoothMusicClient(Context context, Listener listener) {
+        if (context == null) throw new IllegalArgumentException("context == null");
         this.context = context.getApplicationContext();
         this.listener = listener;
     }
@@ -101,11 +96,12 @@ public final class BluetoothMusicClient {
                 bound = false;
             }
 
-            if (bound && !timeoutHandler.postDelayed(timeoutRunnable, BIND_TIMEOUT_MS)) {
-                timeoutHandler.removeCallbacks(timeoutRunnable);
+            if (!bound) return false;
+            if (!timeoutHandler.postDelayed(timeoutRunnable, BIND_TIMEOUT_MS)) {
+                unbindLocked();
                 return false;
             }
-            return bound;
+            return true;
         }
     }
 
@@ -116,6 +112,23 @@ public final class BluetoothMusicClient {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             unbindLocked();
         }
+    }
+
+    private void querySnapshot(IBinder binder) {
+        synchronized (lock) {
+            if (closed || completed || queryStarted) return;
+            queryStarted = true;
+        }
+
+        String state;
+        try {
+            state = queryBoolean(binder, TRANSACTION_IS_A2DP_PLAYING)
+                    ? MediaSettingsStore.PLAYBACK_PLAYING
+                    : MediaSettingsStore.PLAYBACK_PAUSED;
+        } catch (RemoteException | RuntimeException error) {
+            state = MediaSettingsStore.PLAYBACK_UNKNOWN;
+        }
+        finish(state);
     }
 
     private boolean queryBoolean(IBinder binder, int transaction) throws RemoteException {
@@ -141,7 +154,13 @@ public final class BluetoothMusicClient {
             timeoutHandler.removeCallbacks(timeoutRunnable);
             unbindLocked();
         }
-        listener.onSnapshot(state);
+
+        if (listener != null) {
+            try {
+                listener.onSnapshot(state);
+            } catch (RuntimeException ignored) {
+            }
+        }
     }
 
     private void unbindLocked() {
