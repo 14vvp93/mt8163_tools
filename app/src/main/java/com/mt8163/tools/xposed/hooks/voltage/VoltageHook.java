@@ -36,8 +36,6 @@ public final class VoltageHook implements PackageHook {
     private static boolean receiverRegistered;
     private static boolean hasReportedBatteryPacket;
     private static boolean hasReportedVoltageApplied;
-    private static boolean hasReportedVoltage;
-    private static float lastReportedVoltage;
     private static Context eventContext;
     private static Object mcuService;
     private static BroadcastReceiver configReceiver;
@@ -319,17 +317,6 @@ public final class VoltageHook implements PackageHook {
                 logEvent("voltageApplied", String.format(Locale.US,
                         "mBatteryVoltage updated: %.1f V → %.1f V",
                         rawBatteryVoltage, outputVoltage));
-            }
-
-            boolean outputChanged = !hasReportedVoltage
-                    || Float.compare(lastReportedVoltage, outputVoltage) != 0;
-            lastReportedVoltage = outputVoltage;
-            hasReportedVoltage = true;
-
-            if (moduleEnabled && outputChanged
-                    && Float.compare(rawBatteryVoltage, outputVoltage) != 0) {
-                logEvent("voltageCorrected", String.format(Locale.US,
-                        "%.1f V → %.1f V", rawBatteryVoltage, outputVoltage));
             }
         } catch (Throwable error) {
             logEvent("correctionFailed", "MCU voltage field update failed: " + error);
