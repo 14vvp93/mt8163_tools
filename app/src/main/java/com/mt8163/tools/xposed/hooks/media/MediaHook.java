@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.os.Bundle;
@@ -33,10 +32,6 @@ public final class MediaHook implements PackageHook {
     private static final String ACC_ACTION = "android.mcu.device.action.ACC";
     private static final String ACC_EXTRA = "AccStatus";
     private static final String CONFIG_FILE = "media_hook_config";
-    private static final String ACTION_CONFIG_CHANGED =
-            "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
-    private static final String CONFIG_PERMISSION =
-            "com.mt8163.tools.permission.UPDATE_MEDIA_CONFIG";
     private static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     private static final String ACTION_RESTORE_REQUEST =
@@ -51,10 +46,7 @@ public final class MediaHook implements PackageHook {
     private static final Object LOCK = new Object();
 
     private static boolean hooksInstalled;
-    private static boolean receiverRegistered;
-    private static boolean receiverRegistrationInProgress;
     private static long configurationGeneration;
-    private static BroadcastReceiver configReceiver;
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
@@ -79,9 +71,6 @@ public final class MediaHook implements PackageHook {
             hooksInstalled = true;
         }
 
-        systemContext = getSystemContext();
-        loadConfiguration();
-        registerConfigReceiver();
         hookAccReceiver(param.classLoader);
         hookWindowManager(param.classLoader);
     }
@@ -134,8 +123,7 @@ public final class MediaHook implements PackageHook {
                     synchronized (LOCK) {
                         windowManagerService = param.thisObject;
                     }
-                    if (systemContext == null) systemContext = getSystemContext();
-                    registerConfigReceiver();
+
                 }
             });
         } catch (Throwable error) {
@@ -145,11 +133,6 @@ public final class MediaHook implements PackageHook {
 
     private static void handleAccIntent(Context context, Intent intent) {
         if (intent == null || !ACC_ACTION.equals(intent.getAction())) return;
-        if (context != null) {
-            systemContext = context;
-            registerConfigReceiver();
-        }
-
         Boolean nextState = readAccStatus(intent);
         if (nextState == null) {
             logEvent("accStatusRejected", "ACC broadcast has no valid AccStatus extra");
@@ -205,6 +188,45 @@ public final class MediaHook implements PackageHook {
         return null;
     }
 
+    public static void initializeConfiguration(Context context) {
+        if (context == null) return;
+        systemContext = context;
+        loadConfiguration();
+    }
+
+    public static void onConfigurationChanged(Intent intent) {
+        if (intent == null
+                || !MediaSettingsStore.ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
+            return;
+        }
+
+        BluetoothMusicClient cancelClient = null;
+        MediaRestorer.Cancellable cancelRestore = null;
+        boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
+        synchronized (LOCK) {
+            configurationGeneration++;
+            moduleEnabled = enabled;
+            restoreBackgroundMedia = intent.getBooleanExtra(
+                    EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
+            restoreBackgroundBluetooth = intent.getBooleanExtra(
+                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
+
+            if (!enabled) {
+                snapshotInProgress = false;
+                restorePending = false;
+                restoreInProgress = false;
+                cancelClient = bluetoothClient;
+                bluetoothClient = null;
+                cancelRestore = activeRestoration;
+                activeRestoration = null;
+            }
+        }
+
+        if (cancelClient != null) cancelClient.disconnect();
+        if (cancelRestore != null) cancelRestore.cancel();
+        logEvent("configurationChanged", "Media enabled: " + enabled);
+    }
+
     private static void loadConfiguration() {
         final long generation;
         synchronized (LOCK) {
@@ -234,68 +256,6 @@ public final class MediaHook implements PackageHook {
             logEvent("configurationLoaded", "Media settings loaded: enabled=" + enabled);
         } catch (Throwable error) {
             reportError("configurationLoad", error);
-        }
-    }
-
-    private static void registerConfigReceiver() {
-        Context context = systemContext;
-        if (context == null) return;
-
-        synchronized (LOCK) {
-            if (receiverRegistered || receiverRegistrationInProgress) return;
-            receiverRegistrationInProgress = true;
-        }
-
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context receiverContext, Intent intent) {
-                if (intent == null || !ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
-                    return;
-                }
-
-                BluetoothMusicClient cancelClient = null;
-                MediaRestorer.Cancellable cancelRestore = null;
-                boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
-                synchronized (LOCK) {
-                    configurationGeneration++;
-                    moduleEnabled = enabled;
-                    restoreBackgroundMedia = intent.getBooleanExtra(
-                            EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
-                    restoreBackgroundBluetooth = intent.getBooleanExtra(
-                            EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
-
-                    if (!enabled) {
-                        snapshotInProgress = false;
-                        restorePending = false;
-                        restoreInProgress = false;
-                        cancelClient = bluetoothClient;
-                        bluetoothClient = null;
-                        cancelRestore = activeRestoration;
-                        activeRestoration = null;
-                    }
-                }
-
-                if (cancelClient != null) cancelClient.disconnect();
-                if (cancelRestore != null) cancelRestore.cancel();
-                logEvent("configurationChanged", "Media enabled: " + enabled);
-            }
-        };
-
-        try {
-            context.registerReceiver(receiver,
-                    new IntentFilter(ACTION_CONFIG_CHANGED), CONFIG_PERMISSION, null);
-            synchronized (LOCK) {
-                configReceiver = receiver;
-                receiverRegistered = true;
-                receiverRegistrationInProgress = false;
-            }
-            logEvent("receiverRegistered", "Media settings update receiver registered");
-            loadConfiguration();
-        } catch (RuntimeException error) {
-            synchronized (LOCK) {
-                receiverRegistrationInProgress = false;
-            }
-            reportError("configReceiver", error);
         }
     }
 
@@ -555,19 +515,6 @@ public final class MediaHook implements PackageHook {
         try {
             return XposedHelpers.getObjectField(instance, name);
         } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static Context getSystemContext() {
-        try {
-            Class<?> activityThread = XposedHelpers.findClass("android.app.ActivityThread", null);
-            Object thread = XposedHelpers.callStaticMethod(
-                    activityThread, "currentActivityThread");
-            Object context = XposedHelpers.callMethod(thread, "getSystemContext");
-            return context instanceof Context ? (Context) context : null;
-        } catch (Throwable error) {
-            XposedBridge.log("MT8163 Tools: Media system context unavailable: " + error);
             return null;
         }
     }
