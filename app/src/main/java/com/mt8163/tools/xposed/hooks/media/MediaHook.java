@@ -135,12 +135,13 @@ public final class MediaHook implements PackageHook {
 
         boolean startSnapshot = false;
         boolean startRestore = false;
+        boolean changed;
         MediaRestorer.Cancellable cancelRestore = null;
-        BluetoothMusicClient cancelBluetooth = null;
 
         synchronized (LOCK) {
             boolean previousState = accState;
             accState = nextState;
+            changed = previousState != accState;
 
             if (previousState && !accState) {
                 restorePending = false;
@@ -165,15 +166,7 @@ public final class MediaHook implements PackageHook {
         if (cancelRestore != null) cancelRestore.cancel();
         if (startSnapshot) captureSnapshot();
         if (startRestore) requestSnapshotForRestore();
-        if (previousStateChanged(nextState)) {
-            logEvent("accStateChanged", "ACC state: " + nextState);
-        }
-    }
-
-    private static boolean previousStateChanged(boolean nextState) {
-        synchronized (LOCK) {
-            return accState == nextState;
-        }
+        if (changed) logEvent("accStateChanged", "ACC state: " + nextState);
     }
 
     private static Boolean readAccStatus(Intent intent) {
