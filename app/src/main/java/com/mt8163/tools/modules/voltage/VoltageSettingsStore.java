@@ -34,7 +34,7 @@ public final class VoltageSettingsStore {
 
     public static void saveOffset(Context context, float value) {
         if (isValidOffset(value)) {
-            settings(context).edit().putFloat(KEY_OFFSET, value).apply();
+            settings(context).edit().putFloat(KEY_OFFSET, value).commit();
         }
     }
 
@@ -54,7 +54,7 @@ public final class VoltageSettingsStore {
         hookSettings(app).edit()
                 .putBoolean(KEY_HOOK_ENABLED, enabled)
                 .putFloat(KEY_HOOK_OFFSET, offset)
-                .apply();
+                .commit();
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage(TARGET_PACKAGE);
