@@ -42,7 +42,7 @@ public final class MediaRestorer {
     private static final int TRANSACTION_IS_AVRCP_CONNECTED = 2;
     private static final int TRANSACTION_SEND_AVRCP_COMMAND = 5;
     private static final long MEDIA_TIMEOUT_MS = 5000L;
-    private static final long BLUETOOTH_TIMEOUT_MS = 10000L;
+    private static final long BLUETOOTH_TIMEOUT_MS = 5000L;
 
     private static final ExecutorService BLUETOOTH_WORKER =
             Executors.newSingleThreadExecutor(runnable -> {
@@ -724,7 +724,7 @@ public final class MediaRestorer {
                         BLUETOOTH_WORKER_BUSY.set(false);
                         if (expired) {
                             logEvent(context, "bluetoothRestoreTimeout",
-                                    "10-second deadline reached before PLAY commit");
+                                    "5-second deadline reached before PLAY commit");
                             finishResources();
                         } else {
                             handler.post(this::updatePlayDelay);
@@ -814,7 +814,7 @@ public final class MediaRestorer {
         private void onTimeout() {
             if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
                 logEvent(context, "bluetoothRestoreTimeout",
-                        "10-second restoration deadline reached");
+                        "5-second restoration deadline reached");
                 finishResources();
             } else if (state.get() == State.PLAY_COMMITTED) {
                 logEvent(context, "bluetoothRestoreTimeout",
