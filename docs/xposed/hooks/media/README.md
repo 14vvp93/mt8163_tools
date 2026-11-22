@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The Media module preserves the active audio source state when the head unit powers off and restores the required playback state when ACC turns on.
+The Media module stores the active audio source state when ACC turns OFF and restores the required playback state when ACC turns ON.
 
-The module runs its system hooks in `system_server`. The application stores the Snapshot and exposes its values in the Media UI.
+The system hooks and restoration logic run in `system_server`. The application stores the Snapshot and exposes its values and background-restore settings in the Media UI.
 
 ## Snapshot
 
@@ -16,7 +16,7 @@ A Snapshot contains exactly three values:
 | `playbackState` | `playing`, `paused`, or `unknown` |
 | `isForeground` | Whether the source owns the current focused window |
 
-The Snapshot is captured once per ACC OFF transition. Its values remain unchanged throughout the corresponding restore operation.
+One Snapshot is captured per ACC OFF transition. Restoration uses that persisted Snapshot without querying or replacing it.
 
 ## ACC OFF
 
@@ -34,14 +34,16 @@ The in-memory ACC state is updated independently of the module enabled state. Sn
 At capture time:
 
 1. Read the selected source package from `android.sourceservice.SourceInfo`.
-2. Read the current focused window from `WindowManagerService.mCurrentFocus` once and determine `isForeground`.
+2. Read `WindowManagerService.mCurrentFocus` once and determine `isForeground`.
 3. Read playback state using the source-specific mechanism below.
 4. Normalize the state to `playing`, `paused`, or `unknown`.
-5. Send the Snapshot to the application through an explicit ordered broadcast.
+5. Keep the Snapshot in memory while performing the shutdown sequence.
 
 ### Standard media source
 
 For sources other than `com.autochips.bluetooth`, read the playback state from `SourceInfo.getMusicInfo()` and its `state` field.
+
+If the state is `playing`, find the active `MediaController` whose package name matches `sourcePackage` and call `transportControls.pause()`. Do not send PAUSE for `paused` or `unknown`.
 
 ### Bluetooth source
 
@@ -59,100 +61,118 @@ Map the result as follows:
 - `false` → `paused`
 - Binder failure or timeout → `unknown`
 
-Do not query the standard Media source and Bluetooth in parallel.
+Do not query the standard Media source and Bluetooth in parallel. Do not send Bluetooth PAUSE; the head unit handles it itself.
 
-### Snapshot persistence and shutdown behavior
+### Snapshot persistence
 
-After the Snapshot has been captured in memory, the ACC OFF sequence is:
+After the in-memory Snapshot has been captured and the standard-player PAUSE has been sent (or intentionally omitted):
 
-1. For a standard media source with state `playing`, dispatch `KEYCODE_MEDIA_PAUSE` DOWN and UP through `AudioManager`.
-2. For Bluetooth, do not send PAUSE; the head unit handles Bluetooth pause itself.
-3. For `paused` or `unknown`, do not send PAUSE.
-4. After the PAUSE dispatch step (or its intentional omission), send the captured Snapshot to the application through the explicit ordered broadcast.
-5. `MediaSnapshotReceiver` persists all three Snapshot fields synchronously and returns `RESULT_OK` only when the save succeeds.
+1. Send the Snapshot to the application through an explicit ordered broadcast.
+2. `MediaSnapshotReceiver` synchronously persists all three fields.
+3. The receiver returns `RESULT_OK` only when persistence succeeds.
 
-PAUSE is sent before persistence. Therefore, a persistence failure does not undo a PAUSE that has already been dispatched. The hook must not wait for PAUSE confirmation before saving the Snapshot.
+PAUSE is sent before persistence. Therefore, a persistence failure does not undo a PAUSE that has already been sent. The hook does not wait for PAUSE confirmation.
 
-The Bluetooth snapshot connection and callback resources must be released after completion. Do not call `requestA2dp()` or `unRegMusicClientBinder()`; these methods can change routing or stop/release A2DP.
+The Bluetooth snapshot connection and callback resources are released after completion. Do not call `requestA2dp()` or `unRegMusicClientBinder()`; these methods can change routing or stop/release A2DP.
 
 ## ACC ON restoration
 
-Restoration uses the previously persisted Snapshot. It must not capture or query a replacement Snapshot.
+Restoration starts only on a real ACC OFF-to-ON transition while the module is enabled.
 
-The `Restore background player` option controls only whether a background player's Activity is opened. It does not disable playback restoration.
+The hook requests the persisted Snapshot from `MediaSnapshotReceiver` using an explicit ordered broadcast. The receiver reads the private application preferences and returns the Snapshot and current settings in the broadcast result. The Snapshot is not exposed through world-readable storage.
 
-| Snapshot state | `isForeground` | Restore background player | Launch Activity | Send PLAY |
-|---|---:|---:|---:|---:|
-| `playing` | true | Either | Yes | Yes |
-| `playing` | false | Enabled | Yes | Yes |
-| `playing` | false | Disabled | No | Yes |
-| `paused` or `unknown` | true | Either | Yes | No |
-| `paused` or `unknown` | false | Enabled | Yes | No |
-| `paused` or `unknown` | false | Disabled | No | No |
+The two background settings are independent and default to disabled:
 
-Activity launch and playback restoration are independent decisions. A service may be started without opening its Activity when playback must be restored in the background.
+- `Restore background media player`
+- `Restore background Bluetooth player`
+
+Each setting controls only whether its corresponding Activity is opened when the source was in the background. Neither setting disables playback restoration.
+
+Activity launch policy:
+
+| Source state | Source was foreground | Corresponding background setting | Launch Activity |
+|---|---:|---:|---:|
+| Any playback state | Yes | Either | Yes |
+| Any playback state | No | Enabled | Yes |
+| Any playback state | No | Disabled | No |
+
+Playback policy:
+
+| Snapshot playback state | Send PLAY |
+|---|---:|
+| `playing` | Yes |
+| `paused` | No |
+| `unknown` | No |
+
+Activity launch and playback restoration are independent. A background source with state `playing` must receive PLAY even when its background Activity setting is disabled.
 
 ### Standard media restoration
 
-Use `MediaSessionManager.OnActiveSessionsChangedListener` and match the session's package name to the Snapshot `sourcePackage`.
+Use `MediaSessionManager.OnActiveSessionsChangedListener` and match the session package name to Snapshot `sourcePackage`.
 
-When the Activity must be restored:
+When the Activity must be opened:
 
 1. Register the active-sessions listener.
-2. Launch the source Activity.
-3. Wait for the matching MediaSession to appear.
-4. If the Snapshot state is `playing`, call `transportControls.play()` on that session.
+2. Launch the source package Activity.
+3. Wait for its matching MediaSession.
+4. If the Snapshot state is `playing`, call `transportControls.play()`.
 
-Do not perform an initial session lookup or a redundant second lookup after registering the listener in this Activity-launch path. The Activity is expected to create its MediaSession.
+Do not perform an initial active-session lookup in this Activity-launch path. The listener is registered before launching the Activity.
 
-When the Activity must not be restored:
+When the Activity must not be opened:
 
 1. Check whether the matching MediaSession already exists.
 2. If it exists and the Snapshot state is `playing`, call `transportControls.play()`.
 3. If it does not exist, register the listener and wait for the matching session.
 
-The wait is limited to five seconds. Remove the listener and release associated resources on success, timeout, or failure. Never send PLAY for `paused` or `unknown`.
+The total wait is limited to five seconds. Remove the listener on success, timeout, cancellation, or failure. Never send PLAY for `paused` or `unknown`.
 
 ### Bluetooth restoration
 
-Bluetooth restoration uses the vendor service and its Binder API, not the standard media-player control path.
+Bluetooth restoration uses the vendor service and Binder API, not standard MediaSession transport controls.
 
-1. Launch `BtMusicActivity` only when required by the Snapshot and the background-window option.
-2. When playback restoration requires the vendor service, bind explicitly to `BluetoothMusicService` with `BIND_AUTO_CREATE`. Binding the service must not implicitly launch `BtMusicActivity`.
-3. Observe active MediaSessions and identify a vendor session by either exact tag:
+For `playing`:
+
+1. Open `BtMusicActivity` only when the source was foreground or `Restore background Bluetooth player` is enabled.
+2. Bind explicitly to `BluetoothMusicService` with `BIND_AUTO_CREATE`. Binding must not launch the Activity.
+3. Wait for a MediaSession with either exact tag:
    - `A2dpMediaBrowserService`
    - `BluetoothMediaBrowserService`
-4. Use the matching session as the readiness signal for the vendor's internal MediaController. Do not separately query the initial A2DP/AVRCP connection states or register connection-state callbacks for this readiness decision.
-5. If and only if the Snapshot state is `playing`, send `send_Avrcp_Cmd(0)` once the vendor session is detected.
-6. For `paused` or `unknown`, do not send PLAY.
-7. Unregister any temporary callback and unbind when restoration completes or fails.
+4. On the isolated Bluetooth worker thread, check:
+   - `isA2dpConnected()`: transaction 1
+   - `isAvrcpConnected()`: transaction 2
+5. Only when both return true, send `send_Avrcp_Cmd(0)` (PLAY): transaction 5. Send it once.
+
+The total timeout is ten seconds, covering both MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If a Binder transaction remains blocked after timeout, the operation is cancelled, listeners and service binding are cleaned up, and any late result is ignored. A second worker is not started while the first Binder call is still blocked.
+
+For `paused` or `unknown`, do not bind for playback restoration and do not send PLAY. The Activity may still be opened according to the foreground and Bluetooth background setting rules.
 
 Do not call `requestA2dp()` or `unRegMusicClientBinder()`. The former can request audio routing and launch Bluetooth UI; the latter can stop playback and release A2DP.
 
-The active-session signal is indirect: the vendor service has its own listener that discovers these session tags and assigns its internal MediaController. Runtime validation is required to confirm that our listener observes the session only after the vendor controller has been assigned.
+The vendor service has its own active-session listener and assigns its internal MediaController after discovering the session tags. Our listener is only an indirect readiness signal; validate on the head unit that the vendor controller is assigned before the PLAY transaction is sent.
 
-A matching MediaSession proves that the vendor media session exists; it does not, by itself, prove that an A2DP device is currently connected. Do not use session presence as a general Bluetooth connection-state result. The vendor PLAY transaction itself checks its internal A2DP state and may not execute while A2DP is disconnected. Verify this behavior on the head unit, including how the session behaves across Bluetooth disconnect/reconnect and how `persist.sys.BTMusicAutoPlay` affects a Snapshot of `paused`.
+Also verify the effect of `persist.sys.BTMusicAutoPlay`. Vendor AutoPlay may independently send PLAY when Bluetooth reconnects, including when the stored Snapshot is `paused` or `unknown`.
 
 ## Resource and execution rules
 
-- Snapshot capture is guarded against duplicate ACC OFF broadcasts.
-- Use one immutable Snapshot for the entire restore attempt.
-- Do not use polling or periodic checks.
-- Remove temporary listeners and callbacks on every completion path.
-- Unbind services after the required Binder work.
-- Dispatch standard-player PAUSE before sending the Snapshot for persistence.
-- Do not wait for PAUSE confirmation after ACC OFF.
+- No polling or periodic checks.
+- Snapshot capture occurs once per ACC ON-to-OFF transition.
+- Restoration listeners exist only for the duration of a restore attempt.
+- Remove listeners and callbacks on success, timeout, cancellation, or failure.
+- Unbind the Bluetooth service after the required Binder work.
+- Do not send PLAY after an operation has been cancelled.
 - Do not keep background monitoring active after restoration.
 
 ## UI and events
 
-The Media UI displays the persisted source package, playback state, and foreground status. `MainActivity` reads the stored Snapshot when opening the module and updates the view when a new Snapshot broadcast is received. It does not persist the Snapshot itself.
+The Media UI displays the persisted source package, playback state, and foreground status. It provides independent background Activity settings for standard media and Bluetooth; both default to disabled.
+
+`MainActivity` reads the stored Snapshot when opening the module and updates the view when a new Snapshot broadcast is received. It does not persist the Snapshot itself.
 
 The hook reports diagnostic events through Core's `EventLogger`. Events is an independent module and is not a dependency of Media.
 
 ## Implementation status
 
-This document describes the agreed Media module behavior, including the restoration design.
+The `development` branch contains the ACC OFF Snapshot flow, standard-player PAUSE through `MediaSession.TransportControls`, ordered-broadcast persistence, ACC ON restoration, separate background Activity settings, standard MediaSession restoration, and Bluetooth Binder restoration.
 
-The current `development` branch contains the ACC OFF hook, Snapshot capture, ordered-broadcast persistence, Bluetooth playback-state query, and Media UI display. The complete ACC ON restoration flow described above is a design requirement and must not be treated as already implemented. Verify the code against this specification before marking restoration complete.
-
+Runtime validation is still required on the target head unit, especially for Bluetooth MediaSession readiness, Binder transaction behavior, and vendor AutoPlay.
