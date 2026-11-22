@@ -240,12 +240,14 @@ public final class MediaHook implements PackageHook {
 
         BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
                 completeSnapshot(context, packageName, state, isForeground));
+        boolean accepted;
         synchronized (LOCK) {
-            if (!snapshotInProgress || !moduleEnabled) {
-                client.disconnect();
-                return;
-            }
-            bluetoothClient = client;
+            accepted = snapshotInProgress && moduleEnabled;
+            if (accepted) bluetoothClient = client;
+        }
+        if (!accepted) {
+            client.disconnect();
+            return;
         }
 
         if (!client.connect()) {
