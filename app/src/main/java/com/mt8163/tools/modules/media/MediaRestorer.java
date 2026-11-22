@@ -292,8 +292,10 @@ public final class MediaRestorer {
         }
 
         private void cleanupListenerLocked() {
-            if (!listenerRegistered) return;
-            listenerRegistered = false;
+            synchronized (lock) {
+                if (!listenerRegistered) return;
+                listenerRegistered = false;
+            }
             try {
                 manager.removeOnActiveSessionsChangedListener(listener);
             } catch (RuntimeException ignored) {
@@ -394,7 +396,10 @@ public final class MediaRestorer {
                 return;
             }
 
-            handler.postDelayed(timeout, BLUETOOTH_TIMEOUT_MS);
+            if (!handler.postDelayed(timeout, BLUETOOTH_TIMEOUT_MS)) {
+                fail();
+                return;
+            }
 
             if (launchActivity) {
                 registerListener();
