@@ -5,9 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.media.AudioManager;
-import android.os.SystemClock;
-import android.view.KeyEvent;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
@@ -294,7 +291,7 @@ public final class MediaHook implements PackageHook {
                 @Override
                 public void onReceive(Context resultContext, Intent resultIntent) {
                     if (getResultCode() != Activity.RESULT_OK) {
-                        logEvent("snapshotSaveFailed", "Snapshot was not persisted; pause skipped");
+                        logEvent("snapshotSaveFailed", "Snapshot was not persisted");
                         return;
                     }
 
@@ -302,7 +299,8 @@ public final class MediaHook implements PackageHook {
                             + ", playback: " + state
                             + ", foreground: " + isForeground);
 
-                    if (MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
+                    if (!BLUETOOTH_SOURCE_PACKAGE.equals(source)
+                            && MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
                         pauseActivePlayer();
                     }
                 }
@@ -317,17 +315,17 @@ public final class MediaHook implements PackageHook {
         if (context == null) return;
 
         try {
-            AudioManager audioManager = (AudioManager)
+            android.media.AudioManager audioManager = (android.media.AudioManager)
                     context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager == null) return;
 
-            long eventTime = SystemClock.uptimeMillis();
-            audioManager.dispatchMediaKeyEvent(new KeyEvent(
-                    eventTime, eventTime, KeyEvent.ACTION_DOWN,
-                    KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
-            audioManager.dispatchMediaKeyEvent(new KeyEvent(
-                    eventTime, eventTime, KeyEvent.ACTION_UP,
-                    KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
+            long eventTime = android.os.SystemClock.uptimeMillis();
+            audioManager.dispatchMediaKeyEvent(new android.view.KeyEvent(
+                    eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
+            audioManager.dispatchMediaKeyEvent(new android.view.KeyEvent(
+                    eventTime, eventTime, android.view.KeyEvent.ACTION_UP,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
             logEvent("playerPause", "MEDIA_PAUSE dispatched");
         } catch (Throwable error) {
             reportError("playerPause", error);
