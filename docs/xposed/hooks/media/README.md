@@ -79,7 +79,7 @@ The Bluetooth snapshot connection and callback resources are released after comp
 
 ## ACC ON restoration
 
-Restoration starts only on a real ACC OFF-to-ON transition while the module is enabled.
+Restoration starts on an observed ACC OFF-to-ON transition or when the first valid ACC broadcast initializes the state as ON, provided the module is enabled.
 
 The hook requests the persisted Snapshot from `MediaSnapshotReceiver` using an explicit ordered broadcast. The receiver reads the private application preferences and returns the Snapshot and current settings in the broadcast result. The Snapshot is not exposed through world-readable storage.
 
