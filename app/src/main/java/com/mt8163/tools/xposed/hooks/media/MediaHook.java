@@ -206,8 +206,28 @@ public final class MediaHook implements PackageHook {
         if (generation < 0) return;
 
         String value = packageName == null ? "" : packageName.trim();
-        if (isBluetoothSource(value)) ensureBluetooth(context, generation, false);
-        else disableBluetooth();
+        if (isBluetoothSource(value)) {
+            ensureBluetooth(context, generation, false);
+            return;
+        }
+
+        disableBluetooth();
+        try {
+            Object info;
+            synchronized (LOCK) {
+                if (sourceInfo == null) {
+                    Class<?> infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
+                    sourceInfo = XposedHelpers.callStaticMethod(infoClass, "getInstance");
+                }
+                info = sourceInfo;
+            }
+            Object musicInfo = XposedHelpers.callMethod(info, "getMusicInfo");
+            Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
+            String state = stateValue instanceof String ? ((String) stateValue).trim() : "";
+            completeSnapshot(context, generation, value, state);
+        } catch (Throwable error) {
+            reportError(context, "sourceSnapshot", error);
+        }
     }
 
     private static long updateSource(Context context, String packageName,
