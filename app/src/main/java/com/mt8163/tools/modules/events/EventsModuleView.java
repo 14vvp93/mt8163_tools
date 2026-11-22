@@ -11,7 +11,7 @@ import android.net.Uri;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
-import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -19,6 +19,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mt8163.tools.R;
 import com.mt8163.tools.core.ModuleContract;
 
 import java.io.OutputStream;
@@ -68,38 +69,18 @@ public final class EventsModuleView {
         hasMore = false;
         oldestLoadedId = Long.MAX_VALUE;
 
-        LinearLayout root = new LinearLayout(owner);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(28, 20, 28, 16);
-        root.setBackgroundColor(Color.rgb(17, 19, 22));
+        View root = LayoutInflater.from(owner)
+                .inflate(R.layout.module_events, null, false);
+        entries = root.findViewById(R.id.events_entries);
+        scroll = root.findViewById(R.id.events_scroll);
+        count = root.findViewById(R.id.events_count);
+        filterButton = root.findViewById(R.id.events_filter);
 
-        LinearLayout actions = new LinearLayout(owner);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-        addButton(owner, actions, "Оновити", v -> refresh());
-        addButton(owner, actions, "Копіювати", v -> copy());
-        addButton(owner, actions, "Очистити", v -> clear());
-        addButton(owner, actions, "Експорт", v -> export());
-        root.addView(actions, new LinearLayout.LayoutParams(-1, 64));
-
-        filterButton = new Button(owner);
-        filterButton.setText("Усі модулі  ▾");
-        filterButton.setTextSize(16);
-        filterButton.setMinHeight(60);
+        root.findViewById(R.id.events_refresh).setOnClickListener(v -> refresh());
+        root.findViewById(R.id.events_copy).setOnClickListener(v -> copy());
+        root.findViewById(R.id.events_clear).setOnClickListener(v -> clear());
+        root.findViewById(R.id.events_export).setOnClickListener(v -> export());
         filterButton.setOnClickListener(v -> chooseFilter());
-        root.addView(filterButton, new LinearLayout.LayoutParams(-1, 60));
-
-        count = new TextView(owner);
-        count.setTextColor(Color.LTGRAY);
-        count.setTextSize(15);
-        count.setPadding(6, 12, 6, 12);
-        root.addView(count);
-
-        scroll = new ScrollView(owner);
-        scroll.setFillViewport(true);
-        entries = new LinearLayout(owner);
-        entries.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(entries);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
             boolean wasAtBottom = autoScroll;
@@ -113,17 +94,6 @@ public final class EventsModuleView {
         });
         refresh();
         return root;
-    }
-
-    private static void addButton(Context context, LinearLayout row,
-                                  String label, View.OnClickListener listener) {
-        Button button = new Button(context);
-        button.setText(label);
-        button.setTextSize(15);
-        button.setAllCaps(false);
-        button.setMinHeight(60);
-        row.addView(button, new LinearLayout.LayoutParams(0, -1, 1));
-        button.setOnClickListener(listener);
     }
 
     private static List<String> filter() {
