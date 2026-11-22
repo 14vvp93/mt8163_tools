@@ -91,9 +91,7 @@ public final class MediaHook implements PackageHook {
                             Intent intent = (Intent) param.args[1];
                             Boolean state = readAccStatus(intent);
                             if (state == null || !state) {
-                                Context context = param.args[0] instanceof Context
-                                        ? (Context) param.args[0] : null;
-                                handleAccIntent(context, intent);
+                                handleAccIntent(intent);
                             }
                         }
 
@@ -103,9 +101,7 @@ public final class MediaHook implements PackageHook {
                                     || !(param.args[1] instanceof Intent)) return;
                             Intent intent = (Intent) param.args[1];
                             if (!Boolean.TRUE.equals(readAccStatus(intent))) return;
-                            Context context = param.args[0] instanceof Context
-                                    ? (Context) param.args[0] : null;
-                            handleAccIntent(context, intent);
+                            handleAccIntent(intent);
                         }
                     });
             logEvent("accHookInstalled", "MCU ACC receiver hook installed");
@@ -131,7 +127,7 @@ public final class MediaHook implements PackageHook {
         }
     }
 
-    private static void handleAccIntent(Context context, Intent intent) {
+    private static void handleAccIntent(Intent intent) {
         if (intent == null || !ACC_ACTION.equals(intent.getAction())) return;
         Boolean nextState = readAccStatus(intent);
         if (nextState == null) {
