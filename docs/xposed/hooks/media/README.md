@@ -145,12 +145,18 @@ For `playing`:
 3. Wait for a MediaSession with either exact tag:
    - `A2dpMediaBrowserService`
    - `BluetoothMediaBrowserService`
-4. On the isolated Bluetooth worker thread, check:
+4. Register one `IMusicCallback` using `registerBTMusicCallback()` (Binder transaction 10).
+5. After registration, query the initial A2DP and AVRCP states once:
    - `isA2dpConnected()`: transaction 1
    - `isAvrcpConnected()`: transaction 2
-5. Only when both return true, send `send_Avrcp_Cmd(0)` (PLAY): transaction 5. Send it once.
+   Callback state changes received during either query take precedence over that query's result.
+6. If either profile is not connected, wait for its callback:
+   - `onA2dpConnectStateChanged(int)`: callback transaction 1
+   - `onAvrcpConnectStateChanged(int)`: callback transaction 2
+   Profile state `2` means CONNECTED. Other states are treated as not connected. A disconnect cancels any pending PLAY delay.
+7. When both profiles are connected, wait asynchronously for one second. If both are still connected and the operation is ACTIVE, send `send_Avrcp_Cmd(0)` (PLAY): service transaction 5. Send it once.
 
-The total timeout is ten seconds, covering MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If either readiness check is still blocked at timeout, the operation transitions to CANCELLED, listeners and service binding are cleaned up, and the late result cannot trigger PLAY. If PLAY has already crossed the commit point, timeout can release resources but cannot retract that in-flight command. A second worker is not started or queued while the first Binder call is still blocked; a concurrent attempt ends without sending PLAY.
+The one-second delay is restarted if either profile disconnects before PLAY. The ten-second total timeout covers MediaSession readiness, service binding, callback registration, initial state queries, and connection waiting. On timeout or cancellation, the MediaSession listener is removed, the service is unbound, and the exact callback is unregistered with transaction 11 when the Binder worker can process cleanup. Late callbacks are ignored. If PLAY has already crossed the commit point, timeout can release resources but cannot retract that in-flight command. Binder operations use one single-thread worker; no replacement worker is created while a previous Binder call is blocked.
 
 For `paused` or `unknown`, do not bind for playback restoration and do not send PLAY. The Activity may still be opened according to the foreground and Bluetooth background setting rules.
 
@@ -186,7 +192,7 @@ Media diagnostic records use module name `Media`. They cover:
 - Standard-player PAUSE dispatch and missing-session/error cases
 - Restore request, selected source/state, and Activity launch decisions
 - Standard MediaSession listener registration, matching session detection, PLAY dispatch, timeout, cancellation, and failure
-- Bluetooth vendor MediaSession detection, listener registration, service binding, A2DP/AVRCP connection results, PLAY dispatch, timeout, cancellation, and failure
+- Bluetooth vendor MediaSession detection, listener registration, service binding, callback registration, initial A2DP/AVRCP state, connection callbacks, delayed PLAY dispatch, callback cleanup, timeout, cancellation, and failure
 
 Events are retained only when the Events module is enabled. If Events is disabled, incoming records are intentionally ignored. The Events module remains independent: Media does not require its UI or database APIs and communicates only through Core's event broadcast contract.
 
