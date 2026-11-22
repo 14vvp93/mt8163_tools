@@ -9,7 +9,12 @@ public final class MediaSettingsStore {
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
     public static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
+    public static final String ACTION_RESTORE_REQUEST =
+            "com.mt8163.tools.action.MEDIA_RESTORE_REQUEST";
     public static final String EXTRA_ENABLED = "module_enabled";
+    public static final String EXTRA_RESTORE_BACKGROUND_MEDIA = "restore_background_media";
+    public static final String EXTRA_RESTORE_BACKGROUND_BLUETOOTH =
+            "restore_background_bluetooth";
     public static final String EXTRA_SOURCE_PACKAGE = "source_package";
     public static final String EXTRA_PLAYBACK_STATE = "playback_state";
     public static final String EXTRA_IS_FOREGROUND = "is_foreground";
@@ -29,15 +34,60 @@ public final class MediaSettingsStore {
         if (context == null) return;
 
         Context app = context.getApplicationContext();
-        boolean enabled = app.getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
-                .getBoolean("module_media", false);
+        SharedPreferences modulePreferences =
+                app.getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE);
+        boolean enabled = modulePreferences.getBoolean("module_media", false);
+        boolean restoreMedia = modulePreferences.getBoolean(
+                EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+        boolean restoreBluetooth = modulePreferences.getBoolean(
+                EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
 
-        hookSettings(app).edit().putBoolean(EXTRA_ENABLED, enabled).apply();
+        hookSettings(app).edit()
+                .putBoolean(EXTRA_ENABLED, enabled)
+                .putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia)
+                .putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth)
+                .apply();
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage("android");
         intent.putExtra(EXTRA_ENABLED, enabled);
+        intent.putExtra(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia);
+        intent.putExtra(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth);
         app.sendBroadcast(intent);
+    }
+
+    public static boolean isEnabled(Context context) {
+        return context != null && context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .getBoolean("module_media", false);
+    }
+
+    public static boolean isRestoreBackgroundMedia(Context context) {
+        return context != null && context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .getBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+    }
+
+    public static boolean isRestoreBackgroundBluetooth(Context context) {
+        return context != null && context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .getBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+    }
+
+    public static void setRestoreBackgroundMedia(Context context, boolean enabled) {
+        if (context == null) return;
+        context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, enabled).apply();
+        publish(context);
+    }
+
+    public static void setRestoreBackgroundBluetooth(Context context, boolean enabled) {
+        if (context == null) return;
+        context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, enabled).apply();
+        publish(context);
     }
 
     public static boolean saveSnapshot(Context context, String packageName,
