@@ -134,7 +134,7 @@ public final class MainActivity extends Activity {
             if ("voltage".equals(module.getId())) {
                 VoltageModuleView.bind(view, this);
             } else if ("media".equals(module.getId())) {
-                mediaView = new MediaModuleView(view);
+                mediaView = new MediaModuleView(view, this);
                 mediaView.update(
                         MediaSettingsStore.getSourcePackage(this),
                         MediaSettingsStore.getPlaybackState(this),
