@@ -31,7 +31,7 @@ ACC OFF is handled in `beforeHookedMethod` so the source state is captured befor
 
 The extra accepts a Boolean or Number. Boolean values are used directly; numeric zero means OFF and any nonzero value means ON. Missing or unsupported values are ignored.
 
-The first valid ACC broadcast initializes the in-memory state. An initial ON starts restoration; an initial OFF does not create a Snapshot because no ON-to-OFF transition has been observed. Snapshot capture begins only after the hook has observed ON and then OFF.
+The in-memory ACC state starts as ON (`true`), matching the head unit lifecycle: the module runs while the head unit is active, and ACC OFF transitions it into sleep. No initial MCU state query is required. The first valid ACC OFF broadcast is therefore treated as an ON-to-OFF transition and captures a Snapshot. ACC ON is handled only on an OFF-to-ON transition.
 
 The in-memory ACC state is updated independently of the module enabled state. Snapshot capture starts only on a real ON-to-OFF transition, when the module is enabled and no capture is already in progress. Duplicate OFF broadcasts do not create additional Snapshots.
 
@@ -81,7 +81,7 @@ The Bluetooth snapshot connection and callback resources are released after comp
 
 ## ACC ON restoration
 
-Restoration starts on an observed ACC OFF-to-ON transition or when the first valid ACC broadcast initializes the state as ON, provided the module is enabled.
+Restoration starts on an observed ACC OFF-to-ON transition, provided the module is enabled.
 
 The hook requests the persisted Snapshot from `MediaSnapshotReceiver` using an explicit ordered broadcast. The receiver reads the private application preferences and returns the Snapshot and current settings in the broadcast result. The Snapshot is not exposed through world-readable storage.
 
