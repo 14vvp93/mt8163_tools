@@ -29,6 +29,8 @@ The hook observes:
 
 The extra accepts a Boolean or Number. Boolean values are used directly; numeric zero means OFF and any nonzero value means ON. Missing or unsupported values are ignored.
 
+The first valid ACC broadcast initializes the in-memory state. An initial ON starts restoration; an initial OFF does not create a Snapshot because no ON-to-OFF transition has been observed. Snapshot capture begins only after the hook has observed ON and then OFF.
+
 The in-memory ACC state is updated independently of the module enabled state. Snapshot capture starts only on a real ON-to-OFF transition, when the module is enabled and no capture is already in progress. Duplicate OFF broadcasts do not create additional Snapshots.
 
 At capture time:
@@ -121,9 +123,12 @@ Do not perform an initial active-session lookup in this Activity-launch path. Th
 
 When the Activity must not be opened:
 
-1. Check whether the matching MediaSession already exists.
-2. If it exists and the Snapshot state is `playing`, call `transportControls.play()`.
-3. If it does not exist, register the listener and wait for the matching session.
+1. Register the active-sessions listener.
+2. Check whether the matching MediaSession already exists.
+3. If it exists and the Snapshot state is `playing`, call `transportControls.play()`.
+4. Otherwise, wait for the matching session through the registered listener.
+
+Registering before the single lookup closes the gap in which a session could appear between the lookup and listener registration.
 
 The total wait is limited to five seconds. Remove the listener on success, timeout, cancellation, or failure. Never send PLAY for `paused` or `unknown`.
 
@@ -143,7 +148,7 @@ For `playing`:
    - `isAvrcpConnected()`: transaction 2
 5. Only when both return true, send `send_Avrcp_Cmd(0)` (PLAY): transaction 5. Send it once.
 
-The total timeout is ten seconds, covering both MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If a Binder transaction remains blocked after timeout, the operation is cancelled, listeners and service binding are cleaned up, and any late result is ignored. A second worker is not started while the first Binder call is still blocked.
+The total timeout is ten seconds, covering both MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If a Binder transaction remains blocked after timeout, the operation is cancelled, listeners and service binding are cleaned up, and any late result is ignored. A second worker is not started or queued while the first Binder call is still blocked; a concurrent attempt ends without sending PLAY.
 
 For `paused` or `unknown`, do not bind for playback restoration and do not send PLAY. The Activity may still be opened according to the foreground and Bluetooth background setting rules.
 
@@ -160,8 +165,9 @@ Also verify the effect of `persist.sys.BTMusicAutoPlay`. Vendor AutoPlay may ind
 - Restoration listeners exist only for the duration of a restore attempt.
 - Remove listeners and callbacks on success, timeout, cancellation, or failure.
 - Unbind the Bluetooth service after the required Binder work.
-- Do not send PLAY after an operation has been cancelled.
+- An operation can transition from ACTIVE to CANCELLED only before PLAY is committed. A cancellation that wins this transition prevents PLAY; once PLAY is committed, a later cancellation cannot retract the in-flight command.
 - Do not keep background monitoring active after restoration.
+- The dynamic Media configuration receiver accepts broadcasts only from callers holding the app's signature-level `UPDATE_MEDIA_CONFIG` permission.
 
 ## UI and events
 
