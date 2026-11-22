@@ -1,7 +1,9 @@
 package com.mt8163.tools.ui;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,6 +18,8 @@ import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
 import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.events.EventsModuleView;
+import com.mt8163.tools.modules.media.MediaModuleView;
+import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.modules.voltage.VoltageModuleView;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
 
@@ -30,6 +34,9 @@ public final class MainActivity extends Activity {
     private FrameLayout content;
     private View overlay;
     private View glow;
+    private MediaModuleView mediaView;
+    private BroadcastReceiver mediaReceiver;
+    private boolean mediaReceiverRegistered;
     private int selected;
 
     @Override
@@ -53,6 +60,26 @@ public final class MainActivity extends Activity {
         selected = modules.size() - 1;
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
         showModule(selected);
+        createMediaReceiver();
+    }
+
+    private void createMediaReceiver() {
+        mediaReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                if (intent == null
+                        || !MediaSettingsStore.ACTION_STATE_CHANGED.equals(intent.getAction())
+                        || mediaView == null
+                        || selected < 0
+                        || !"media".equals(modules.get(selected).getId())) return;
+
+                String packageName = intent.hasExtra(MediaSettingsStore.EXTRA_SOURCE_PACKAGE)
+                        ? intent.getStringExtra(MediaSettingsStore.EXTRA_SOURCE_PACKAGE) : null;
+                String playbackState = intent.hasExtra(MediaSettingsStore.EXTRA_PLAYBACK_STATE)
+                        ? intent.getStringExtra(MediaSettingsStore.EXTRA_PLAYBACK_STATE) : null;
+                mediaView.update(packageName, playbackState);
+            }
+        };
     }
 
     private void showModule(int position) {
@@ -62,6 +89,7 @@ public final class MainActivity extends Activity {
         ModuleContract module = modules.get(position);
         adapter.setSelectedPosition(position);
         header.removeAllViews();
+        mediaView = null;
 
         ModuleHeaderView headerView = new ModuleHeaderView(this);
         headerView.bind(module, enabled -> {
@@ -81,6 +109,11 @@ public final class MainActivity extends Activity {
                 VoltageSettingsStore.publish(this);
             }
 
+            if ("media".equals(module.getId())) {
+                MediaSettingsStore.publish(this);
+                if (enabled) MediaSettingsStore.requestSnapshot(this);
+            }
+
             adapter.notifyDataSetChanged();
             if ("events".equals(module.getId())) showModule(selected);
             else updateState();
@@ -94,9 +127,16 @@ public final class MainActivity extends Activity {
         } else {
             View view = LayoutInflater.from(this).inflate(module.getLayoutRes(), content, false);
             content.addView(view);
-            if ("voltage".equals(module.getId())) VoltageModuleView.bind(view, this);
+            if ("voltage".equals(module.getId())) {
+                VoltageModuleView.bind(view, this);
+            } else if ("media".equals(module.getId())) {
+                mediaView = new MediaModuleView(view);
+            }
         }
         updateState();
+        if ("media".equals(module.getId()) && module.isEnabled()) {
+            MediaSettingsStore.requestSnapshot(this);
+        }
     }
 
     private void updateState() {
@@ -107,8 +147,36 @@ public final class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (!mediaReceiverRegistered && mediaReceiver != null) {
+            registerReceiver(mediaReceiver,
+                    new IntentFilter(MediaSettingsStore.ACTION_STATE_CHANGED));
+            mediaReceiverRegistered = true;
+        }
+        if (selected >= 0 && selected < modules.size()
+                && "media".equals(modules.get(selected).getId())
+                && modules.get(selected).isEnabled()) {
+            MediaSettingsStore.requestSnapshot(this);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        if (mediaReceiverRegistered) {
+            try {
+                unregisterReceiver(mediaReceiver);
+            } catch (RuntimeException ignored) {
+            }
+            mediaReceiverRegistered = false;
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         EventsModuleView.destroy();
+        mediaView = null;
         super.onDestroy();
     }
 
