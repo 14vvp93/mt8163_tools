@@ -35,6 +35,8 @@ public final class MediaHook implements PackageHook {
     private static final String CONFIG_FILE = "media_hook_config";
     private static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
+    private static final String CONFIG_PERMISSION =
+            "com.mt8163.tools.permission.UPDATE_MEDIA_CONFIG";
     private static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     private static final String ACTION_RESTORE_REQUEST =
@@ -54,6 +56,7 @@ public final class MediaHook implements PackageHook {
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
     private static boolean accState;
+    private static boolean accStateInitialized;
     private static boolean snapshotInProgress;
     private static boolean restorePending;
     private static boolean restoreInProgress;
@@ -137,29 +140,46 @@ public final class MediaHook implements PackageHook {
         boolean startSnapshot = false;
         boolean startRestore = false;
         boolean changed;
+        boolean initializedNow = false;
         MediaRestorer.Cancellable cancelRestore = null;
 
         synchronized (LOCK) {
-            boolean previousState = accState;
-            accState = nextState;
-            changed = previousState != accState;
+            if (!accStateInitialized) {
+                accState = nextState;
+                accStateInitialized = true;
+                changed = true;
+                initializedNow = true;
 
-            if (previousState && !accState) {
-                restorePending = false;
-                cancelRestore = activeRestoration;
-                activeRestoration = null;
-                restoreInProgress = false;
-
-                if (moduleEnabled && !snapshotInProgress) {
-                    snapshotInProgress = true;
-                    startSnapshot = true;
+                if (accState && moduleEnabled) {
+                    if (snapshotInProgress) {
+                        restorePending = true;
+                    } else if (!restoreInProgress) {
+                        restoreInProgress = true;
+                        startRestore = true;
+                    }
                 }
-            } else if (!previousState && accState && moduleEnabled) {
-                if (snapshotInProgress) {
-                    restorePending = true;
-                } else if (!restoreInProgress) {
-                    restoreInProgress = true;
-                    startRestore = true;
+            } else {
+                boolean previousState = accState;
+                accState = nextState;
+                changed = previousState != accState;
+
+                if (previousState && !accState) {
+                    restorePending = false;
+                    cancelRestore = activeRestoration;
+                    activeRestoration = null;
+                    restoreInProgress = false;
+
+                    if (moduleEnabled && !snapshotInProgress) {
+                        snapshotInProgress = true;
+                        startSnapshot = true;
+                    }
+                } else if (!previousState && accState && moduleEnabled) {
+                    if (snapshotInProgress) {
+                        restorePending = true;
+                    } else if (!restoreInProgress) {
+                        restoreInProgress = true;
+                        startRestore = true;
+                    }
                 }
             }
         }
@@ -167,7 +187,11 @@ public final class MediaHook implements PackageHook {
         if (cancelRestore != null) cancelRestore.cancel();
         if (startSnapshot) captureSnapshot();
         if (startRestore) requestSnapshotForRestore();
-        if (changed) logEvent("accStateChanged", "ACC state: " + nextState);
+        if (initializedNow) {
+            logEvent("accStateInitialized", "Initial ACC state: " + nextState);
+        } else if (changed) {
+            logEvent("accStateChanged", "ACC state: " + nextState);
+        }
     }
 
     private static Boolean readAccStatus(Intent intent) {
@@ -243,7 +267,7 @@ public final class MediaHook implements PackageHook {
                     logEvent("configurationChanged", "Media enabled: " + enabled);
                 }
             };
-            context.registerReceiver(receiver, filter);
+            context.registerReceiver(receiver, filter, CONFIG_PERMISSION, null);
             synchronized (LOCK) {
                 receiverRegistered = true;
             }
