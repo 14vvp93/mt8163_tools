@@ -142,9 +142,11 @@ For `playing`:
 
 1. Open `BtMusicActivity` only when the source was foreground or `Restore background Bluetooth player` is enabled.
 2. Bind explicitly to `BluetoothMusicService` with `BIND_AUTO_CREATE`. Binding must not launch the Activity.
-3. Wait for a MediaSession with either exact tag:
+3. Wait for a MediaSession whose tag contains either vendor identifier:
    - `A2dpMediaBrowserService`
    - `BluetoothMediaBrowserService`
+
+   This matches the vendor service's own `String.contains()` check.
 4. Register one `IMusicCallback` using `registerBTMusicCallback()` (Binder transaction 10).
 5. After registration, query the initial A2DP and AVRCP states once:
    - `isA2dpConnected()`: transaction 1
