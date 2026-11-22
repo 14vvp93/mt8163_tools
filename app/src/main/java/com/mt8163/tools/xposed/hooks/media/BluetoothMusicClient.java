@@ -192,6 +192,10 @@ public final class BluetoothMusicClient {
             data.enforceInterface(CALLBACK_DESCRIPTOR);
             switch (code) {
                 case 1:
+                    int a2dpState = data.readInt();
+                    if (a2dpState != 2) listener.onPlaybackState("stop");
+                    if (reply != null) reply.writeNoException();
+                    return true;
                 case 2:
                     data.readInt();
                     if (reply != null) reply.writeNoException();
@@ -229,8 +233,9 @@ public final class BluetoothMusicClient {
             case 2:
                 return "paused";
             case 1:
-            case 0:
                 return "stop";
+            case 0:
+                return "unavailable";
             case 6:
             case 8:
                 return "buffering";
