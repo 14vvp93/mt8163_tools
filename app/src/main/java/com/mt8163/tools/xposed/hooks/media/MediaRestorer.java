@@ -228,7 +228,6 @@ public final class MediaRestorer {
         private final AtomicReference<State> state =
                 new AtomicReference<>(State.ACTIVE);
         private final AtomicBoolean cleaned = new AtomicBoolean();
-        private final AtomicBoolean notified = new AtomicBoolean();
         private final Object lock = new Object();
 
         private IBinder binder;
