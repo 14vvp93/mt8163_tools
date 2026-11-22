@@ -108,7 +108,8 @@ public final class MediaRestorer {
     private static boolean isVendorSession(MediaController controller) {
         if (controller == null) return false;
         String tag = controller.getTag();
-        return SESSION_TAG_A2DP.equals(tag) || SESSION_TAG_BLUETOOTH.equals(tag);
+        return tag != null && (tag.contains(SESSION_TAG_A2DP)
+                || tag.contains(SESSION_TAG_BLUETOOTH));
     }
 
     private static final class StandardRestore implements Cancellable {
