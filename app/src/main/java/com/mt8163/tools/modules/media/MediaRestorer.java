@@ -332,6 +332,17 @@ public final class MediaRestorer {
             CANCELLED
         }
 
+        private static final int TRANSACTION_REGISTER_CALLBACK = 10;
+        private static final int TRANSACTION_UNREGISTER_CALLBACK = 11;
+        private static final int CALLBACK_A2DP_STATE = 1;
+        private static final int CALLBACK_AVRCP_STATE = 2;
+        private static final int CALLBACK_METADATA = 3;
+        private static final int CALLBACK_PLAY_STATE = 4;
+        private static final int BLUETOOTH_STATE_CONNECTED = 2;
+        private static final String CALLBACK_DESCRIPTOR =
+                "com.hcn.bluetooth.service.IMusicCallback";
+        private static final long PLAY_DELAY_MS = 1000L;
+
         private final Context context;
         private final boolean launchActivity;
         private final Completion completion;
@@ -347,15 +358,25 @@ public final class MediaRestorer {
         private boolean workerSubmitted;
         private boolean bound;
         private boolean listenerRegistered;
+        private boolean callbackRegistrationStarted;
+        private boolean callbackRegistered;
+        private boolean initialStateReady;
+        private boolean a2dpConnected;
+        private boolean avrcpConnected;
+        private boolean playDelayScheduled;
+        private int a2dpCallbackVersion;
+        private int avrcpCallbackVersion;
 
+        private final MusicCallback callback = new MusicCallback();
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
                 this::onSessionsChanged;
         private final Runnable timeout = this::onTimeout;
+        private final Runnable playDelay = this::onPlayDelayElapsed;
         private final ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 if (service == null) {
-                    fail();
+                    fail("Vendor service returned a null Binder");
                     return;
                 }
                 synchronized (lock) {
@@ -367,17 +388,17 @@ public final class MediaRestorer {
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-                fail();
+                fail("Vendor service disconnected");
             }
 
             @Override
             public void onBindingDied(ComponentName name) {
-                fail();
+                fail("Vendor service binding died");
             }
 
             @Override
             public void onNullBinding(ComponentName name) {
-                fail();
+                fail("Vendor service returned a null binding");
             }
         };
 
@@ -390,15 +411,16 @@ public final class MediaRestorer {
         }
 
         void start() {
-            logEvent(context, "bluetoothRestoreStarted", "Waiting for vendor MediaSession and Binder service");
+            logEvent(context, "bluetoothRestoreStarted",
+                    "Waiting for vendor MediaSession and Binder service");
             if (manager == null) {
                 if (launchActivity) launchBluetoothActivity(context);
-                fail();
+                fail("MediaSessionManager unavailable");
                 return;
             }
 
             if (!handler.postDelayed(timeout, BLUETOOTH_TIMEOUT_MS)) {
-                fail();
+                fail("Unable to schedule Bluetooth restoration timeout");
                 return;
             }
 
@@ -433,6 +455,7 @@ public final class MediaRestorer {
             try {
                 return manager.getActiveSessions(null);
             } catch (RuntimeException error) {
+                logEvent(context, "bluetoothSessionLookupFailed", error.toString());
                 return null;
             }
         }
@@ -458,8 +481,7 @@ public final class MediaRestorer {
                 logEvent(context, "bluetoothSessionListenerRegistered",
                         "Waiting for vendor MediaSession");
             } catch (RuntimeException error) {
-                logEvent(context, "bluetoothSessionListenerFailed", error.toString());
-                fail();
+                fail("Unable to register MediaSession listener: " + error);
             }
         }
 
@@ -482,74 +504,210 @@ public final class MediaRestorer {
                 bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
             } catch (RuntimeException error) {
                 bound = false;
+                logEvent(context, "bluetoothBindFailed", error.toString());
             }
             if (!bound) {
-                logEvent(context, "bluetoothBindFailed", "Unable to bind vendor service");
-                fail();
+                fail("Unable to bind vendor service");
             } else {
-                logEvent(context, "bluetoothServiceBound", "Vendor service binding requested");
+                logEvent(context, "bluetoothServiceBound",
+                        "Vendor service binding requested");
             }
         }
 
         private void startWorkerIfReady() {
             final IBinder service;
-            final boolean workerBusy;
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || binder == null
                         || !sessionReady || workerSubmitted) return;
                 service = binder;
                 workerSubmitted = true;
-                workerBusy = !BLUETOOTH_WORKER_BUSY.compareAndSet(false, true);
             }
 
-            if (workerBusy) {
-                logEvent(context, "bluetoothRestoreBusy",
-                        "Previous Bluetooth Binder operation has not returned");
-                fail();
+            if (!BLUETOOTH_WORKER_BUSY.compareAndSet(false, true)) {
+                fail("Previous Bluetooth Binder operation has not returned");
                 return;
             }
 
             try {
                 BLUETOOTH_WORKER.execute(() -> {
                     try {
-                        restoreBluetooth(service);
+                        initializeBluetooth(service);
+                    } catch (RemoteException | RuntimeException error) {
+                        fail("Bluetooth initialization failed: " + error);
                     } finally {
                         BLUETOOTH_WORKER_BUSY.set(false);
+                        handler.post(this::onInitialStateReady);
                     }
                 });
             } catch (RuntimeException error) {
                 BLUETOOTH_WORKER_BUSY.set(false);
-                fail();
+                fail("Unable to start Bluetooth Binder worker: " + error);
             }
         }
 
-        private void restoreBluetooth(IBinder service) {
+        private void initializeBluetooth(IBinder service) throws RemoteException {
+            if (state.get() != State.ACTIVE) return;
+            registerCallback(service);
+            if (state.get() != State.ACTIVE) return;
+
+            readInitialConnectionState(service, true);
+            if (state.get() != State.ACTIVE) return;
+
+            readInitialConnectionState(service, false);
+        }
+
+        private void registerCallback(IBinder service) throws RemoteException {
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return;
+                callbackRegistrationStarted = true;
+            }
+
+            Parcel data = Parcel.obtain();
+            Parcel reply = Parcel.obtain();
             try {
+                data.writeInterfaceToken(BLUETOOTH_DESCRIPTOR);
+                data.writeStrongBinder(callback.asBinder());
+                if (!service.transact(TRANSACTION_REGISTER_CALLBACK, data, reply, 0)) {
+                    throw new RemoteException("Bluetooth callback registration failed");
+                }
+                reply.readException();
+            } finally {
+                reply.recycle();
+                data.recycle();
+            }
+
+            synchronized (lock) {
+                callbackRegistered = true;
+            }
+            logEvent(context, "bluetoothCallbackRegistered",
+                    "Waiting for A2DP and AVRCP state callbacks");
+        }
+
+        private void readInitialConnectionState(IBinder service, boolean a2dp)
+                throws RemoteException {
+            final int callbackVersion;
+            synchronized (lock) {
+                callbackVersion = a2dp ? a2dpCallbackVersion : avrcpCallbackVersion;
+            }
+
+            int transaction = a2dp
+                    ? TRANSACTION_IS_A2DP_CONNECTED : TRANSACTION_IS_AVRCP_CONNECTED;
+            boolean connected = queryBoolean(service, transaction);
+
+            synchronized (lock) {
                 if (state.get() != State.ACTIVE) return;
-                boolean a2dpConnected = queryBoolean(service, TRANSACTION_IS_A2DP_CONNECTED);
-                logEvent(context, "bluetoothA2dpCheck", "Connected: " + a2dpConnected);
-                if (!a2dpConnected) {
-                    fail();
-                    return;
+                if (a2dp && callbackVersion == a2dpCallbackVersion) {
+                    a2dpConnected = connected;
+                } else if (!a2dp && callbackVersion == avrcpCallbackVersion) {
+                    avrcpConnected = connected;
+                }
+            }
+
+            logEvent(context, a2dp ? "bluetoothA2dpInitialState"
+                            : "bluetoothAvrcpInitialState",
+                    "Connected: " + connected);
+        }
+
+        private void onInitialStateReady() {
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return;
+                initialStateReady = true;
+                logEvent(context, "bluetoothInitialStateReady",
+                        "A2DP: " + a2dpConnected + ", AVRCP: " + avrcpConnected);
+            }
+            updatePlayDelay();
+        }
+
+        private void onProfileStateChanged(boolean a2dp, int profileState) {
+            boolean connected = profileState == BLUETOOTH_STATE_CONNECTED;
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return;
+
+                if (a2dp) {
+                    a2dpCallbackVersion++;
+                    a2dpConnected = connected;
+                } else {
+                    avrcpCallbackVersion++;
+                    avrcpConnected = connected;
                 }
 
-                if (state.get() != State.ACTIVE) return;
-                boolean avrcpConnected = queryBoolean(service, TRANSACTION_IS_AVRCP_CONNECTED);
-                logEvent(context, "bluetoothAvrcpCheck", "Connected: " + avrcpConnected);
-                if (!avrcpConnected) {
-                    fail();
+                if (!connected && playDelayScheduled) {
+                    handler.removeCallbacks(playDelay);
+                    playDelayScheduled = false;
+                }
+            }
+
+            logEvent(context, a2dp ? "bluetoothA2dpStateChanged"
+                            : "bluetoothAvrcpStateChanged",
+                    "Profile state: " + profileState + ", connected: " + connected);
+            handler.post(this::updatePlayDelay);
+        }
+
+        private void updatePlayDelay() {
+            boolean schedule = false;
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE || !initialStateReady
+                        || !a2dpConnected || !avrcpConnected || playDelayScheduled) {
                     return;
                 }
+                playDelayScheduled = true;
+                if (!handler.postDelayed(playDelay, PLAY_DELAY_MS)) {
+                    playDelayScheduled = false;
+                    schedule = false;
+                } else {
+                    schedule = true;
+                }
+            }
 
-                if (!state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) return;
+            if (schedule) {
+                logEvent(context, "bluetoothProfilesReady",
+                        "A2DP and AVRCP connected; waiting 1 second before PLAY");
+            } else {
+                fail("Unable to schedule Bluetooth PLAY delay");
+            }
+        }
 
-                sendPlay(service);
-                logEvent(context, "bluetoothPlaySent", "send_Avrcp_Cmd(PLAY) transaction completed");
+        private void onPlayDelayElapsed() {
+            final IBinder service;
+            synchronized (lock) {
+                playDelayScheduled = false;
+                if (state.get() != State.ACTIVE || !initialStateReady
+                        || !a2dpConnected || !avrcpConnected || binder == null) {
+                    return;
+                }
+                if (!BLUETOOTH_WORKER_BUSY.compareAndSet(false, true)) {
+                    service = null;
+                } else if (state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) {
+                    service = binder;
+                } else {
+                    BLUETOOTH_WORKER_BUSY.set(false);
+                    return;
+                }
+            }
+
+            if (service == null) {
+                fail("Bluetooth Binder worker is busy before PLAY");
+                return;
+            }
+
+            try {
+                BLUETOOTH_WORKER.execute(() -> {
+                    try {
+                        sendPlay(service);
+                        logEvent(context, "bluetoothPlaySent",
+                                "send_Avrcp_Cmd(PLAY) transaction completed");
+                    } catch (RemoteException | RuntimeException error) {
+                        logEvent(context, "bluetoothPlayFailed", error.toString());
+                    } finally {
+                        state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
+                        BLUETOOTH_WORKER_BUSY.set(false);
+                        finishResources();
+                    }
+                });
+            } catch (RuntimeException error) {
+                BLUETOOTH_WORKER_BUSY.set(false);
                 state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
-                finishResources();
-            } catch (RemoteException | RuntimeException error) {
-                logEvent(context, "bluetoothRestoreFailed", error.toString());
-                fail();
+                fail("Unable to send Bluetooth PLAY: " + error);
             }
         }
 
@@ -586,6 +744,31 @@ public final class MediaRestorer {
             }
         }
 
+        private void unregisterCallback(IBinder service) {
+            synchronized (lock) {
+                if (!callbackRegistered) return;
+                callbackRegistered = false;
+            }
+
+            Parcel data = Parcel.obtain();
+            Parcel reply = Parcel.obtain();
+            try {
+                data.writeInterfaceToken(BLUETOOTH_DESCRIPTOR);
+                data.writeStrongBinder(callback.asBinder());
+                if (!service.transact(TRANSACTION_UNREGISTER_CALLBACK, data, reply, 0)) {
+                    throw new RemoteException("Bluetooth callback unregistration failed");
+                }
+                reply.readException();
+                logEvent(context, "bluetoothCallbackUnregistered",
+                        "Vendor callback removed");
+            } catch (RemoteException | RuntimeException error) {
+                logEvent(context, "bluetoothCallbackUnregisterFailed", error.toString());
+            } finally {
+                reply.recycle();
+                data.recycle();
+            }
+        }
+
         private void onTimeout() {
             if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
                 logEvent(context, "bluetoothRestoreTimeout",
@@ -598,12 +781,11 @@ public final class MediaRestorer {
             }
         }
 
-        private void fail() {
+        private void fail(String reason) {
             boolean failed = state.compareAndSet(State.ACTIVE, State.COMPLETED)
                     || state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
             if (failed) {
-                logEvent(context, "bluetoothRestoreFailed",
-                        "Readiness, connection, or PLAY transaction failed");
+                logEvent(context, "bluetoothRestoreFailed", reason);
                 finishResources();
             } else if (state.get() == State.CANCELLED) {
                 finishResources();
@@ -613,11 +795,17 @@ public final class MediaRestorer {
         private void finishResources() {
             if (!cleaned.compareAndSet(false, true)) return;
             handler.removeCallbacks(timeout);
+            handler.removeCallbacks(playDelay);
 
+            IBinder service;
             boolean removeListener;
+            boolean unregister;
             synchronized (lock) {
+                playDelayScheduled = false;
                 removeListener = listenerRegistered;
                 listenerRegistered = false;
+                unregister = callbackRegistrationStarted;
+                service = binder;
                 if (bound) {
                     bound = false;
                     try {
@@ -627,12 +815,23 @@ public final class MediaRestorer {
                 }
                 binder = null;
             }
+
             if (removeListener) {
                 try {
                     manager.removeOnActiveSessionsChangedListener(listener);
                 } catch (RuntimeException ignored) {
                 }
             }
+
+            if (unregister && service != null) {
+                try {
+                    BLUETOOTH_WORKER.execute(() -> unregisterCallback(service));
+                } catch (RuntimeException error) {
+                    logEvent(context, "bluetoothCallbackUnregisterFailed",
+                            "Unable to schedule callback cleanup: " + error);
+                }
+            }
+
             notifyCompletion(completion);
         }
 
@@ -644,6 +843,47 @@ public final class MediaRestorer {
             } else if (state.get() == State.PLAY_COMMITTED) {
                 logEvent(context, "bluetoothRestoreCancelIgnored",
                         "PLAY transaction was already committed");
+            }
+        }
+
+        private final class MusicCallback extends Binder implements IInterface {
+            MusicCallback() {
+                attachInterface(this, CALLBACK_DESCRIPTOR);
+            }
+
+            @Override
+            public IBinder asBinder() {
+                return this;
+            }
+
+            @Override
+            protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
+                    throws RemoteException {
+                if (code == 1598968902) {
+                    if (reply != null) reply.writeString(CALLBACK_DESCRIPTOR);
+                    return true;
+                }
+
+                data.enforceInterface(CALLBACK_DESCRIPTOR);
+                switch (code) {
+                    case CALLBACK_A2DP_STATE:
+                        onProfileStateChanged(true, data.readInt());
+                        return true;
+                    case CALLBACK_AVRCP_STATE:
+                        onProfileStateChanged(false, data.readInt());
+                        return true;
+                    case CALLBACK_METADATA:
+                        data.readString();
+                        data.readString();
+                        data.readString();
+                        return true;
+                    case CALLBACK_PLAY_STATE:
+                        data.readInt();
+                        if (reply != null) reply.writeNoException();
+                        return true;
+                    default:
+                        return super.onTransact(code, data, reply, flags);
+                }
             }
         }
     }
