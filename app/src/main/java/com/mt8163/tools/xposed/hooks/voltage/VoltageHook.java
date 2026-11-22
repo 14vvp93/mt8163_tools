@@ -2,6 +2,7 @@ package com.mt8163.tools.xposed.hooks.voltage;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
