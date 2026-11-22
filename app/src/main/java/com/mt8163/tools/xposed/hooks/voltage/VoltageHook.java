@@ -138,7 +138,7 @@ public final class VoltageHook implements PackageHook {
         loadInitialConfiguration();
 
         synchronized (LOCK) {
-            applyCurrentVoltageLocked();
+            applyCurrentVoltageLocked(false);
         }
 
         logEvent("hookInstalled", "Voltage hooks initialized");
@@ -169,7 +169,7 @@ public final class VoltageHook implements PackageHook {
                     moduleEnabled = enabled;
                     voltageOffset = offset;
                     initialConfigurationLoaded = true;
-                    applyCurrentVoltageLocked();
+                    applyCurrentVoltageLocked(false);
                     applied = true;
                 }
             }
@@ -247,7 +247,7 @@ public final class VoltageHook implements PackageHook {
             voltageOffset = offset;
             configurationGeneration++;
             initialConfigurationLoaded = true;
-            applyCurrentVoltageLocked();
+            applyCurrentVoltageLocked(false);
 
             if (changed) {
                 logEvent("configurationChanged", String.format(Locale.US,
@@ -293,7 +293,7 @@ public final class VoltageHook implements PackageHook {
                             "MCU battery voltage received: %.1f V", rawVoltage));
                 }
 
-                applyCurrentVoltageLocked();
+                applyCurrentVoltageLocked(true);
             }
         } catch (Throwable error) {
             logEvent("hookException", "Battery packet processing failed: " + error);
@@ -305,7 +305,7 @@ public final class VoltageHook implements PackageHook {
         return value > 0.0f;
     }
 
-    private static void applyCurrentVoltageLocked() {
+    private static void applyCurrentVoltageLocked(boolean reportApplied) {
         if (mcuService == null || !hasRawVoltage || !moduleEnabled
                 || rawBatteryVoltage == 0.0f || voltageOffset == 0.0f) return;
 
@@ -315,7 +315,7 @@ public final class VoltageHook implements PackageHook {
         try {
             XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", outputVoltage);
 
-            if (!hasReportedVoltageApplied) {
+            if (reportApplied && !hasReportedVoltageApplied) {
                 hasReportedVoltageApplied = true;
                 logEvent("voltageApplied", String.format(Locale.US,
                         "mBatteryVoltage updated: %.1f V → %.1f V",
