@@ -187,9 +187,9 @@ public final class MediaHook implements PackageHook {
             preferences.reload();
             moduleEnabled = preferences.getBoolean(EXTRA_ENABLED, false);
             restoreBackgroundMedia = preferences.getBoolean(
-                    EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+                    EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
             restoreBackgroundBluetooth = preferences.getBoolean(
-                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
         } catch (Throwable error) {
             moduleEnabled = false;
             restoreBackgroundMedia = false;
@@ -424,7 +424,7 @@ public final class MediaHook implements PackageHook {
                     String playbackState = MediaSettingsStore.normalizePlaybackState(
                             result.getString(EXTRA_PLAYBACK_STATE));
                     boolean foreground = result.getBoolean(EXTRA_IS_FOREGROUND, false);
-                    boolean enabled = result.getBoolean(EXTRA_ENABLED, false);
+                    boolean enabled = result.getBoolean(EXTRA_ENABLED, moduleEnabled);
                     boolean restoreMedia = result.getBoolean(
                             EXTRA_RESTORE_BACKGROUND_MEDIA, false);
                     boolean restoreBluetooth = result.getBoolean(
