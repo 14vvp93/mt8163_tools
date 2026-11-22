@@ -7,8 +7,6 @@ import android.content.SharedPreferences;
 public final class MediaSettingsStore {
     public static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
-    public static final String ACTION_REQUEST_SNAPSHOT =
-            "com.mt8163.tools.action.MEDIA_REQUEST_SNAPSHOT";
     public static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     public static final String EXTRA_ENABLED = "module_enabled";
@@ -36,14 +34,6 @@ public final class MediaSettingsStore {
         intent.setPackage("android");
         intent.putExtra(EXTRA_ENABLED, enabled);
         app.sendBroadcast(intent);
-    }
-
-    public static void requestSnapshot(Context context) {
-        if (context == null) return;
-
-        Intent intent = new Intent(ACTION_REQUEST_SNAPSHOT);
-        intent.setPackage("android");
-        context.getApplicationContext().sendBroadcast(intent);
     }
 
     public static void saveSnapshot(Context context, String packageName,
