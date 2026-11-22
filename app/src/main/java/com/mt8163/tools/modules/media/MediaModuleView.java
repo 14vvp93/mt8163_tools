@@ -2,7 +2,6 @@ package com.mt8163.tools.modules.media;
 
 import android.content.Context;
 import android.view.View;
-import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
 
