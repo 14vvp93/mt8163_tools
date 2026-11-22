@@ -42,9 +42,11 @@ public final class BluetoothMusicClient {
                 boolean avrcpConnected = queryBoolean(binder, 2);
                 boolean playing = queryBoolean(binder, 3);
                 state = a2dpConnected && avrcpConnected
-                        ? (playing ? "start" : "stop") : "unavailable";
+                        ? (playing ? MediaSettingsStore.PLAYBACK_PLAYING
+                        : MediaSettingsStore.PLAYBACK_PAUSED)
+                        : MediaSettingsStore.PLAYBACK_UNKNOWN;
             } catch (RemoteException | RuntimeException error) {
-                state = "unavailable";
+                state = MediaSettingsStore.PLAYBACK_UNKNOWN;
             }
 
             finish(state);
@@ -52,17 +54,17 @@ public final class BluetoothMusicClient {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            finish("unavailable");
+            finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
         }
 
         @Override
         public void onBindingDied(ComponentName name) {
-            finish("unavailable");
+            finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
         }
 
         @Override
         public void onNullBinding(ComponentName name) {
-            finish("unavailable");
+            finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
         }
     };
 
