@@ -125,7 +125,8 @@ public final class MediaRestorer {
         private final Handler handler = new Handler(Looper.getMainLooper());
         private final Object lock = new Object();
 
-        private State state = State.ACTIVE;
+        private final AtomicReference<State> state =
+                new AtomicReference<>(State.ACTIVE);
         private boolean listenerRegistered;
 
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
@@ -168,7 +169,10 @@ public final class MediaRestorer {
             }
 
             registerListener();
-            if (!isActive()) return;
+            if (!isActive()) {
+                if (launchActivity) launchPackageActivity(context, packageName);
+                return;
+            }
 
             if (launchActivity) {
                 logEvent(context, "mediaActivityLaunch", "Launching " + packageName);
@@ -185,7 +189,7 @@ public final class MediaRestorer {
 
         private boolean isActive() {
             synchronized (lock) {
-                return state == State.ACTIVE;
+                return state.get() == State.ACTIVE;
             }
         }
 
@@ -213,7 +217,7 @@ public final class MediaRestorer {
             try {
                 manager.addOnActiveSessionsChangedListener(listener, null, handler);
                 synchronized (lock) {
-                    if (state == State.ACTIVE) {
+                    if (state.get() == State.ACTIVE) {
                         listenerRegistered = true;
                     } else {
                         manager.removeOnActiveSessionsChangedListener(listener);
@@ -238,8 +242,7 @@ public final class MediaRestorer {
         private void onTimeout() {
             boolean completed = false;
             synchronized (lock) {
-                if (state == State.ACTIVE) {
-                    state = State.CANCELLED;
+                if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
                     cleanupListenerLocked();
                     completed = true;
                 }
@@ -254,8 +257,7 @@ public final class MediaRestorer {
         private void completeWithoutPlay() {
             boolean completed = false;
             synchronized (lock) {
-                if (state == State.ACTIVE) {
-                    state = State.COMPLETED;
+                if (state.compareAndSet(State.ACTIVE, State.COMPLETED)) {
                     handler.removeCallbacks(timeout);
                     cleanupListenerLocked();
                     completed = true;
@@ -266,27 +268,24 @@ public final class MediaRestorer {
 
         private void finish(MediaController controller) {
             boolean completed = false;
-            synchronized (lock) {
-                if (state != State.ACTIVE) return;
-
-                state = controller != null && playing
-                        ? State.PLAY_COMMITTED : State.COMPLETED;
+            if (controller != null && playing) {
+                if (!state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) return;
                 handler.removeCallbacks(timeout);
                 cleanupListenerLocked();
-
-                if (controller != null && playing) {
-                    try {
-                        controller.getTransportControls().play();
-                        logEvent(context, "mediaPlaySent",
-                                "TransportControls.play(): " + packageName);
-                    } catch (RuntimeException error) {
-                        logEvent(context, "mediaPlayFailed", error.toString());
-                    }
-                    state = State.COMPLETED;
-                } else {
-                    logEvent(context, "mediaRestoreEnded",
-                            "No matching MediaSession; PLAY not sent");
+                try {
+                    controller.getTransportControls().play();
+                    logEvent(context, "mediaPlaySent",
+                            "TransportControls.play(): " + packageName);
+                } catch (RuntimeException error) {
+                    logEvent(context, "mediaPlayFailed", error.toString());
                 }
+                state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
+                completed = true;
+            } else if (state.compareAndSet(State.ACTIVE, State.COMPLETED)) {
+                handler.removeCallbacks(timeout);
+                cleanupListenerLocked();
+                logEvent(context, "mediaRestoreEnded",
+                        "No matching MediaSession; PLAY not sent");
                 completed = true;
             }
             if (completed) notifyCompletion(completion);
@@ -305,8 +304,7 @@ public final class MediaRestorer {
         public void cancel() {
             boolean cancelled = false;
             synchronized (lock) {
-                if (state == State.ACTIVE) {
-                    state = State.CANCELLED;
+                if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
                     handler.removeCallbacks(timeout);
                     cleanupListenerLocked();
                     cancelled = true;
@@ -316,6 +314,9 @@ public final class MediaRestorer {
                 logEvent(context, "mediaRestoreCancelled",
                         "Restoration cancelled: " + packageName);
                 notifyCompletion(completion);
+            } else if (state.get() == State.PLAY_COMMITTED) {
+                logEvent(context, "mediaRestoreCancelIgnored",
+                        "PLAY was already committed: " + packageName);
             }
         }
     }
@@ -388,6 +389,7 @@ public final class MediaRestorer {
         void start() {
             logEvent(context, "bluetoothRestoreStarted", "Waiting for vendor MediaSession and Binder service");
             if (manager == null) {
+                if (launchActivity) launchBluetoothActivity(context);
                 fail();
                 return;
             }
@@ -396,7 +398,10 @@ public final class MediaRestorer {
 
             if (launchActivity) {
                 registerListener();
-                if (state.get() != State.ACTIVE) return;
+                if (state.get() != State.ACTIVE) {
+                    launchBluetoothActivity(context);
+                    return;
+                }
                 launchBluetoothActivity(context);
             } else {
                 registerListener();
@@ -587,15 +592,10 @@ public final class MediaRestorer {
             if (!cleaned.compareAndSet(false, true)) return;
             handler.removeCallbacks(timeout);
 
-            if (listenerRegistered) {
-                listenerRegistered = false;
-                try {
-                    manager.removeOnActiveSessionsChangedListener(listener);
-                } catch (RuntimeException ignored) {
-                }
-            }
-
+            boolean removeListener;
             synchronized (lock) {
+                removeListener = listenerRegistered;
+                listenerRegistered = false;
                 if (bound) {
                     bound = false;
                     try {
@@ -604,6 +604,12 @@ public final class MediaRestorer {
                     }
                 }
                 binder = null;
+            }
+            if (removeListener) {
+                try {
+                    manager.removeOnActiveSessionsChangedListener(listener);
+                } catch (RuntimeException ignored) {
+                }
             }
             notifyCompletion(completion);
         }
