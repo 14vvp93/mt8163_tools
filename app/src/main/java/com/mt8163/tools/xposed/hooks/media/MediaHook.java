@@ -44,6 +44,7 @@ public final class MediaHook implements PackageHook {
     private static boolean snapshotInProgress;
     private static Context systemContext;
     private static Object windowManagerService;
+    private static BluetoothMusicClient bluetoothClient;
     private static BroadcastReceiver configReceiver;
 
     @Override
@@ -182,9 +183,16 @@ public final class MediaHook implements PackageHook {
                             ? null : intent.getExtras().get(EXTRA_ENABLED);
                     if (!(value instanceof Boolean)) return;
 
+                    BluetoothMusicClient client = null;
                     synchronized (LOCK) {
                         moduleEnabled = (Boolean) value;
+                        if (!moduleEnabled) {
+                            snapshotInProgress = false;
+                            client = bluetoothClient;
+                            bluetoothClient = null;
+                        }
                     }
+                    if (client != null) client.disconnect();
                     logEvent("configurationChanged", "Media enabled: " + value);
                 }
             };
@@ -238,8 +246,18 @@ public final class MediaHook implements PackageHook {
 
         BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
                 completeSnapshot(context, packageName, state, isForeground));
+        synchronized (LOCK) {
+            if (!snapshotInProgress || !moduleEnabled) {
+                client.disconnect();
+                return;
+            }
+            bluetoothClient = client;
+        }
 
         if (!client.connect()) {
+            synchronized (LOCK) {
+                if (bluetoothClient == client) bluetoothClient = null;
+            }
             client.disconnect();
             completeSnapshot(context, packageName, "unavailable", isForeground);
             logEvent("bluetoothBindFailed", "Unable to bind BluetoothMusicService");
@@ -249,8 +267,9 @@ public final class MediaHook implements PackageHook {
     private static void completeSnapshot(Context context, String packageName,
                                          String playbackState, boolean isForeground) {
         synchronized (LOCK) {
-            if (!snapshotInProgress) return;
+            if (!moduleEnabled || !snapshotInProgress) return;
             snapshotInProgress = false;
+            bluetoothClient = null;
         }
 
         String source = packageName == null ? "" : packageName;
