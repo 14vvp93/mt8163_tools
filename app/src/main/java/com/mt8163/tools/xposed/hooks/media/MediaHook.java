@@ -426,9 +426,9 @@ public final class MediaHook implements PackageHook {
                     boolean foreground = result.getBoolean(EXTRA_IS_FOREGROUND, false);
                     boolean enabled = result.getBoolean(EXTRA_ENABLED, moduleEnabled);
                     boolean restoreMedia = result.getBoolean(
-                            EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+                            EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
                     boolean restoreBluetooth = result.getBoolean(
-                            EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+                            EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
 
                     synchronized (LOCK) {
                         if (!moduleEnabled || !enabled || !accState || !restoreInProgress) {
