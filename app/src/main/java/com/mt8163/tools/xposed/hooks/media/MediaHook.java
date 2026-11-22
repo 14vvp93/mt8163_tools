@@ -34,11 +34,13 @@ public final class MediaHook implements PackageHook {
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
     private static boolean moduleEnabled;
+    private static boolean snapshotPending;
+    private static long sourceGeneration;
     private static Context systemContext;
     private static Object sourceInfo;
     private static BroadcastReceiver receiver;
-    private static String lastSourcePackage;
-    private static String lastPlaybackState;
+    private static String lastSourcePackage = "";
+    private static String lastPlaybackState = "";
     private static BluetoothMusicClient bluetoothClient;
 
     @Override
@@ -133,6 +135,10 @@ public final class MediaHook implements PackageHook {
                         if (enabled instanceof Boolean) {
                             synchronized (LOCK) {
                                 moduleEnabled = (Boolean) enabled;
+                                if (!moduleEnabled) {
+                                    snapshotPending = false;
+                                    sourceGeneration++;
+                                }
                             }
                             if (moduleEnabled) publishSnapshot(receiverContext);
                             else disableBluetooth();
@@ -163,72 +169,101 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void publishSnapshot(Context context) {
-        synchronized (LOCK) {
-            if (!moduleEnabled) return;
-            try {
+        if (context == null) return;
+        try {
+            Object info;
+            synchronized (LOCK) {
+                if (!moduleEnabled) return;
                 if (sourceInfo == null) {
                     Class<?> infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
                     sourceInfo = XposedHelpers.callStaticMethod(infoClass, "getInstance");
                 }
-                Object packageValue = XposedHelpers.callMethod(sourceInfo, "getSourcePackage");
-                Object musicInfo = XposedHelpers.callMethod(sourceInfo, "getMusicInfo");
-                Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
-                String packageName = packageValue instanceof String ? (String) packageValue : "";
-                String state = stateValue instanceof String ? (String) stateValue : "";
-                logEvent(context, "snapshotReceived",
-                        "Source package: " + display(packageName) + ", playback state: "
-                                + display(state));
-                handleSourceChanged(context, packageName);
-                if (!isBluetoothSource(packageName)) handlePlaybackState(context, state);
-            } catch (Throwable error) {
-                reportError(context, "snapshot", error);
-                publishStateLocked(context, "", "", true);
+                info = sourceInfo;
             }
+
+            Object packageValue = XposedHelpers.callMethod(info, "getSourcePackage");
+            String packageName = packageValue instanceof String
+                    ? ((String) packageValue).trim() : "";
+            long generation = updateSource(context, packageName, true);
+
+            if (isBluetoothSource(packageName)) {
+                ensureBluetooth(context, generation, true);
+                return;
+            }
+
+            disableBluetooth();
+            Object musicInfo = XposedHelpers.callMethod(info, "getMusicInfo");
+            Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
+            String state = stateValue instanceof String ? ((String) stateValue).trim() : "";
+            completeSnapshot(context, generation, packageName, state);
+        } catch (Throwable error) {
+            reportError(context, "snapshot", error);
         }
     }
 
     private static void handleSourceChanged(Context context, String packageName) {
-        if (context == null) return;
+        long generation = updateSource(context, packageName, false);
+        if (generation < 0) return;
+
+        String value = packageName == null ? "" : packageName.trim();
+        if (isBluetoothSource(value)) ensureBluetooth(context, generation, false);
+        else disableBluetooth();
+    }
+
+    private static long updateSource(Context context, String packageName,
+                                     boolean requestSnapshot) {
         String value = packageName == null ? "" : packageName.trim();
         boolean changed;
+        long generation;
 
         synchronized (LOCK) {
-            if (!moduleEnabled) return;
+            if (!moduleEnabled) return -1;
             changed = !value.equals(lastSourcePackage);
-            lastSourcePackage = value;
-            lastPlaybackState = "";
-            publishStateLocked(context, value, "", false);
+            if (changed) {
+                lastSourcePackage = value;
+                lastPlaybackState = "";
+                snapshotPending = true;
+                sourceGeneration++;
+            } else if (requestSnapshot) {
+                snapshotPending = true;
+            }
+            generation = sourceGeneration;
         }
 
         if (changed) {
             logEvent(context, "sourceChanged", "Audio source package: " + display(value));
         }
-
-        if (isBluetoothSource(value)) enableBluetooth(context);
-        else disableBluetooth();
+        return generation;
     }
 
-    private static void enableBluetooth(Context context) {
+    private static void ensureBluetooth(Context context, long generation,
+                                        boolean requestSnapshot) {
         synchronized (LOCK) {
-            if (!moduleEnabled || !isBluetoothSource(lastSourcePackage)
-                    || bluetoothClient != null) return;
+            if (!moduleEnabled || generation != sourceGeneration
+                    || !isBluetoothSource(lastSourcePackage)) return;
+            if (bluetoothClient != null) return;
 
             BluetoothMusicClient client = new BluetoothMusicClient(context,
                     new BluetoothMusicClient.Listener() {
                         @Override
+                        public void onSnapshot(String state) {
+                            completeBluetoothSnapshot(context, generation, state);
+                        }
+
+                        @Override
                         public void onPlaybackState(String state) {
-                            publishBluetoothState(context, state);
+                            publishBluetoothPlaybackState(context, generation, state);
                         }
 
                         @Override
                         public void onConnectionLost() {
-                            publishBluetoothState(context, "unavailable");
+                            publishBluetoothPlaybackState(context, generation, "unavailable");
                         }
                     });
             bluetoothClient = client;
             if (!client.connect()) {
                 bluetoothClient = null;
-                publishBluetoothState(context, "unavailable");
+                completeBluetoothSnapshot(context, generation, "unavailable");
                 logEvent(context, "bluetoothBindFailed",
                         "Unable to bind BluetoothMusicService");
             } else {
@@ -251,16 +286,58 @@ public final class MediaHook implements PackageHook {
         }
     }
 
-    private static void publishBluetoothState(Context context, String state) {
+    private static void completeSnapshot(Context context, long generation,
+                                         String packageName, String state) {
+        String value = state == null ? "" : state;
+        synchronized (LOCK) {
+            if (!moduleEnabled || generation != sourceGeneration
+                    || !snapshotPending || !packageName.equals(lastSourcePackage)) return;
+            snapshotPending = false;
+            lastPlaybackState = value;
+            publishStateLocked(context, packageName, value, true);
+        }
+        logEvent(context, "snapshotReceived",
+                "Source package: " + display(packageName)
+                        + ", playback state: " + display(value));
+    }
+
+    private static void completeBluetoothSnapshot(Context context, long generation,
+                                                  String state) {
         String value = state == null ? "unavailable" : state;
         synchronized (LOCK) {
-            if (!moduleEnabled || !isBluetoothSource(lastSourcePackage)) return;
+            if (!moduleEnabled || generation != sourceGeneration
+                    || !snapshotPending || !isBluetoothSource(lastSourcePackage)) return;
+            snapshotPending = false;
+            lastPlaybackState = value;
+            publishStateLocked(context, lastSourcePackage, value, true);
+        }
+        logEvent(context, "snapshotReceived",
+                "Source package: " + BLUETOOTH_SOURCE_PACKAGE
+                        + ", playback state: " + display(value));
+    }
+
+    private static void publishBluetoothPlaybackState(Context context, long generation,
+                                                      String state) {
+        String value = state == null ? "unavailable" : state;
+        synchronized (LOCK) {
+            if (!moduleEnabled || generation != sourceGeneration
+                    || !isBluetoothSource(lastSourcePackage)) return;
+            if (snapshotPending) {
+                snapshotPending = false;
+                lastPlaybackState = value;
+                publishStateLocked(context, lastSourcePackage, value, true);
+                logEvent(context, "snapshotReceived",
+                        "Source package: " + BLUETOOTH_SOURCE_PACKAGE
+                                + ", playback state: " + display(value));
+                return;
+            }
+
             boolean changed = !value.equals(lastPlaybackState);
             lastPlaybackState = value;
             publishStateLocked(context, null, value, false);
             if (changed) {
-                logEvent(context, "bluetoothPlaybackStateChanged",
-                        "Bluetooth playback state: " + display(value));
+                logEvent(context, "playbackStateChanged",
+                        "Playback state: " + display(value));
             }
         }
     }
@@ -272,26 +349,31 @@ public final class MediaHook implements PackageHook {
     private static void handlePlaybackState(Context context, String state) {
         if (context == null) return;
         String value = state == null ? "" : state.trim();
-        boolean changed;
-
         synchronized (LOCK) {
             if (!moduleEnabled || isBluetoothSource(lastSourcePackage)) return;
-            changed = !value.equals(lastPlaybackState);
+            if (snapshotPending) {
+                snapshotPending = false;
+                lastPlaybackState = value;
+                publishStateLocked(context, lastSourcePackage, value, true);
+                logEvent(context, "snapshotReceived",
+                        "Source package: " + display(lastSourcePackage)
+                                + ", playback state: " + display(value));
+                return;
+            }
+
+            boolean changed = !value.equals(lastPlaybackState);
             lastPlaybackState = value;
             publishStateLocked(context, null, value, false);
-        }
-
-        if (changed) {
-            logEvent(context, "playbackStateChanged", "Playback state: " + display(value));
+            if (changed) {
+                logEvent(context, "playbackStateChanged",
+                        "Playback state: " + display(value));
+            }
         }
     }
 
     private static void publishStateLocked(Context context, String packageName,
                                            String state, boolean snapshot) {
         if (!moduleEnabled || context == null) return;
-        if (packageName != null) lastSourcePackage = packageName;
-        if (state != null) lastPlaybackState = state;
-
         Intent intent = new Intent(ACTION_STATE_CHANGED);
         intent.setPackage(APP_PACKAGE);
         if (packageName != null) intent.putExtra(EXTRA_SOURCE_PACKAGE, packageName);
@@ -349,9 +431,5 @@ public final class MediaHook implements PackageHook {
         } catch (Throwable ignored) {
             return null;
         }
-    }
-
-    private static void log(String message) {
-        XposedBridge.log("MT8163 Tools: Media: " + message);
     }
 }
