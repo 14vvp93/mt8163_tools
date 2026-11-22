@@ -380,9 +380,9 @@ public final class MediaHook implements PackageHook {
         synchronized (LOCK) {
             snapshotInProgress = false;
             if (saved) {
-                logEvent("snapshotReceived", "Source: " + display(source)
-                        + ", playback: " + state
-                        + ", foreground: " + isForeground);
+                logEvent("snapshotSaved", "sourcePackage=" + display(source)
+                        + ", playbackState=" + state
+                        + ", isForeground=" + isForeground);
                 if (restorePending && accState && moduleEnabled && !restoreInProgress) {
                     restorePending = false;
                     restoreInProgress = true;
@@ -390,7 +390,10 @@ public final class MediaHook implements PackageHook {
                 }
             } else {
                 restorePending = false;
-                logEvent("snapshotSaveFailed", "Snapshot was not persisted");
+                logEvent("snapshotSaveFailed", "sourcePackage=" + display(source)
+                        + ", playbackState=" + state
+                        + ", isForeground=" + isForeground
+                        + ", reason=Snapshot was not persisted");
             }
         }
         if (startRestore) requestSnapshotForRestore();
