@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Handler;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
@@ -18,14 +17,16 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public final class MediaHook implements PackageHook {
     private static final String APP_PACKAGE = "com.mt8163.tools";
-    private static final String SOURCE_SERVICE_CLASS = "android.sourceservice.SourceService";
     private static final String SOURCE_INFO_CLASS = "android.sourceservice.SourceInfo";
     private static final String BLUETOOTH_SOURCE_PACKAGE = "com.autochips.bluetooth";
+    private static final String ACC_RECEIVER_CLASS = "android.carsource.McuService$1";
+    private static final String WINDOW_MANAGER_CLASS =
+            "com.android.server.wm.WindowManagerService";
+    private static final String ACC_ACTION = "android.mcu.device.action.ACC";
+    private static final String ACC_EXTRA = "AccStatus";
     private static final String CONFIG_FILE = "media_hook_config";
     private static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
-    private static final String ACTION_REQUEST_SNAPSHOT =
-            "com.mt8163.tools.action.MEDIA_REQUEST_SNAPSHOT";
     private static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     private static final String EXTRA_ENABLED = "module_enabled";
@@ -35,18 +36,15 @@ public final class MediaHook implements PackageHook {
     private static final Object LOCK = new Object();
 
     private static boolean hooksInstalled;
+    private static boolean accHookInstalled;
+    private static boolean windowManagerHookInstalled;
     private static boolean receiverRegistered;
     private static boolean moduleEnabled;
-    private static boolean snapshotPending;
-    private static boolean lastForeground;
-    private static String focusedWindowPackage = "";
-    private static long sourceGeneration;
+    private static boolean accState;
+    private static boolean snapshotInProgress;
     private static Context systemContext;
-    private static Object sourceInfo;
-    private static BroadcastReceiver receiver;
-    private static String lastSourcePackage = "";
-    private static String lastPlaybackState = "";
-    private static BluetoothMusicClient bluetoothClient;
+    private static Object windowManagerService;
+    private static BroadcastReceiver configReceiver;
 
     @Override
     public boolean supports(String packageName) {
@@ -60,173 +58,90 @@ public final class MediaHook implements PackageHook {
             hooksInstalled = true;
         }
 
+        systemContext = getSystemContext();
         loadConfiguration();
-        hookServiceRegistration();
-        hookSourceEvents();
-        hookWindowFocus(param.classLoader);
-
-        Object service = XposedHelpers.callStaticMethod(
-                XposedHelpers.findClass("android.os.ServiceManager", null),
-                "getService", "sourceinfo");
-        if (service != null) onSourceServiceAvailable();
+        registerConfigReceiver();
+        hookAccReceiver(param.classLoader);
+        hookWindowManager(param.classLoader);
     }
 
-    private static void hookWindowFocus(ClassLoader classLoader) {
+    private static void hookAccReceiver(ClassLoader classLoader) {
         try {
-            Class<?> windowManager = XposedHelpers.findClass(
-                    "com.android.server.wm.WindowManagerService", classLoader);
-
-            XposedBridge.hookAllConstructors(windowManager, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    captureWindowFocus(param.thisObject);
-                }
-            });
-
-            XposedBridge.hookAllMethods(windowManager, "updateFocusedWindowLocked",
+            XposedHelpers.findAndHookMethod(
+                    ACC_RECEIVER_CLASS,
+                    classLoader,
+                    "onReceive",
+                    Context.class,
+                    Intent.class,
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
-                            captureWindowFocus(param.thisObject);
+                            if (param.args == null || param.args.length < 2
+                                    || !(param.args[1] instanceof Intent)) return;
+                            handleAccIntent((Intent) param.args[1]);
                         }
                     });
+            synchronized (LOCK) {
+                accHookInstalled = true;
+            }
+            logEvent("accHookInstalled", "MCU ACC receiver hook installed");
         } catch (Throwable error) {
-            reportError(systemContext, "windowFocusHook", error);
+            reportError("accHook", error);
         }
     }
 
-    private static void captureWindowFocus(Object service) {
+    private static void hookWindowManager(ClassLoader classLoader) {
         try {
-            Object window = readField(service, "mCurrentFocus");
-            Object attributes = window == null ? null : readField(window, "mAttrs");
-            Object value = attributes == null ? null : readField(attributes, "packageName");
-            String packageName = value instanceof String ? ((String) value).trim() : "";
-
-            Object handler = readField(service, "mH");
-            if (handler instanceof Handler) {
-                ((Handler) handler).post(() -> handleWindowFocusChanged(packageName));
-            } else {
-                synchronized (LOCK) {
-                    focusedWindowPackage = packageName;
+            Class<?> type = XposedHelpers.findClass(WINDOW_MANAGER_CLASS, classLoader);
+            XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    synchronized (LOCK) {
+                        windowManagerService = param.thisObject;
+                    }
                 }
+            });
+            synchronized (LOCK) {
+                windowManagerHookInstalled = true;
             }
         } catch (Throwable error) {
-            reportError(systemContext, "windowFocus", error);
+            reportError("windowManagerHook", error);
         }
     }
 
-    private static void handleWindowFocusChanged(String packageName) {
-        Context context;
-        boolean foreground;
+    private static void handleAccIntent(Intent intent) {
+        if (intent == null || !ACC_ACTION.equals(intent.getAction())) return;
 
+        Boolean nextState = readAccStatus(intent);
+        if (nextState == null) {
+            logEvent("accStatusRejected", "ACC broadcast has no valid AccStatus extra");
+            return;
+        }
+
+        boolean startSnapshot = false;
         synchronized (LOCK) {
-            focusedWindowPackage = packageName == null ? "" : packageName;
-            if (!moduleEnabled || lastSourcePackage.isEmpty()) return;
+            boolean previousState = accState;
+            accState = nextState;
 
-            foreground = isForegroundLocked(lastSourcePackage);
-            if (foreground == lastForeground) return;
-
-            lastForeground = foreground;
-            if (snapshotPending) return;
-
-            context = systemContext;
-            publishStateLocked(context);
+            if (previousState && !accState && moduleEnabled && !snapshotInProgress) {
+                snapshotInProgress = true;
+                startSnapshot = true;
+            }
         }
 
-        logEvent(context, "foregroundChanged",
-                "Source package: " + display(lastSourcePackage)
-                        + ", isForeground: " + foreground);
+        logEvent("accStateChanged", "ACC state: " + nextState);
+        if (startSnapshot) captureSnapshot();
     }
 
-    private static void hookServiceRegistration() {
+    private static Boolean readAccStatus(Intent intent) {
         try {
-            Class<?> serviceManager = XposedHelpers.findClass("android.os.ServiceManager", null);
-            XposedBridge.hookAllMethods(serviceManager, "addService", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    if (param.args != null && param.args.length > 1
-                            && "sourceinfo".equals(param.args[0])) {
-                        onSourceServiceAvailable();
-                    }
-                }
-            });
-        } catch (Throwable error) {
-            reportError(systemContext, "serviceRegistrationHook", error);
+            Object value = intent.getExtras() == null
+                    ? null : intent.getExtras().get(ACC_EXTRA);
+            if (value instanceof Boolean) return (Boolean) value;
+            if (value instanceof Number) return ((Number) value).intValue() != 0;
+        } catch (RuntimeException ignored) {
         }
-    }
-
-    private static void hookSourceEvents() {
-        try {
-            Class<?> sourceService = XposedHelpers.findClass(SOURCE_SERVICE_CLASS, null);
-            XposedBridge.hookAllMethods(sourceService, "callManager", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    Context context = getServiceContext(param.thisObject);
-                    if (context == null || param.args == null || param.args.length == 0) return;
-
-                    Object value = param.args[0];
-                    if (value instanceof String) {
-                        handleSourceChanged(context, (String) value);
-                    } else if (value != null
-                            && "android.sourceservice.MusicInfo".equals(
-                            value.getClass().getName())) {
-                        Object state = readField(value, "state");
-                        handlePlaybackState(context, state instanceof String
-                                ? (String) state : "");
-                    }
-                }
-            });
-        } catch (Throwable error) {
-            reportError(systemContext, "sourceEventHook", error);
-        }
-    }
-
-    private static void onSourceServiceAvailable() {
-        Context context = getSystemContext();
-        if (context == null) return;
-
-        synchronized (LOCK) {
-            systemContext = context;
-            if (!receiverRegistered) registerReceiverLocked(context);
-        }
-        publishSnapshot(context);
-    }
-
-    private static void registerReceiverLocked(Context context) {
-        try {
-            IntentFilter filter = new IntentFilter();
-            filter.addAction(ACTION_CONFIG_CHANGED);
-            filter.addAction(ACTION_REQUEST_SNAPSHOT);
-            receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context receiverContext, Intent intent) {
-                    if (intent == null) return;
-                    String action = intent.getAction();
-                    if (ACTION_CONFIG_CHANGED.equals(action)) {
-                        Object enabled = intent.getExtras() == null
-                                ? null : intent.getExtras().get(EXTRA_ENABLED);
-                        if (enabled instanceof Boolean) {
-                            synchronized (LOCK) {
-                                moduleEnabled = (Boolean) enabled;
-                                if (!moduleEnabled) {
-                                    snapshotPending = false;
-                                    sourceGeneration++;
-                                }
-                            }
-                            if (moduleEnabled) publishSnapshot(receiverContext);
-                            else disableBluetooth();
-                        }
-                    } else if (ACTION_REQUEST_SNAPSHOT.equals(action) && moduleEnabled) {
-                        publishSnapshot(receiverContext);
-                    }
-                }
-            };
-            context.registerReceiver(receiver, filter);
-            receiverRegistered = true;
-        } catch (RuntimeException error) {
-            receiver = null;
-            reportError(context, "receiverRegistration", error);
-        }
+        return null;
     }
 
     private static void loadConfiguration() {
@@ -237,315 +152,147 @@ public final class MediaHook implements PackageHook {
             moduleEnabled = preferences.getBoolean(EXTRA_ENABLED, false);
         } catch (Throwable error) {
             moduleEnabled = false;
-            reportError(systemContext, "configurationLoad", error);
+            reportError("configurationLoad", error);
         }
     }
 
-    private static void publishSnapshot(Context context) {
+    private static void registerConfigReceiver() {
+        Context context = systemContext;
         if (context == null) return;
+
+        synchronized (LOCK) {
+            if (receiverRegistered) return;
+        }
+
         try {
-            Object info;
-            synchronized (LOCK) {
-                if (!moduleEnabled) return;
-                if (sourceInfo == null) {
-                    Class<?> infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
-                    sourceInfo = XposedHelpers.callStaticMethod(infoClass, "getInstance");
+            IntentFilter filter = new IntentFilter(ACTION_CONFIG_CHANGED);
+            configReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context receiverContext, Intent intent) {
+                    if (intent == null || !ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
+                        return;
+                    }
+                    Object value = intent.getExtras() == null
+                            ? null : intent.getExtras().get(EXTRA_ENABLED);
+                    if (!(value instanceof Boolean)) return;
+
+                    synchronized (LOCK) {
+                        moduleEnabled = (Boolean) value;
+                    }
+                    logEvent("configurationChanged", "Media enabled: " + value);
                 }
-                info = sourceInfo;
+            };
+            context.registerReceiver(configReceiver, filter);
+            synchronized (LOCK) {
+                receiverRegistered = true;
             }
+        } catch (RuntimeException error) {
+            configReceiver = null;
+            reportError("configReceiver", error);
+        }
+    }
 
-            Object packageValue = XposedHelpers.callMethod(info, "getSourcePackage");
-            String packageName = packageValue instanceof String
-                    ? ((String) packageValue).trim() : "";
-            long generation = updateSource(context, packageName, true);
+    private static void captureSnapshot() {
+        Context context = systemContext;
+        String packageName = "";
+        String playbackState = "unavailable";
+        boolean isForeground = false;
 
-            if (isBluetoothSource(packageName)) {
-                ensureBluetooth(context, generation, true);
+        try {
+            Object infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
+            Object info = XposedHelpers.callStaticMethod(infoClass, "getInstance");
+            Object sourceValue = XposedHelpers.callMethod(info, "getSourcePackage");
+            packageName = sourceValue instanceof String
+                    ? ((String) sourceValue).trim() : "";
+
+            isForeground = isSourceForeground(packageName);
+
+            if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
+                captureBluetoothSnapshot(context, packageName, isForeground);
                 return;
             }
 
-            disableBluetooth();
             Object musicInfo = XposedHelpers.callMethod(info, "getMusicInfo");
             Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
-            String state = stateValue instanceof String ? ((String) stateValue).trim() : "";
-            completeSnapshot(context, generation, packageName, state);
+            playbackState = stateValue instanceof String
+                    ? ((String) stateValue).trim() : "unavailable";
         } catch (Throwable error) {
-            reportError(context, "snapshot", error);
+            reportError("snapshot", error);
         }
+
+        completeSnapshot(context, packageName, playbackState, isForeground);
     }
 
-    private static void handleSourceChanged(Context context, String packageName) {
-        long generation = updateSource(context, packageName, false);
-        if (generation < 0) return;
-
-        String value = packageName == null ? "" : packageName.trim();
-        if (isBluetoothSource(value)) {
-            ensureBluetooth(context, generation, false);
+    private static void captureBluetoothSnapshot(Context context, String packageName,
+                                                boolean isForeground) {
+        if (context == null) {
+            completeSnapshot(null, packageName, "unavailable", isForeground);
             return;
         }
 
-        disableBluetooth();
-        try {
-            Object info;
-            synchronized (LOCK) {
-                if (sourceInfo == null) {
-                    Class<?> infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
-                    sourceInfo = XposedHelpers.callStaticMethod(infoClass, "getInstance");
-                }
-                info = sourceInfo;
-            }
-            Object musicInfo = XposedHelpers.callMethod(info, "getMusicInfo");
-            Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
-            String state = stateValue instanceof String ? ((String) stateValue).trim() : "";
-            completeSnapshot(context, generation, value, state);
-        } catch (Throwable error) {
-            reportError(context, "sourceSnapshot", error);
-        }
-    }
-
-    private static long updateSource(Context context, String packageName,
-                                     boolean requestSnapshot) {
-        String value = packageName == null ? "" : packageName.trim();
-        boolean changed;
-        long generation;
-
-        synchronized (LOCK) {
-            if (!moduleEnabled) return -1;
-            changed = !value.equals(lastSourcePackage);
-            if (changed) {
-                lastSourcePackage = value;
-                lastPlaybackState = "";
-                snapshotPending = true;
-                sourceGeneration++;
-            } else if (requestSnapshot) {
-                snapshotPending = true;
-            }
-            generation = sourceGeneration;
-        }
-
-        if (changed) {
-            logEvent(context, "sourceChanged", "Audio source package: " + display(value));
-        }
-        return generation;
-    }
-
-    private static void ensureBluetooth(Context context, long generation,
-                                        boolean requestSnapshot) {
-        BluetoothMusicClient client;
-        boolean created = false;
-        synchronized (LOCK) {
-            if (!moduleEnabled || generation != sourceGeneration
-                    || !isBluetoothSource(lastSourcePackage)) return;
-
-            client = bluetoothClient;
-            if (client == null) {
-                client = new BluetoothMusicClient(context,
-                        new BluetoothMusicClient.Listener() {
-                            @Override
-                            public void onSnapshot(String state) {
-                                completeBluetoothSnapshot(context, generation, state);
-                            }
-
-                            @Override
-                            public void onPlaybackState(String state) {
-                                publishBluetoothPlaybackState(context, generation, state);
-                            }
-
-                            @Override
-                            public void onConnectionLost() {
-                                publishBluetoothPlaybackState(context, generation, "unavailable");
-                            }
-                        });
-                bluetoothClient = client;
-                created = true;
-            }
-        }
-
-        if (!created) {
-            if (requestSnapshot) client.requestSnapshot();
-            return;
-        }
+        BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
+                completeSnapshot(context, packageName, state, isForeground));
 
         if (!client.connect()) {
-            synchronized (LOCK) {
-                if (bluetoothClient == client) bluetoothClient = null;
-            }
-            completeBluetoothSnapshot(context, generation, "unavailable");
-            logEvent(context, "bluetoothBindFailed",
-                    "Unable to bind BluetoothMusicService");
-        } else {
-            logEvent(context, "bluetoothBinding",
-                    "Binding BluetoothMusicService for active Bluetooth source");
-        }
-    }
-
-    private static void disableBluetooth() {
-        BluetoothMusicClient client;
-        synchronized (LOCK) {
-            client = bluetoothClient;
-            bluetoothClient = null;
-        }
-        if (client != null) {
             client.disconnect();
-            logEvent(systemContext, "bluetoothUnbound",
-                    "Bluetooth source is no longer active");
+            completeSnapshot(context, packageName, "unavailable", isForeground);
+            logEvent("bluetoothBindFailed", "Unable to bind BluetoothMusicService");
         }
     }
 
-    private static void completeSnapshot(Context context, long generation,
-                                         String packageName, String state) {
-        String value = state == null ? "" : state;
-        boolean foreground;
-
+    private static void completeSnapshot(Context context, String packageName,
+                                         String playbackState, boolean isForeground) {
         synchronized (LOCK) {
-            if (!moduleEnabled || generation != sourceGeneration
-                    || !snapshotPending || packageName == null
-                    || !packageName.equals(lastSourcePackage)) return;
-            snapshotPending = false;
-            lastPlaybackState = value;
-            lastForeground = isForegroundLocked(packageName);
-            foreground = lastForeground;
-            publishStateLocked(context);
+            if (!snapshotInProgress) return;
+            snapshotInProgress = false;
         }
 
-        logEvent(context, "snapshotReceived",
-                "Source package: " + display(packageName)
-                        + ", playback state: " + display(value)
-                        + ", isForeground: " + foreground);
-    }
+        String source = packageName == null ? "" : packageName;
+        String state = playbackState == null ? "unavailable" : playbackState;
 
-    private static void completeBluetoothSnapshot(Context context, long generation,
-                                                  String state) {
-        String value = state == null ? "unavailable" : state;
-        boolean foreground;
-
-        synchronized (LOCK) {
-            if (!moduleEnabled || generation != sourceGeneration
-                    || !snapshotPending || !isBluetoothSource(lastSourcePackage)) return;
-            snapshotPending = false;
-            lastPlaybackState = value;
-            lastForeground = isForegroundLocked(lastSourcePackage);
-            foreground = lastForeground;
-            publishStateLocked(context);
-        }
-
-        logEvent(context, "snapshotReceived",
-                "Source package: " + BLUETOOTH_SOURCE_PACKAGE
-                        + ", playback state: " + display(value)
-                        + ", isForeground: " + foreground);
-    }
-
-    private static void publishBluetoothPlaybackState(Context context, long generation,
-                                                      String state) {
-        String value = state == null ? "unavailable" : state;
-        boolean initialSnapshot;
-        boolean changed;
-
-        synchronized (LOCK) {
-            if (!moduleEnabled || generation != sourceGeneration
-                    || !isBluetoothSource(lastSourcePackage)) return;
-
-            initialSnapshot = snapshotPending;
-            if (initialSnapshot) {
-                snapshotPending = false;
-                lastForeground = isForegroundLocked(lastSourcePackage);
+        if (context != null) {
+            Intent intent = new Intent(ACTION_STATE_CHANGED);
+            intent.setPackage(APP_PACKAGE);
+            intent.putExtra(EXTRA_SOURCE_PACKAGE, source);
+            intent.putExtra(EXTRA_PLAYBACK_STATE, state);
+            intent.putExtra(EXTRA_IS_FOREGROUND, isForeground);
+            try {
+                context.sendBroadcast(intent);
+            } catch (RuntimeException error) {
+                reportError("snapshotBroadcast", error);
             }
-
-            changed = !value.equals(lastPlaybackState);
-            lastPlaybackState = value;
-            publishStateLocked(context);
         }
 
-        if (initialSnapshot) {
-            logEvent(context, "snapshotReceived",
-                    "Source package: " + BLUETOOTH_SOURCE_PACKAGE
-                            + ", playback state: " + display(value)
-                            + ", isForeground: " + lastForeground);
-        } else if (changed) {
-            logEvent(context, "playbackStateChanged",
-                    "Playback state: " + display(value));
-        }
+        logEvent("snapshotReceived", "Source: " + display(source)
+                + ", playback: " + display(state)
+                + ", foreground: " + isForeground);
     }
 
-    private static boolean isBluetoothSource(String packageName) {
-        return BLUETOOTH_SOURCE_PACKAGE.equals(packageName);
-    }
+    private static boolean isSourceForeground(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return false;
 
-    private static boolean isForegroundLocked(String packageName) {
-        return packageName != null && !packageName.isEmpty()
-                && packageName.equals(focusedWindowPackage);
-    }
-
-    private static void handlePlaybackState(Context context, String state) {
-        if (context == null) return;
-        String value = state == null ? "" : state.trim();
-        boolean initialSnapshot;
-        boolean changed;
-
+        Object service;
         synchronized (LOCK) {
-            if (!moduleEnabled || isBluetoothSource(lastSourcePackage)) return;
-
-            initialSnapshot = snapshotPending;
-            if (initialSnapshot) {
-                snapshotPending = false;
-                lastForeground = isForegroundLocked(lastSourcePackage);
-            }
-
-            changed = !value.equals(lastPlaybackState);
-            lastPlaybackState = value;
-            publishStateLocked(context);
+            service = windowManagerService;
         }
-
-        if (initialSnapshot) {
-            logEvent(context, "snapshotReceived",
-                    "Source package: " + display(lastSourcePackage)
-                            + ", playback state: " + display(value)
-                            + ", isForeground: " + lastForeground);
-        } else if (changed) {
-            logEvent(context, "playbackStateChanged",
-                    "Playback state: " + display(value));
-        }
-    }
-
-    private static void publishStateLocked(Context context) {
-        if (!moduleEnabled || context == null) return;
-
-        Intent intent = new Intent(ACTION_STATE_CHANGED);
-        intent.setPackage(APP_PACKAGE);
-        intent.putExtra(EXTRA_SOURCE_PACKAGE, lastSourcePackage);
-        intent.putExtra(EXTRA_PLAYBACK_STATE, lastPlaybackState);
-        intent.putExtra(EXTRA_IS_FOREGROUND, lastForeground);
+        if (service == null) return false;
 
         try {
-            context.sendBroadcast(intent);
-        } catch (RuntimeException error) {
-            reportError(context, "stateBroadcast", error);
-        }
-    }
-
-    private static void reportError(Context context, String source, Throwable error) {
-        String message = error == null ? "Unknown error"
-                : error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage());
-        XposedBridge.log("MT8163 Tools: Media: " + source + ": " + message);
-        if (context != null) logEvent(context, "hookError", source + ": " + message);
-    }
-
-    private static void logEvent(Context context, String source, String message) {
-        try {
-            EventLogger.log(context, "Media", source, message);
+            Object window = readField(service, "mCurrentFocus");
+            Object attributes = window == null ? null : readField(window, "mAttrs");
+            Object focusedPackage = attributes == null
+                    ? null : readField(attributes, "packageName");
+            return packageName.equals(focusedPackage);
         } catch (Throwable error) {
-            XposedBridge.log("MT8163 Tools: Media: EventLogger failed: " + error);
+            reportError("foregroundSnapshot", error);
+            return false;
         }
     }
 
-    private static String display(String value) {
-        return value == null || value.isEmpty() ? "unknown" : value;
-    }
-
-    private static Context getServiceContext(Object service) {
+    private static Object readField(Object instance, String name) {
+        if (instance == null) return null;
         try {
-            Object value = XposedHelpers.getObjectField(service, "mContext");
-            return value instanceof Context ? (Context) value : null;
+            return XposedHelpers.getObjectField(instance, name);
         } catch (Throwable ignored) {
             return null;
         }
@@ -554,20 +301,37 @@ public final class MediaHook implements PackageHook {
     private static Context getSystemContext() {
         try {
             Class<?> activityThread = XposedHelpers.findClass("android.app.ActivityThread", null);
-            Object thread = XposedHelpers.callStaticMethod(activityThread, "currentActivityThread");
+            Object thread = XposedHelpers.callStaticMethod(
+                    activityThread, "currentActivityThread");
             Object context = XposedHelpers.callMethod(thread, "getSystemContext");
             return context instanceof Context ? (Context) context : null;
         } catch (Throwable error) {
-            reportError(null, "systemContext", error);
+            XposedBridge.log("MT8163 Tools: Media system context unavailable: " + error);
             return null;
         }
     }
 
-    private static Object readField(Object instance, String name) {
-        try {
-            return XposedHelpers.getObjectField(instance, name);
-        } catch (Throwable ignored) {
-            return null;
+    private static void reportError(String source, Throwable error) {
+        String message = error == null ? "Unknown error"
+                : error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage());
+        XposedBridge.log("MT8163 Tools: Media " + source + ": " + message);
+        logEvent("hookError", source + ": " + message);
+    }
+
+    private static void logEvent(String source, String message) {
+        Context context = systemContext;
+        if (context == null) {
+            XposedBridge.log("MT8163 Tools: Media [" + source + "] " + message);
+            return;
         }
+        try {
+            EventLogger.log(context, "Media", source, message);
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Media EventLogger failed: " + error);
+        }
+    }
+
+    private static String display(String value) {
+        return value == null || value.isEmpty() ? "unknown" : value;
     }
 }
