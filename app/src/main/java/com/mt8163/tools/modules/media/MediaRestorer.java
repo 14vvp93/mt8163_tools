@@ -366,6 +366,8 @@ public final class MediaRestorer {
         private boolean a2dpConnected;
         private boolean avrcpConnected;
         private boolean playDelayScheduled;
+        private boolean playTaskSubmitted;
+        private int profileStateVersion;
         private int a2dpCallbackVersion;
         private int avrcpCallbackVersion;
 
@@ -625,6 +627,7 @@ public final class MediaRestorer {
             synchronized (lock) {
                 if (state.get() != State.ACTIVE) return;
 
+                profileStateVersion++;
                 if (a2dp) {
                     a2dpCallbackVersion++;
                     a2dpConnected = connected;
@@ -649,7 +652,8 @@ public final class MediaRestorer {
             boolean schedule = false;
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || !initialStateReady
-                        || !a2dpConnected || !avrcpConnected || playDelayScheduled) {
+                        || !a2dpConnected || !avrcpConnected
+                        || playDelayScheduled || playTaskSubmitted) {
                     return;
                 }
                 playDelayScheduled = true;
@@ -671,19 +675,21 @@ public final class MediaRestorer {
 
         private void onPlayDelayElapsed() {
             final IBinder service;
+            final int connectionVersion;
             synchronized (lock) {
                 playDelayScheduled = false;
                 if (state.get() != State.ACTIVE || !initialStateReady
-                        || !a2dpConnected || !avrcpConnected || binder == null) {
+                        || !a2dpConnected || !avrcpConnected || binder == null
+                        || playTaskSubmitted) {
                     return;
                 }
                 if (!BLUETOOTH_WORKER_BUSY.compareAndSet(false, true)) {
                     service = null;
-                } else if (state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) {
-                    service = binder;
+                    connectionVersion = -1;
                 } else {
-                    BLUETOOTH_WORKER_BUSY.set(false);
-                    return;
+                    playTaskSubmitted = true;
+                    service = binder;
+                    connectionVersion = profileStateVersion;
                 }
             }
 
@@ -694,6 +700,18 @@ public final class MediaRestorer {
 
             try {
                 BLUETOOTH_WORKER.execute(() -> {
+                    synchronized (lock) {
+                        if (state.get() != State.ACTIVE || !a2dpConnected
+                                || !avrcpConnected
+                                || connectionVersion != profileStateVersion
+                                || !state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) {
+                            playTaskSubmitted = false;
+                            BLUETOOTH_WORKER_BUSY.set(false);
+                            handler.post(this::updatePlayDelay);
+                            return;
+                        }
+                    }
+
                     try {
                         sendPlay(service);
                         logEvent(context, "bluetoothPlaySent",
@@ -707,8 +725,10 @@ public final class MediaRestorer {
                     }
                 });
             } catch (RuntimeException error) {
+                synchronized (lock) {
+                    playTaskSubmitted = false;
+                }
                 BLUETOOTH_WORKER_BUSY.set(false);
-                state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
                 fail("Unable to send Bluetooth PLAY: " + error);
             }
         }
@@ -804,6 +824,7 @@ public final class MediaRestorer {
             boolean unregister;
             synchronized (lock) {
                 playDelayScheduled = false;
+                playTaskSubmitted = false;
                 removeListener = listenerRegistered;
                 listenerRegistered = false;
                 unregister = callbackRegistrationStarted;
