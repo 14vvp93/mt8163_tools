@@ -150,7 +150,7 @@ For `playing`:
    - `isAvrcpConnected()`: transaction 2
 5. Only when both return true, send `send_Avrcp_Cmd(0)` (PLAY): transaction 5. Send it once.
 
-The total timeout is ten seconds, covering both MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If a Binder transaction remains blocked after timeout, the operation is cancelled, listeners and service binding are cleaned up, and any late result is ignored. A second worker is not started or queued while the first Binder call is still blocked; a concurrent attempt ends without sending PLAY.
+The total timeout is ten seconds, covering MediaSession readiness and the Binder checks. The operation uses one single-thread worker. If either readiness check is still blocked at timeout, the operation transitions to CANCELLED, listeners and service binding are cleaned up, and the late result cannot trigger PLAY. If PLAY has already crossed the commit point, timeout can release resources but cannot retract that in-flight command. A second worker is not started or queued while the first Binder call is still blocked; a concurrent attempt ends without sending PLAY.
 
 For `paused` or `unknown`, do not bind for playback restoration and do not send PLAY. The Activity may still be opened according to the foreground and Bluetooth background setting rules.
 
