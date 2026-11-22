@@ -109,8 +109,7 @@ public final class EventLogger {
 
         try {
             IntentFilter filter = new IntentFilter(Intent.ACTION_BOOT_COMPLETED);
-            systemContext.registerReceiverAsUser(
-                    receiver, UserHandle.SYSTEM, filter, null, null);
+            systemContext.registerReceiver(receiver, filter);
             bootReceiver = receiver;
             bootReceiverRegistered = true;
         } catch (RuntimeException ignored) {

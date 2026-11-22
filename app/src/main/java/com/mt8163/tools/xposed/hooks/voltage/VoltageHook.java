@@ -232,6 +232,8 @@ public final class VoltageHook implements PackageHook {
                     || Float.compare(voltageOffset, offset) != 0;
             moduleEnabled = enabled;
             voltageOffset = offset;
+            initialConfigurationLoaded = true;
+            configurationLoadFailureReported = false;
             applyCurrentVoltageLocked();
 
             if (changed) {

@@ -7,6 +7,8 @@ import android.content.SharedPreferences;
 public final class VoltageSettingsStore {
     public static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.VOLTAGE_CONFIG_CHANGED";
+    public static final String CONFIG_PERMISSION =
+            "com.mt8163.tools.permission.UPDATE_VOLTAGE_CONFIG";
     public static final String EXTRA_ENABLED = "module_enabled";
     public static final String EXTRA_OFFSET = "voltage_offset";
 

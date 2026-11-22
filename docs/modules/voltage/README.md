@@ -26,27 +26,18 @@ The selected offset remains saved while the module is disabled.
 - Hook implementation: [Voltage Xposed Hook](../../xposed/hooks/voltage/README.md)
 - LSPosed scope required by the hook: `android`
 
-The UI stores the offset in the private `voltage_settings` preference file under `voltage_offset`. The enabled state uses the shared `mt8163_tools` module-state preference.
+The UI stores the offset in the private `voltage_settings` preference file under `voltage_offset`. The enabled state uses the `mt8163_tools` module-state preference.
 
 ## Runtime Configuration
 
-The app and the Android system process exchange configuration through explicit broadcasts. The hook requests the current configuration when its target service becomes available. The app responds with the enabled state and offset; subsequent UI changes are published to the running hook.
+The app and Android system process exchange configuration through an explicit package-targeted broadcast. The app also writes the current hook configuration to the `voltage_hook_config` preferences file. The hook reads that file during initialization and receives subsequent changes through the broadcast.
 
-Configuration actions:
+- Action: `com.mt8163.tools.action.VOLTAGE_CONFIG_CHANGED`
+- Target package: `android`
+- Permission: `com.mt8163.tools.permission.UPDATE_VOLTAGE_CONFIG`
+- Fields: `module_enabled` (boolean) and `voltage_offset` (finite float in `-2.0..+2.0 V`)
 
-- `com.mt8163.tools.action.VOLTAGE_CONFIG_REQUEST`
-- `com.mt8163.tools.action.VOLTAGE_CONFIG_RESPONSE`
-- `com.mt8163.tools.action.VOLTAGE_CONFIG_CHANGED`
-
-Messages use a 64-character hexadecimal session token to associate responses and updates with the active hook session. The hook starts with correction disabled and accepts configuration only after validating the response. If no valid response arrives, the original reported voltage remains unchanged.
-
-Configuration fields:
-
-- `session_token` — session identifier.
-- `module_enabled` — boolean module state.
-- `voltage_offset` — finite float in the range `-2.0..+2.0`.
-
-No cross-process preferences, `MODE_WORLD_READABLE`, or `XSharedPreferences` are used.
+The receiver requires a signature-level permission owned by MT8163 Tools. No session-token request/response protocol is used.
 
 ## Event Logging
 
