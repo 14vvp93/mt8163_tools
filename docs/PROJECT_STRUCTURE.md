@@ -1,26 +1,17 @@
 # Project structure
 
-This document describes the repository layout and the responsibility of each layer. It is maintained in the repository-root `docs/` directory; application source folders contain code and Android resources only.
+This document describes the current repository layout and the responsibilities of its main layers. It must reflect files that actually exist in the repository.
 
 ## Repository layout
 
 ```text
 MT8163 Tools/
-├── docs/
-│   ├── PROJECT_STRUCTURE.md
-│   ├── modules/
-│   │   ├── voltage/
-│   │   └── events/
-│   └── xposed/
-│       ├── README.md
-│       └── hooks/
-│           ├── README.md
-│           ├── media/
-│           ├── protection/
-│           ├── voltage/
-│           ├── autorun/
-│           └── events/
-│
+├── .github/
+│   ├── scripts/
+│   │   └── verify_xposed.py
+│   └── workflows/
+│       └── manual-build.yml
+├── README.md
 ├── app/
 │   ├── build.gradle
 │   └── src/main/
@@ -31,140 +22,152 @@ MT8163 Tools/
 │       │   ├── MainApplication.java
 │       │   ├── core/
 │       │   ├── modules/
+│       │   │   ├── autorun/
+│       │   │   ├── events/
 │       │   │   ├── media/
 │       │   │   ├── protection/
-│       │   │   ├── voltage/
-│       │   │   ├── autorun/
-│       │   │   └── events/
+│       │   │   └── voltage/
 │       │   ├── ui/
 │       │   └── xposed/
 │       │       ├── XposedEntry.java
 │       │       ├── HookRegistry.java
 │       │       ├── PackageHook.java
 │       │       └── hooks/
-│       │           ├── media/
-│       │           ├── protection/
-│       │           ├── voltage/
-│       │           ├── autorun/
-│       │           └── events/
+│       │           └── voltage/
 │       └── res/
-│           ├── layout/
 │           ├── drawable/
+│           ├── layout/
 │           └── values/
-│
-├── gradle/
+├── docs/
+│   ├── PROJECT_STRUCTURE.md
+│   ├── modules/
+│   │   ├── events/README.md
+│   │   └── voltage/README.md
+│   └── xposed/
+│       └── hooks/
+│           ├── README.md
+│           ├── autorun/README.md
+│           ├── events/README.md
+│           ├── media/README.md
+│           ├── protection/README.md
+│           └── voltage/README.md
 ├── gradle.properties
-├── gradlew
-├── gradlew.bat
 └── settings.gradle
 ```
 
-The tree is a logical map of the current architecture. Some module-specific hook packages are reserved for implementation and may contain no Java classes yet. Android/Gradle wrapper files are shown only where present in the repository.
+The tree lists the current tracked project files and directories. The repository does not currently contain a Gradle wrapper (`gradlew`, `gradlew.bat`, or `gradle/wrapper/`). Hook implementation code currently exists only in `xposed/hooks/voltage/`; the other hook documentation folders do not imply implemented hooks.
 
 ## Root-level folders
 
-### `docs/`
+### `.github/`
 
-All project documentation belongs here. Do not put Markdown documentation in `app/src/main/`.
-
-- `PROJECT_STRUCTURE.md` — repository and package architecture.
-- `modules/` — feature-module behavior, UI, configuration and integration.
-- `xposed/` — LSPosed integration design, API notes, hook organization and implementation rules.
+Contains GitHub automation:
+- `scripts/verify_xposed.py` — validates Xposed-related project configuration.
+- `workflows/manual-build.yml` — manually triggered APK build workflow.
 
 ### `app/`
 
-The Android application module. Contains the Android manifest, Java source, app assets, resources and module-specific Gradle configuration.
+The Android application module. It contains the manifest, Java source, Xposed entry asset, Android resources, and module-specific Gradle configuration.
+
+### `docs/`
+
+All project documentation belongs here. Keep documentation in English.
+- `PROJECT_STRUCTURE.md` — current repository and package structure.
+- `modules/` — feature-module documentation.
+- `xposed/` — Xposed integration and hook documentation.
 
 ## Java package responsibilities
 
 ### `com.mt8163.tools`
 
-Application entry point and application-wide initialization.
-
-- `MainApplication` initializes the module registry and preferences.
+- `MainApplication` initializes application preferences and the module registry, loads saved module states, initializes the Events state, and publishes the initial Voltage configuration.
 
 ### `com.mt8163.tools.core`
 
-Shared contracts and infrastructure. This layer must not depend on individual feature implementations.
+Shared contracts and infrastructure:
+- `ModuleContract` — common feature-module interface.
+- `ModuleRegistry` — creates modules in display order, provides lookup, and loads saved enabled states.
+- `PreferencesManager` — persists module enabled states.
+- `EventLogger` — shared event logging entry point used by modules and hooks.
 
-- `ModuleContract` — common module contract.
-- `ModuleRegistry` — creates modules in their defined display order and provides lookup/state loading.
-- `PreferencesManager` — persists module enablement preferences.
-- Shared event contracts/services belong here so producers do not depend on the Events module.
+Core must not depend on individual feature implementations or UI components.
 
 ### `com.mt8163.tools.modules`
 
-Feature-level module definitions and business logic, separated by feature:
+Feature modules are separated by responsibility:
 
 | Package | Responsibility | Default state |
 |---|---|---|
-| `media` | Media functionality | Disabled |
-| `protection` | Protection functionality | Disabled |
-| `voltage` | Voltage functionality | Disabled |
-| `autorun` | Autorun functionality | Disabled |
-| `events` | Event log and presentation | Enabled |
+| `media` | Media module definition | Disabled |
+| `protection` | Protection module definition | Disabled |
+| `voltage` | Voltage settings and module UI | Disabled |
+| `autorun` | Autorun module definition | Disabled |
+| `events` | Event storage, retrieval, and presentation | Enabled |
 
-The Events module consumes events through Core. Other feature modules must never depend on Events.
+The module registry controls display order. Events receives shared log events; other feature modules and hooks must not depend on the Events UI or implementation.
 
 ### `com.mt8163.tools.ui`
 
-Activity and UI components. UI displays module state and calls module/Core interfaces. It must not contain Xposed hook implementations.
+Contains the main activity and shared UI components. UI code displays module state and interacts with module/Core interfaces. Xposed hook implementations do not belong here.
 
 ### `com.mt8163.tools.xposed`
 
-Legacy XposedBridge integration layer, isolated from UI:
+Legacy XposedBridge integration:
+- `XposedEntry` — implements `IXposedHookLoadPackage` and is registered through `assets/xposed_init`.
+- `HookRegistry` — dispatches package-load callbacks to registered hooks and isolates installation failures.
+- `PackageHook` — interface for package-specific hook implementations.
+- `hooks/voltage/VoltageHook` — Voltage hook implementation for the Android system process.
 
-- `XposedEntry` — framework entry point registered through `assets/xposed_init`.
-- `HookRegistry` — dispatches package-load callbacks to applicable hooks.
-- `PackageHook` — interface implemented by individual package hooks.
-- `hooks/<module>/` — hook implementations grouped by feature module.
+The current registry contains the Voltage hook. Additional hook implementations can be added independently when required.
 
-Hook code must use the target process's package name and class loader. A hook failure must be isolated and logged; it must not prevent unrelated hooks from loading.
+## Voltage configuration and process behavior
+
+The application UI and the Android system process are separate processes. Voltage configuration is delivered using two mechanisms:
+
+1. `VoltageSettingsStore` persists the UI settings and mirrors the hook configuration to the `voltage_hook_config` preferences.
+2. It sends an explicit package broadcast to `android` containing the enabled state and voltage offset. The broadcast is protected by the app's signature-level configuration permission.
+3. `VoltageHook` reads the initial values through `XSharedPreferences` and registers a receiver in the system process to accept subsequent configuration broadcasts.
+4. The receiver updates the in-memory enabled state and offset. The installed hooks remain installed for the lifetime of the process; changing the module state controls whether voltage correction is applied, not whether the hooks are uninstalled.
+
+The hook targets `android.carsource.McuService` and its battery packet callback. A zero-voltage MCU packet is not corrected.
 
 ## Xposed API and build configuration
 
-The module requires **Xposed runtime API 93 or newer**, declared by `xposedminversion=93` in `AndroidManifest.xml`.
+The module uses the **Legacy XposedBridge API**, not Modern libxposed.
 
-The source uses the **Legacy XposedBridge API**, not Modern libxposed. The Gradle dependency `de.robv.android.xposed:api:82` is the compile-time API artifact used to resolve the legacy classes and method signatures. It is declared with `compileOnly`: the framework supplies these classes at runtime, and they must never be packaged in the APK.
+- `de.robv.android.xposed:api:82` is the compile-time Legacy API dependency and is declared as `compileOnly`.
+- `xposedminversion=93` declares the minimum Xposed runtime API.
+- `assets/xposed_init` registers the Legacy Xposed entry point.
+- The declared LSPosed scope is `android`, matching the process targeted by the Voltage hook.
+- Android `minSdk` and `targetSdk` are both 28. The project compiles against SDK 35.
+- Java source and target compatibility are Java 17.
 
-These values have different roles:
-
-- `xposedminversion=93` — minimum Xposed runtime API required to load the module.
-- `compileOnly de.robv.android.xposed:api:82` — compile-time Legacy API artifact.
-- `minSdk 28` / `targetSdk 28` — Android platform SDK levels; unrelated to Xposed API versions.
-
-The entry point remains `IXposedHookLoadPackage` and is registered through `assets/xposed_init`. Do not replace it with Modern libxposed entry points or `META-INF/xposed` metadata as part of this configuration.
-
-The declared LSPosed scope is `android`, matching the Android system process targeted by the Voltage hook.
-
-## Module state and process boundaries
-
-The UI process and hooked target processes are separate Android processes. An in-memory boolean in `MainApplication` is not a reliable source of module enablement inside target processes.
-
-Before implementing feature hooks, define a process-safe state delivery mechanism (for example, validated XSharedPreferences or another explicitly designed IPC mechanism). Hook installation must read that state in the target process. Do not claim that changing a UI switch dynamically removes hooks already installed in a running process; hook installation generally occurs at package load, so changes take effect when the relevant process is started again unless a separate runtime control mechanism is implemented.
+The compile-time API artifact version, runtime Xposed API requirement, and Android SDK levels are separate version values.
 
 ## Dependency direction
 
 ```text
-UI ───────► Core ◄────── Modules
+UI ───────► Core ◄────── Feature modules
                ▲
                │
              Xposed
                │
        target-process hooks
 
-Events ◄──── Core event interface
+Feature modules and hooks ───────► Core event logging
+Events module ───────────────────► event storage and presentation
 ```
 
-- UI depends on Core/module contracts, not on hook classes.
-- Xposed hooks use Core contracts where appropriate; they do not call UI components.
+- UI depends on Core and module interfaces, not hook classes.
+- Xposed hooks use shared infrastructure where appropriate and never call UI components.
 - Feature modules do not depend on one another.
-- Events is an event consumer, not a dependency of event producers.
-- Core must remain independent of Android UI and feature-specific hook implementations.
+- Event producers use the shared Core logging entry point; they do not depend on the Events UI.
+- Core remains independent of Android UI and feature-specific hook implementations.
 
 ## Platform constraints
 
-- Minimum and target Android version: Android 9 (API 28).
+- Android minimum and target SDK: API 28 (Android 9).
+- Compile SDK: API 35.
 - Java source/target compatibility: Java 17.
-- UI target resolution: 1280×720 at 160 dpi.
-- Avoid polling and timer-based state checks; use callbacks, listeners, broadcasts or explicit process lifecycle events.
+- UI target display: 1280×720 at 160 dpi.
+- Use callbacks, listeners, broadcasts, and process lifecycle events instead of polling or timer-based state checks.
