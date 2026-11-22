@@ -18,6 +18,10 @@ public final class HookRegistry {
     public static void handleLoadPackage(XC_LoadPackage.LoadPackageParam param) {
         if (param == null || param.packageName == null) return;
 
+        if ("android".equals(param.packageName)) {
+            SystemBootstrap.install(param.classLoader);
+        }
+
         for (PackageHook hook : HOOKS) {
             if (hook == null || !hook.supports(param.packageName)) continue;
             try {
