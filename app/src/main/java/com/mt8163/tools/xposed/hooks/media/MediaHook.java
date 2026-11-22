@@ -11,6 +11,7 @@ import android.os.Bundle;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
+import com.mt8163.tools.modules.media.MediaRestorer;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.xposed.PackageHook;
 
