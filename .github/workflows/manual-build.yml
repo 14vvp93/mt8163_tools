@@ -41,7 +41,9 @@ jobs:
             echo "Unable to read versionName from app/build.gradle"
             exit 1
           fi
+          COMMIT_SHA="${GITHUB_SHA::7}"
           echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
@@ -50,12 +52,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/mt8163_tools_${{ steps.version.outputs.name }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/mt8163_tools_${{ steps.version.outputs.name }}_${{ steps.version.outputs.commit }}.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: MT8163Tools_${{ steps.version.outputs.name }}
-          path: dist/mt8163_tools_${{ steps.version.outputs.name }}.apk
+          name: MT8163Tools_${{ steps.version.outputs.name }}_${{ steps.version.outputs.commit }}
+          path: dist/mt8163_tools_${{ steps.version.outputs.name }}_${{ steps.version.outputs.commit }}.apk
           if-no-files-found: error
           retention-days: 14
