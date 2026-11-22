@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 
+import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.xposed.PackageHook;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -35,6 +36,8 @@ public final class MediaHook implements PackageHook {
     private static Context systemContext;
     private static Object sourceInfo;
     private static BroadcastReceiver receiver;
+    private static String lastSourcePackage;
+    private static String lastPlaybackState;
 
     @Override
     public boolean supports(String packageName) {
@@ -71,7 +74,7 @@ public final class MediaHook implements PackageHook {
                 }
             });
         } catch (Throwable error) {
-            log("ServiceManager hook failed: " + error);
+            reportError(systemContext, "serviceRegistrationHook", error);
         }
     }
 
@@ -86,17 +89,18 @@ public final class MediaHook implements PackageHook {
 
                     Object value = param.args[0];
                     if (value instanceof String) {
-                        publishState(context, (String) value, "");
+                        handleSourceChanged(context, (String) value);
                     } else if (value != null
                             && "android.sourceservice.MusicInfo".equals(
                             value.getClass().getName())) {
                         Object state = readField(value, "state");
-                        publishState(context, null, state instanceof String ? (String) state : "");
+                        handlePlaybackState(context, state instanceof String
+                                ? (String) state : "");
                     }
                 }
             });
         } catch (Throwable error) {
-            log("SourceService callback hooks failed: " + error);
+            reportError(systemContext, "sourceEventHook", error);
         }
     }
 
@@ -139,7 +143,7 @@ public final class MediaHook implements PackageHook {
             receiverRegistered = true;
         } catch (RuntimeException error) {
             receiver = null;
-            log("Media receiver registration failed: " + error);
+            reportError(context, "receiverRegistration", error);
         }
     }
 
@@ -151,7 +155,7 @@ public final class MediaHook implements PackageHook {
             moduleEnabled = preferences.getBoolean(EXTRA_ENABLED, false);
         } catch (Throwable error) {
             moduleEnabled = false;
-            log("Media configuration load failed: " + error);
+            reportError(systemContext, "configurationLoad", error);
         }
     }
 
@@ -166,29 +170,88 @@ public final class MediaHook implements PackageHook {
                 Object packageValue = XposedHelpers.callMethod(sourceInfo, "getSourcePackage");
                 Object musicInfo = XposedHelpers.callMethod(sourceInfo, "getMusicInfo");
                 Object stateValue = musicInfo == null ? null : readField(musicInfo, "state");
-                publishState(context,
-                        packageValue instanceof String ? (String) packageValue : "",
-                        stateValue instanceof String ? (String) stateValue : "");
+                String packageName = packageValue instanceof String ? (String) packageValue : "";
+                String state = stateValue instanceof String ? (String) stateValue : "";
+                publishStateLocked(context, packageName, state, true);
+                logEvent(context, "snapshotReceived",
+                        "Source package: " + display(packageName) + ", playback state: "
+                                + display(state));
             } catch (Throwable error) {
-                log("SourceInfo snapshot failed: " + error);
-                publishState(context, "", "");
+                reportError(context, "snapshot", error);
+                publishStateLocked(context, "", "", true);
             }
         }
     }
 
-    private static void publishState(Context context, String packageName, String state) {
+    private static void handleSourceChanged(Context context, String packageName) {
+        if (context == null) return;
+        String value = packageName == null ? "" : packageName.trim();
+        boolean changed;
+
         synchronized (LOCK) {
-            if (!moduleEnabled || context == null) return;
-            Intent intent = new Intent(ACTION_STATE_CHANGED);
-            intent.setPackage(APP_PACKAGE);
-            if (packageName != null) intent.putExtra(EXTRA_SOURCE_PACKAGE, packageName);
-            if (state != null) intent.putExtra(EXTRA_PLAYBACK_STATE, state);
-            try {
-                context.sendBroadcast(intent);
-            } catch (RuntimeException error) {
-                log("Media state broadcast failed: " + error);
-            }
+            if (!moduleEnabled) return;
+            changed = !value.equals(lastSourcePackage);
+            lastSourcePackage = value;
+            lastPlaybackState = "";
+            publishStateLocked(context, value, "", false);
         }
+
+        if (changed) {
+            logEvent(context, "sourceChanged", "Audio source package: " + display(value));
+        }
+    }
+
+    private static void handlePlaybackState(Context context, String state) {
+        if (context == null) return;
+        String value = state == null ? "" : state.trim();
+        boolean changed;
+
+        synchronized (LOCK) {
+            if (!moduleEnabled) return;
+            changed = !value.equals(lastPlaybackState);
+            lastPlaybackState = value;
+            publishStateLocked(context, null, value, false);
+        }
+
+        if (changed) {
+            logEvent(context, "playbackStateChanged", "Playback state: " + display(value));
+        }
+    }
+
+    private static void publishStateLocked(Context context, String packageName,
+                                           String state, boolean snapshot) {
+        if (!moduleEnabled || context == null) return;
+        if (packageName != null) lastSourcePackage = packageName;
+        if (state != null) lastPlaybackState = state;
+
+        Intent intent = new Intent(ACTION_STATE_CHANGED);
+        intent.setPackage(APP_PACKAGE);
+        if (packageName != null) intent.putExtra(EXTRA_SOURCE_PACKAGE, packageName);
+        if (state != null) intent.putExtra(EXTRA_PLAYBACK_STATE, state);
+        try {
+            context.sendBroadcast(intent);
+        } catch (RuntimeException error) {
+            reportError(context, "stateBroadcast", error);
+        }
+    }
+
+    private static void reportError(Context context, String source, Throwable error) {
+        String message = error == null ? "Unknown error"
+                : error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage());
+        XposedBridge.log("MT8163 Tools: Media: " + source + ": " + message);
+        if (context != null) logEvent(context, "hookError", source + ": " + message);
+    }
+
+    private static void logEvent(Context context, String source, String message) {
+        try {
+            EventLogger.log(context, "Media", source, message);
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Media: EventLogger failed: " + error);
+        }
+    }
+
+    private static String display(String value) {
+        return value == null || value.isEmpty() ? "unknown" : value;
     }
 
     private static Context getServiceContext(Object service) {
@@ -207,7 +270,7 @@ public final class MediaHook implements PackageHook {
             Object context = XposedHelpers.callMethod(thread, "getSystemContext");
             return context instanceof Context ? (Context) context : null;
         } catch (Throwable error) {
-            log("System context unavailable: " + error);
+            reportError(null, "systemContext", error);
             return null;
         }
     }
