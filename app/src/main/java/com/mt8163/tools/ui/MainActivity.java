@@ -119,7 +119,6 @@ public final class MainActivity extends Activity {
 
             if ("media".equals(module.getId())) {
                 MediaSettingsStore.publish(this);
-                if (enabled) MediaSettingsStore.requestSnapshot(this);
             }
 
             adapter.notifyDataSetChanged();
@@ -146,9 +145,6 @@ public final class MainActivity extends Activity {
             }
         }
         updateState();
-        if ("media".equals(module.getId()) && module.isEnabled()) {
-            MediaSettingsStore.requestSnapshot(this);
-        }
     }
 
     private void updateState() {
@@ -165,11 +161,6 @@ public final class MainActivity extends Activity {
             registerReceiver(mediaReceiver,
                     new IntentFilter(MediaSettingsStore.ACTION_STATE_CHANGED));
             mediaReceiverRegistered = true;
-        }
-        if (selected >= 0 && selected < modules.size()
-                && "media".equals(modules.get(selected).getId())
-                && modules.get(selected).isEnabled()) {
-            MediaSettingsStore.requestSnapshot(this);
         }
     }
 
