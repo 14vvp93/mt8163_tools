@@ -64,4 +64,22 @@
         android:text="Raw state: unavailable"
         android:textColor="@color/text_muted"
         android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Window focus"
+        android:textColor="@color/text_muted"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/media_foreground_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="NOT FOREGROUND"
+        android:textColor="@color/text_primary"
+        android:textSize="22sp"
+        android:textStyle="bold" />
 </LinearLayout>

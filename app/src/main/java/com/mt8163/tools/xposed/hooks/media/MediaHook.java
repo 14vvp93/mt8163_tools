@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Handler;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
@@ -30,12 +31,15 @@ public final class MediaHook implements PackageHook {
     private static final String EXTRA_ENABLED = "module_enabled";
     private static final String EXTRA_SOURCE_PACKAGE = "source_package";
     private static final String EXTRA_PLAYBACK_STATE = "playback_state";
+    private static final String EXTRA_IS_FOREGROUND = "is_foreground";
     private static final Object LOCK = new Object();
 
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
     private static boolean moduleEnabled;
     private static boolean snapshotPending;
+    private static boolean lastForeground;
+    private static String focusedWindowPackage = "";
     private static long sourceGeneration;
     private static Context systemContext;
     private static Object sourceInfo;
@@ -59,11 +63,79 @@ public final class MediaHook implements PackageHook {
         loadConfiguration();
         hookServiceRegistration();
         hookSourceEvents();
+        hookWindowFocus(param.classLoader);
 
         Object service = XposedHelpers.callStaticMethod(
                 XposedHelpers.findClass("android.os.ServiceManager", null),
                 "getService", "sourceinfo");
         if (service != null) onSourceServiceAvailable();
+    }
+
+    private static void hookWindowFocus(ClassLoader classLoader) {
+        try {
+            Class<?> windowManager = XposedHelpers.findClass(
+                    "com.android.server.wm.WindowManagerService", classLoader);
+
+            XposedBridge.hookAllConstructors(windowManager, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    captureWindowFocus(param.thisObject);
+                }
+            });
+
+            XposedBridge.hookAllMethods(windowManager, "updateFocusedWindowLocked",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            captureWindowFocus(param.thisObject);
+                        }
+                    });
+        } catch (Throwable error) {
+            reportError(systemContext, "windowFocusHook", error);
+        }
+    }
+
+    private static void captureWindowFocus(Object service) {
+        try {
+            Object window = readField(service, "mCurrentFocus");
+            Object attributes = window == null ? null : readField(window, "mAttrs");
+            Object value = attributes == null ? null : readField(attributes, "packageName");
+            String packageName = value instanceof String ? ((String) value).trim() : "";
+
+            Object handler = readField(service, "mH");
+            if (handler instanceof Handler) {
+                ((Handler) handler).post(() -> handleWindowFocusChanged(packageName));
+            } else {
+                synchronized (LOCK) {
+                    focusedWindowPackage = packageName;
+                }
+            }
+        } catch (Throwable error) {
+            reportError(systemContext, "windowFocus", error);
+        }
+    }
+
+    private static void handleWindowFocusChanged(String packageName) {
+        Context context;
+        boolean foreground;
+
+        synchronized (LOCK) {
+            focusedWindowPackage = packageName == null ? "" : packageName;
+            if (!moduleEnabled || lastSourcePackage.isEmpty()) return;
+
+            foreground = isForegroundLocked(lastSourcePackage);
+            if (foreground == lastForeground) return;
+
+            lastForeground = foreground;
+            if (snapshotPending) return;
+
+            context = systemContext;
+            publishStateLocked(context);
+        }
+
+        logEvent(context, "foregroundChanged",
+                "Source package: " + display(lastSourcePackage)
+                        + ", isForeground: " + foreground);
     }
 
     private static void hookServiceRegistration() {
@@ -323,56 +395,75 @@ public final class MediaHook implements PackageHook {
     private static void completeSnapshot(Context context, long generation,
                                          String packageName, String state) {
         String value = state == null ? "" : state;
+        boolean foreground;
+
         synchronized (LOCK) {
             if (!moduleEnabled || generation != sourceGeneration
-                    || !snapshotPending || !packageName.equals(lastSourcePackage)) return;
+                    || !snapshotPending || packageName == null
+                    || !packageName.equals(lastSourcePackage)) return;
             snapshotPending = false;
             lastPlaybackState = value;
-            publishStateLocked(context, packageName, value, true);
+            lastForeground = isForegroundLocked(packageName);
+            foreground = lastForeground;
+            publishStateLocked(context);
         }
+
         logEvent(context, "snapshotReceived",
                 "Source package: " + display(packageName)
-                        + ", playback state: " + display(value));
+                        + ", playback state: " + display(value)
+                        + ", isForeground: " + foreground);
     }
 
     private static void completeBluetoothSnapshot(Context context, long generation,
                                                   String state) {
         String value = state == null ? "unavailable" : state;
+        boolean foreground;
+
         synchronized (LOCK) {
             if (!moduleEnabled || generation != sourceGeneration
                     || !snapshotPending || !isBluetoothSource(lastSourcePackage)) return;
             snapshotPending = false;
             lastPlaybackState = value;
-            publishStateLocked(context, lastSourcePackage, value, true);
+            lastForeground = isForegroundLocked(lastSourcePackage);
+            foreground = lastForeground;
+            publishStateLocked(context);
         }
+
         logEvent(context, "snapshotReceived",
                 "Source package: " + BLUETOOTH_SOURCE_PACKAGE
-                        + ", playback state: " + display(value));
+                        + ", playback state: " + display(value)
+                        + ", isForeground: " + foreground);
     }
 
     private static void publishBluetoothPlaybackState(Context context, long generation,
                                                       String state) {
         String value = state == null ? "unavailable" : state;
+        boolean initialSnapshot;
+        boolean changed;
+
         synchronized (LOCK) {
             if (!moduleEnabled || generation != sourceGeneration
                     || !isBluetoothSource(lastSourcePackage)) return;
-            if (snapshotPending) {
+
+            initialSnapshot = snapshotPending;
+            if (initialSnapshot) {
                 snapshotPending = false;
-                lastPlaybackState = value;
-                publishStateLocked(context, lastSourcePackage, value, true);
-                logEvent(context, "snapshotReceived",
-                        "Source package: " + BLUETOOTH_SOURCE_PACKAGE
-                                + ", playback state: " + display(value));
-                return;
+                lastForeground = isForegroundLocked(lastSourcePackage);
             }
 
-            boolean changed = !value.equals(lastPlaybackState);
+            changed = !value.equals(lastPlaybackState);
             lastPlaybackState = value;
-            publishStateLocked(context, null, value, false);
-            if (changed) {
-                logEvent(context, "playbackStateChanged",
-                        "Playback state: " + display(value));
-            }
+            publishStateLocked(context);
+        }
+
+        if (initialSnapshot) {
+            logEvent(context, "snapshotReceived",
+                    "Source package: " + BLUETOOTH_SOURCE_PACKAGE
+                            + ", playback state: " + display(value)
+                            + ", isForeground: " + lastForeground);
+        } else if (changed) {
+            logEvent(context, "playbackStateChanged",
+                    "Playback state: " + display(value));
         }
     }
 
@@ -380,38 +471,51 @@ public final class MediaHook implements PackageHook {
         return BLUETOOTH_SOURCE_PACKAGE.equals(packageName);
     }
 
+    private static boolean isForegroundLocked(String packageName) {
+        return packageName != null && !packageName.isEmpty()
+                && packageName.equals(focusedWindowPackage);
+    }
+
     private static void handlePlaybackState(Context context, String state) {
         if (context == null) return;
         String value = state == null ? "" : state.trim();
+        boolean initialSnapshot;
+        boolean changed;
+
         synchronized (LOCK) {
             if (!moduleEnabled || isBluetoothSource(lastSourcePackage)) return;
-            if (snapshotPending) {
+
+            initialSnapshot = snapshotPending;
+            if (initialSnapshot) {
                 snapshotPending = false;
-                lastPlaybackState = value;
-                publishStateLocked(context, lastSourcePackage, value, true);
-                logEvent(context, "snapshotReceived",
-                        "Source package: " + display(lastSourcePackage)
-                                + ", playback state: " + display(value));
-                return;
+                lastForeground = isForegroundLocked(lastSourcePackage);
             }
 
-            boolean changed = !value.equals(lastPlaybackState);
+            changed = !value.equals(lastPlaybackState);
             lastPlaybackState = value;
-            publishStateLocked(context, null, value, false);
-            if (changed) {
-                logEvent(context, "playbackStateChanged",
-                        "Playback state: " + display(value));
-            }
+            publishStateLocked(context);
+        }
+
+        if (initialSnapshot) {
+            logEvent(context, "snapshotReceived",
+                    "Source package: " + display(lastSourcePackage)
+                            + ", playback state: " + display(value)
+                            + ", isForeground: " + lastForeground);
+        } else if (changed) {
+            logEvent(context, "playbackStateChanged",
+                    "Playback state: " + display(value));
         }
     }
 
-    private static void publishStateLocked(Context context, String packageName,
-                                           String state, boolean snapshot) {
+    private static void publishStateLocked(Context context) {
         if (!moduleEnabled || context == null) return;
+
         Intent intent = new Intent(ACTION_STATE_CHANGED);
         intent.setPackage(APP_PACKAGE);
-        if (packageName != null) intent.putExtra(EXTRA_SOURCE_PACKAGE, packageName);
-        if (state != null) intent.putExtra(EXTRA_PLAYBACK_STATE, state);
+        intent.putExtra(EXTRA_SOURCE_PACKAGE, lastSourcePackage);
+        intent.putExtra(EXTRA_PLAYBACK_STATE, lastPlaybackState);
+        intent.putExtra(EXTRA_IS_FOREGROUND, lastForeground);
+
         try {
             context.sendBroadcast(intent);
         } catch (RuntimeException error) {

@@ -14,9 +14,11 @@ public final class MediaSettingsStore {
     public static final String EXTRA_ENABLED = "module_enabled";
     public static final String EXTRA_SOURCE_PACKAGE = "source_package";
     public static final String EXTRA_PLAYBACK_STATE = "playback_state";
+    public static final String EXTRA_IS_FOREGROUND = "is_foreground";
 
     private static final String MODULE_SETTINGS = "mt8163_tools";
     private static final String HOOK_SETTINGS = "media_hook_config";
+    private static final String STATE_SETTINGS = "media_state";
 
     private MediaSettingsStore() {
     }
@@ -42,6 +44,36 @@ public final class MediaSettingsStore {
         Intent intent = new Intent(ACTION_REQUEST_SNAPSHOT);
         intent.setPackage("android");
         context.getApplicationContext().sendBroadcast(intent);
+    }
+
+    public static void saveSnapshot(Context context, String packageName,
+                                     String playbackState, boolean isForeground) {
+        if (context == null) return;
+
+        stateSettings(context.getApplicationContext()).edit()
+                .putString(EXTRA_SOURCE_PACKAGE, packageName == null ? "" : packageName)
+                .putString(EXTRA_PLAYBACK_STATE, playbackState == null ? "" : playbackState)
+                .putBoolean(EXTRA_IS_FOREGROUND, isForeground)
+                .apply();
+    }
+
+    public static String getSourcePackage(Context context) {
+        return context == null ? "" : stateSettings(context.getApplicationContext())
+                .getString(EXTRA_SOURCE_PACKAGE, "");
+    }
+
+    public static String getPlaybackState(Context context) {
+        return context == null ? "" : stateSettings(context.getApplicationContext())
+                .getString(EXTRA_PLAYBACK_STATE, "");
+    }
+
+    public static boolean isForeground(Context context) {
+        return context != null && stateSettings(context.getApplicationContext())
+                .getBoolean(EXTRA_IS_FOREGROUND, false);
+    }
+
+    private static SharedPreferences stateSettings(Context context) {
+        return context.getSharedPreferences(STATE_SETTINGS, Context.MODE_PRIVATE);
     }
 
     private static SharedPreferences hookSettings(Context context) {

@@ -68,16 +68,24 @@ public final class MainActivity extends Activity {
             @Override
             public void onReceive(android.content.Context context, Intent intent) {
                 if (intent == null
-                        || !MediaSettingsStore.ACTION_STATE_CHANGED.equals(intent.getAction())
-                        || mediaView == null
-                        || selected < 0
+                        || !MediaSettingsStore.ACTION_STATE_CHANGED.equals(intent.getAction())) {
+                    return;
+                }
+
+                String packageName = intent.getStringExtra(
+                        MediaSettingsStore.EXTRA_SOURCE_PACKAGE);
+                String playbackState = intent.getStringExtra(
+                        MediaSettingsStore.EXTRA_PLAYBACK_STATE);
+                boolean isForeground = intent.getBooleanExtra(
+                        MediaSettingsStore.EXTRA_IS_FOREGROUND, false);
+
+                MediaSettingsStore.saveSnapshot(
+                        context, packageName, playbackState, isForeground);
+
+                if (mediaView == null || selected < 0
                         || !"media".equals(modules.get(selected).getId())) return;
 
-                String packageName = intent.hasExtra(MediaSettingsStore.EXTRA_SOURCE_PACKAGE)
-                        ? intent.getStringExtra(MediaSettingsStore.EXTRA_SOURCE_PACKAGE) : null;
-                String playbackState = intent.hasExtra(MediaSettingsStore.EXTRA_PLAYBACK_STATE)
-                        ? intent.getStringExtra(MediaSettingsStore.EXTRA_PLAYBACK_STATE) : null;
-                mediaView.update(packageName, playbackState);
+                mediaView.update(packageName, playbackState, isForeground);
             }
         };
     }
@@ -131,6 +139,10 @@ public final class MainActivity extends Activity {
                 VoltageModuleView.bind(view, this);
             } else if ("media".equals(module.getId())) {
                 mediaView = new MediaModuleView(view);
+                mediaView.update(
+                        MediaSettingsStore.getSourcePackage(this),
+                        MediaSettingsStore.getPlaybackState(this),
+                        MediaSettingsStore.isForeground(this));
             }
         }
         updateState();

@@ -9,6 +9,7 @@ public final class MediaModuleView {
     private final TextView sourcePackage;
     private final TextView playbackState;
     private final TextView rawState;
+    private final TextView foregroundState;
     private String currentPackage;
     private String currentState;
 
@@ -16,10 +17,11 @@ public final class MediaModuleView {
         sourcePackage = root.findViewById(R.id.media_source_package);
         playbackState = root.findViewById(R.id.media_playback_state);
         rawState = root.findViewById(R.id.media_raw_state);
-        update(null, null);
+        foregroundState = root.findViewById(R.id.media_foreground_state);
+        update(null, null, false);
     }
 
-    public void update(String packageName, String state) {
+    public void update(String packageName, String state, boolean isForeground) {
         if (packageName != null) currentPackage = packageName.trim();
         if (state != null) currentState = state.trim();
 
@@ -29,6 +31,7 @@ public final class MediaModuleView {
 
         sourcePackage.setText(source);
         rawState.setText(raw.isEmpty() ? "Raw state: unavailable" : "Raw state: " + raw);
+        foregroundState.setText(isForeground ? "FOREGROUND / FOCUSED" : "NOT FOREGROUND");
 
         if ("start".equalsIgnoreCase(raw) || "write".equalsIgnoreCase(raw)) {
             playbackState.setText("PLAYING");
