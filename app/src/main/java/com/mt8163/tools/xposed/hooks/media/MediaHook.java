@@ -45,7 +45,9 @@ public final class MediaHook implements PackageHook {
     private static final String EXTRA_IS_FOREGROUND = "is_foreground";
     private static final Object LOCK = new Object();
 
-    private static boolean hooksInstalled;
+    private static boolean installInProgress;
+    private static boolean accHookInstalled;
+    private static boolean windowManagerHookInstalled;
     private static long configurationGeneration;
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
@@ -65,17 +67,35 @@ public final class MediaHook implements PackageHook {
     }
 
     @Override
-    public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
+    public void install(XC_LoadPackage.LoadPackageParam param) {
         synchronized (LOCK) {
-            if (hooksInstalled) return;
-            hooksInstalled = true;
+            if (installInProgress || (accHookInstalled && windowManagerHookInstalled)) return;
+            installInProgress = true;
         }
 
-        hookAccReceiver(param.classLoader);
-        hookWindowManager(param.classLoader);
+        try {
+            synchronized (LOCK) {
+                if (!accHookInstalled) {
+                    accHookInstalled = hookAccReceiver(param.classLoader);
+                }
+                if (!windowManagerHookInstalled) {
+                    windowManagerHookInstalled = hookWindowManager(param.classLoader);
+                }
+            }
+        } finally {
+            synchronized (LOCK) {
+                installInProgress = false;
+            }
+        }
+
+        synchronized (LOCK) {
+            if (!accHookInstalled && !windowManagerHookInstalled) {
+                throw new IllegalStateException("No Media hooks were installed");
+            }
+        }
     }
 
-    private static void hookAccReceiver(ClassLoader classLoader) {
+    private static boolean hookAccReceiver(ClassLoader classLoader) {
         try {
             XposedHelpers.findAndHookMethod(
                     ACC_RECEIVER_CLASS,
@@ -105,12 +125,14 @@ public final class MediaHook implements PackageHook {
                         }
                     });
             logEvent("accHookInstalled", "MCU ACC receiver hook installed");
+            return true;
         } catch (Throwable error) {
             reportError("accHook", error);
+            return false;
         }
     }
 
-    private static void hookWindowManager(ClassLoader classLoader) {
+    private static boolean hookWindowManager(ClassLoader classLoader) {
         try {
             Class<?> type = XposedHelpers.findClass(WINDOW_MANAGER_CLASS, classLoader);
             XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
@@ -122,8 +144,10 @@ public final class MediaHook implements PackageHook {
 
                 }
             });
+            return true;
         } catch (Throwable error) {
             reportError("windowManagerHook", error);
+            return false;
         }
     }
 
@@ -232,9 +256,6 @@ public final class MediaHook implements PackageHook {
         try {
             XSharedPreferences preferences =
                     new XSharedPreferences(APP_PACKAGE, CONFIG_FILE);
-            if (!preferences.getFile().canRead()) {
-                throw new IllegalStateException("Media settings are not readable by LSPosed");
-            }
             preferences.reload();
 
             boolean enabled = preferences.getBoolean(EXTRA_ENABLED, false);
