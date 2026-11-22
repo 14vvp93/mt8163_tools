@@ -36,6 +36,11 @@ public final class MediaModuleView {
             playbackState.setText("PAUSED");
         } else if ("stop".equalsIgnoreCase(raw) || "stopped".equalsIgnoreCase(raw)) {
             playbackState.setText("STOPPED");
+        } else if ("buffering".equalsIgnoreCase(raw)) {
+            playbackState.setText("BUFFERING");
+        } else if ("fast_forwarding".equalsIgnoreCase(raw)
+                || "rewinding".equalsIgnoreCase(raw)) {
+            playbackState.setText("PLAYING");
         } else {
             playbackState.setText("UNKNOWN");
         }
