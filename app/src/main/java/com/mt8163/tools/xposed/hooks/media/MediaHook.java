@@ -55,8 +55,7 @@ public final class MediaHook implements PackageHook {
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
-    private static boolean accState;
-    private static boolean accStateInitialized;
+    private static boolean accState = true;
     private static boolean snapshotInProgress;
     private static boolean restorePending;
     private static boolean restoreInProgress;
@@ -155,46 +154,29 @@ public final class MediaHook implements PackageHook {
         boolean startSnapshot = false;
         boolean startRestore = false;
         boolean changed;
-        boolean initializedNow = false;
         MediaRestorer.Cancellable cancelRestore = null;
 
         synchronized (LOCK) {
-            if (!accStateInitialized) {
-                accState = nextState;
-                accStateInitialized = true;
-                changed = true;
-                initializedNow = true;
+            boolean previousState = accState;
+            accState = nextState;
+            changed = previousState != accState;
 
-                if (accState && moduleEnabled) {
-                    if (snapshotInProgress) {
-                        restorePending = true;
-                    } else if (!restoreInProgress) {
-                        restoreInProgress = true;
-                        startRestore = true;
-                    }
+            if (previousState && !accState) {
+                restorePending = false;
+                cancelRestore = activeRestoration;
+                activeRestoration = null;
+                restoreInProgress = false;
+
+                if (moduleEnabled && !snapshotInProgress) {
+                    snapshotInProgress = true;
+                    startSnapshot = true;
                 }
-            } else {
-                boolean previousState = accState;
-                accState = nextState;
-                changed = previousState != accState;
-
-                if (previousState && !accState) {
-                    restorePending = false;
-                    cancelRestore = activeRestoration;
-                    activeRestoration = null;
-                    restoreInProgress = false;
-
-                    if (moduleEnabled && !snapshotInProgress) {
-                        snapshotInProgress = true;
-                        startSnapshot = true;
-                    }
-                } else if (!previousState && accState && moduleEnabled) {
-                    if (snapshotInProgress) {
-                        restorePending = true;
-                    } else if (!restoreInProgress) {
-                        restoreInProgress = true;
-                        startRestore = true;
-                    }
+            } else if (!previousState && accState && moduleEnabled) {
+                if (snapshotInProgress) {
+                    restorePending = true;
+                } else if (!restoreInProgress) {
+                    restoreInProgress = true;
+                    startRestore = true;
                 }
             }
         }
@@ -202,9 +184,7 @@ public final class MediaHook implements PackageHook {
         if (cancelRestore != null) cancelRestore.cancel();
         if (startSnapshot) captureSnapshot();
         if (startRestore) requestSnapshotForRestore();
-        if (initializedNow) {
-            logEvent("accStateInitialized", "Initial ACC state: " + nextState);
-        } else if (changed) {
+        if (changed) {
             logEvent("accStateChanged", "ACC state: " + nextState);
         }
     }
