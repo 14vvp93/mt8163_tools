@@ -5,10 +5,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.os.Bundle;
 
 import com.mt8163.tools.core.EventLogger;
-import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
+import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.xposed.PackageHook;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -16,6 +19,8 @@ import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
+import java.util.List;
 
 public final class MediaHook implements PackageHook {
     private static final String APP_PACKAGE = "com.mt8163.tools";
@@ -31,7 +36,12 @@ public final class MediaHook implements PackageHook {
             "com.mt8163.tools.action.MEDIA_CONFIG_CHANGED";
     private static final String ACTION_STATE_CHANGED =
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
+    private static final String ACTION_RESTORE_REQUEST =
+            "com.mt8163.tools.action.MEDIA_RESTORE_REQUEST";
     private static final String EXTRA_ENABLED = "module_enabled";
+    private static final String EXTRA_RESTORE_BACKGROUND_MEDIA = "restore_background_media";
+    private static final String EXTRA_RESTORE_BACKGROUND_BLUETOOTH =
+            "restore_background_bluetooth";
     private static final String EXTRA_SOURCE_PACKAGE = "source_package";
     private static final String EXTRA_PLAYBACK_STATE = "playback_state";
     private static final String EXTRA_IS_FOREGROUND = "is_foreground";
@@ -40,12 +50,16 @@ public final class MediaHook implements PackageHook {
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
     private static boolean moduleEnabled;
+    private static boolean restoreBackgroundMedia;
+    private static boolean restoreBackgroundBluetooth;
     private static boolean accState;
     private static boolean snapshotInProgress;
+    private static boolean restorePending;
+    private static boolean restoreInProgress;
     private static Context systemContext;
     private static Object windowManagerService;
     private static BluetoothMusicClient bluetoothClient;
-    private static BroadcastReceiver configReceiver;
+    private static MediaRestorer.Cancellable activeRestoration;
 
     @Override
     public boolean supports(String packageName) {
@@ -120,20 +134,46 @@ public final class MediaHook implements PackageHook {
         }
 
         boolean startSnapshot = false;
-        boolean changed;
+        boolean startRestore = false;
+        MediaRestorer.Cancellable cancelRestore = null;
+        BluetoothMusicClient cancelBluetooth = null;
+
         synchronized (LOCK) {
             boolean previousState = accState;
             accState = nextState;
-            changed = previousState != accState;
 
-            if (previousState && !accState && moduleEnabled && !snapshotInProgress) {
-                snapshotInProgress = true;
-                startSnapshot = true;
+            if (previousState && !accState) {
+                restorePending = false;
+                cancelRestore = activeRestoration;
+                activeRestoration = null;
+                restoreInProgress = false;
+
+                if (moduleEnabled && !snapshotInProgress) {
+                    snapshotInProgress = true;
+                    startSnapshot = true;
+                }
+            } else if (!previousState && accState && moduleEnabled) {
+                if (snapshotInProgress) {
+                    restorePending = true;
+                } else if (!restoreInProgress) {
+                    restoreInProgress = true;
+                    startRestore = true;
+                }
             }
         }
 
-        if (changed) logEvent("accStateChanged", "ACC state: " + nextState);
+        if (cancelRestore != null) cancelRestore.cancel();
         if (startSnapshot) captureSnapshot();
+        if (startRestore) requestSnapshotForRestore();
+        if (previousStateChanged(nextState)) {
+            logEvent("accStateChanged", "ACC state: " + nextState);
+        }
+    }
+
+    private static boolean previousStateChanged(boolean nextState) {
+        synchronized (LOCK) {
+            return accState == nextState;
+        }
     }
 
     private static Boolean readAccStatus(Intent intent) {
@@ -153,8 +193,14 @@ public final class MediaHook implements PackageHook {
                     new XSharedPreferences(APP_PACKAGE, CONFIG_FILE);
             preferences.reload();
             moduleEnabled = preferences.getBoolean(EXTRA_ENABLED, false);
+            restoreBackgroundMedia = preferences.getBoolean(
+                    EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+            restoreBackgroundBluetooth = preferences.getBoolean(
+                    EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
         } catch (Throwable error) {
             moduleEnabled = false;
+            restoreBackgroundMedia = false;
+            restoreBackgroundBluetooth = false;
             reportError("configurationLoad", error);
         }
     }
@@ -169,35 +215,45 @@ public final class MediaHook implements PackageHook {
 
         try {
             IntentFilter filter = new IntentFilter(ACTION_CONFIG_CHANGED);
-            configReceiver = new BroadcastReceiver() {
+            BroadcastReceiver receiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context receiverContext, Intent intent) {
                     if (intent == null || !ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
                         return;
                     }
-                    Object value = intent.getExtras() == null
-                            ? null : intent.getExtras().get(EXTRA_ENABLED);
-                    if (!(value instanceof Boolean)) return;
 
-                    BluetoothMusicClient client = null;
+                    BluetoothMusicClient cancelClient = null;
+                    MediaRestorer.Cancellable cancelRestore = null;
+                    boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
                     synchronized (LOCK) {
-                        moduleEnabled = (Boolean) value;
-                        if (!moduleEnabled) {
+                        moduleEnabled = enabled;
+                        restoreBackgroundMedia = intent.getBooleanExtra(
+                                EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
+                        restoreBackgroundBluetooth = intent.getBooleanExtra(
+                                EXTRA_RESTORE_BACKGROUND_BLUETOOTH,
+                                restoreBackgroundBluetooth);
+
+                        if (!enabled) {
                             snapshotInProgress = false;
-                            client = bluetoothClient;
+                            restorePending = false;
+                            restoreInProgress = false;
+                            cancelClient = bluetoothClient;
                             bluetoothClient = null;
+                            cancelRestore = activeRestoration;
+                            activeRestoration = null;
                         }
                     }
-                    if (client != null) client.disconnect();
-                    logEvent("configurationChanged", "Media enabled: " + value);
+
+                    if (cancelClient != null) cancelClient.disconnect();
+                    if (cancelRestore != null) cancelRestore.cancel();
+                    logEvent("configurationChanged", "Media enabled: " + enabled);
                 }
             };
-            context.registerReceiver(configReceiver, filter);
+            context.registerReceiver(receiver, filter);
             synchronized (LOCK) {
                 receiverRegistered = true;
             }
         } catch (RuntimeException error) {
-            configReceiver = null;
             reportError("configReceiver", error);
         }
     }
@@ -234,7 +290,7 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void captureBluetoothSnapshot(Context context, String packageName,
-                                                boolean isForeground) {
+                                                 boolean isForeground) {
         if (context == null) {
             completeSnapshot(null, packageName,
                     MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
@@ -243,7 +299,7 @@ public final class MediaHook implements PackageHook {
 
         BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
                 completeSnapshot(context, packageName,
-                    MediaSettingsStore.normalizePlaybackState(state), isForeground));
+                        MediaSettingsStore.normalizePlaybackState(state), isForeground));
         boolean accepted;
         synchronized (LOCK) {
             accepted = snapshotInProgress && moduleEnabled;
@@ -269,7 +325,6 @@ public final class MediaHook implements PackageHook {
                                          String playbackState, boolean isForeground) {
         synchronized (LOCK) {
             if (!moduleEnabled || !snapshotInProgress) return;
-            snapshotInProgress = false;
             bluetoothClient = null;
         }
 
@@ -277,8 +332,13 @@ public final class MediaHook implements PackageHook {
         String state = MediaSettingsStore.normalizePlaybackState(playbackState);
 
         if (context == null) {
-            logEvent("snapshotBroadcast", "System context unavailable; snapshot was not saved");
+            completeSnapshotSave(false, source, state, isForeground);
             return;
+        }
+
+        if (!BLUETOOTH_SOURCE_PACKAGE.equals(source)
+                && MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
+            pauseActivePlayer(source);
         }
 
         Intent intent = new Intent(ACTION_STATE_CHANGED);
@@ -290,46 +350,140 @@ public final class MediaHook implements PackageHook {
             context.sendOrderedBroadcast(intent, null, new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context resultContext, Intent resultIntent) {
-                    if (getResultCode() != Activity.RESULT_OK) {
-                        logEvent("snapshotSaveFailed", "Snapshot was not persisted");
-                        return;
-                    }
-
-                    logEvent("snapshotReceived", "Source: " + display(source)
-                            + ", playback: " + state
-                            + ", foreground: " + isForeground);
-
-                    if (!BLUETOOTH_SOURCE_PACKAGE.equals(source)
-                            && MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
-                        pauseActivePlayer();
-                    }
+                    boolean saved = getResultCode() == Activity.RESULT_OK;
+                    completeSnapshotSave(saved, source, state, isForeground);
                 }
             }, null, Activity.RESULT_CANCELED, null, null);
         } catch (RuntimeException error) {
             reportError("snapshotBroadcast", error);
+            completeSnapshotSave(false, source, state, isForeground);
         }
     }
 
-    private static void pauseActivePlayer() {
+    private static void completeSnapshotSave(boolean saved, String source,
+                                             String state, boolean isForeground) {
+        boolean startRestore = false;
+        synchronized (LOCK) {
+            snapshotInProgress = false;
+            if (saved) {
+                logEvent("snapshotReceived", "Source: " + display(source)
+                        + ", playback: " + state
+                        + ", foreground: " + isForeground);
+                if (restorePending && accState && moduleEnabled && !restoreInProgress) {
+                    restorePending = false;
+                    restoreInProgress = true;
+                    startRestore = true;
+                }
+            } else {
+                restorePending = false;
+                logEvent("snapshotSaveFailed", "Snapshot was not persisted");
+            }
+        }
+        if (startRestore) requestSnapshotForRestore();
+    }
+
+    private static void pauseActivePlayer(String packageName) {
         Context context = systemContext;
-        if (context == null) return;
+        if (context == null || packageName == null || packageName.isEmpty()) return;
 
         try {
-            android.media.AudioManager audioManager = (android.media.AudioManager)
-                    context.getSystemService(Context.AUDIO_SERVICE);
-            if (audioManager == null) return;
+            MediaSessionManager manager = (MediaSessionManager) context.getSystemService(
+                    Context.MEDIA_SESSION_SERVICE);
+            if (manager == null) return;
 
-            long eventTime = android.os.SystemClock.uptimeMillis();
-            audioManager.dispatchMediaKeyEvent(new android.view.KeyEvent(
-                    eventTime, eventTime, android.view.KeyEvent.ACTION_DOWN,
-                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
-            audioManager.dispatchMediaKeyEvent(new android.view.KeyEvent(
-                    eventTime, eventTime, android.view.KeyEvent.ACTION_UP,
-                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0));
-            logEvent("playerPause", "MEDIA_PAUSE dispatched");
+            List<MediaController> sessions = manager.getActiveSessions(null);
+            if (sessions == null) return;
+            for (MediaController controller : sessions) {
+                if (controller == null || !packageName.equals(controller.getPackageName())) {
+                    continue;
+                }
+                controller.getTransportControls().pause();
+                logEvent("playerPause", "MediaSession pause sent to " + packageName);
+                return;
+            }
+            logEvent("playerPause", "No active MediaSession for " + packageName);
         } catch (Throwable error) {
             reportError("playerPause", error);
         }
+    }
+
+    private static void requestSnapshotForRestore() {
+        Context context = systemContext;
+        if (context == null) {
+            finishRestore();
+            return;
+        }
+
+        Intent request = new Intent(ACTION_RESTORE_REQUEST);
+        request.setPackage(APP_PACKAGE);
+        try {
+            context.sendOrderedBroadcast(request, null, new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context resultContext, Intent resultIntent) {
+                    Bundle result = getResultExtras(false);
+                    if (getResultCode() != Activity.RESULT_OK || result == null) {
+                        logEvent("restoreSnapshot", "No persisted Snapshot available");
+                        finishRestore();
+                        return;
+                    }
+
+                    String packageName = result.getString(EXTRA_SOURCE_PACKAGE, "");
+                    String playbackState = MediaSettingsStore.normalizePlaybackState(
+                            result.getString(EXTRA_PLAYBACK_STATE));
+                    boolean foreground = result.getBoolean(EXTRA_IS_FOREGROUND, false);
+                    boolean enabled = result.getBoolean(EXTRA_ENABLED, false);
+                    boolean restoreMedia = result.getBoolean(
+                            EXTRA_RESTORE_BACKGROUND_MEDIA, false);
+                    boolean restoreBluetooth = result.getBoolean(
+                            EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+
+                    synchronized (LOCK) {
+                        if (!moduleEnabled || !enabled || !accState || !restoreInProgress) {
+                            finishRestoreLocked();
+                            return;
+                        }
+                        restoreBackgroundMedia = restoreMedia;
+                        restoreBackgroundBluetooth = restoreBluetooth;
+                    }
+
+                    if (packageName.isEmpty()) {
+                        logEvent("restoreSnapshot", "Snapshot source is empty");
+                        finishRestore();
+                        return;
+                    }
+
+                    logEvent("restoreStarted", "Source: " + packageName
+                            + ", playback: " + playbackState
+                            + ", foreground: " + foreground);
+
+                    MediaRestorer.Cancellable operation = MediaRestorer.restore(
+                            context, packageName, playbackState, foreground,
+                            restoreMedia, restoreBluetooth, MediaHook::finishRestore);
+
+                    synchronized (LOCK) {
+                        if (restoreInProgress && moduleEnabled && accState) {
+                            activeRestoration = operation;
+                        } else {
+                            operation.cancel();
+                        }
+                    }
+                }
+            }, null, Activity.RESULT_CANCELED, null, null);
+        } catch (RuntimeException error) {
+            reportError("restoreSnapshot", error);
+            finishRestore();
+        }
+    }
+
+    private static void finishRestore() {
+        synchronized (LOCK) {
+            finishRestoreLocked();
+        }
+    }
+
+    private static void finishRestoreLocked() {
+        restoreInProgress = false;
+        activeRestoration = null;
     }
 
     private static boolean isSourceForeground(String packageName) {
