@@ -78,7 +78,9 @@ public final class MediaHook implements PackageHook {
                         protected void afterHookedMethod(MethodHookParam param) {
                             if (param.args == null || param.args.length < 2
                                     || !(param.args[1] instanceof Intent)) return;
-                            handleAccIntent((Intent) param.args[1]);
+                            Context context = param.args[0] instanceof Context
+                                    ? (Context) param.args[0] : null;
+                            handleAccIntent(context, (Intent) param.args[1]);
                         }
                     });
             synchronized (LOCK) {
@@ -109,8 +111,12 @@ public final class MediaHook implements PackageHook {
         }
     }
 
-    private static void handleAccIntent(Intent intent) {
+    private static void handleAccIntent(Context context, Intent intent) {
         if (intent == null || !ACC_ACTION.equals(intent.getAction())) return;
+        if (context != null) {
+            systemContext = context;
+            registerConfigReceiver();
+        }
 
         Boolean nextState = readAccStatus(intent);
         if (nextState == null) {
