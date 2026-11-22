@@ -4,7 +4,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
@@ -20,10 +22,14 @@ public final class BluetoothMusicClient {
             "com.hcn.bluetooth.service.BluetoothMusicService";
     private static final String SERVICE_DESCRIPTOR =
             "com.hcn.bluetooth.service.IBluetoothMusicService";
+    private static final long BIND_TIMEOUT_MS = 5000L;
 
     private final Context context;
     private final Listener listener;
     private final Object lock = new Object();
+    private final Handler timeoutHandler = new Handler(Looper.getMainLooper());
+    private final Runnable timeoutRunnable =
+            () -> finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
 
     private boolean bound;
     private boolean closed;
@@ -36,20 +42,33 @@ public final class BluetoothMusicClient {
                 if (closed || completed) return;
             }
 
-            String state;
-            try {
-                boolean a2dpConnected = queryBoolean(binder, 1);
-                boolean avrcpConnected = queryBoolean(binder, 2);
-                boolean playing = queryBoolean(binder, 3);
-                state = a2dpConnected && avrcpConnected
-                        ? (playing ? MediaSettingsStore.PLAYBACK_PLAYING
-                        : MediaSettingsStore.PLAYBACK_PAUSED)
-                        : MediaSettingsStore.PLAYBACK_UNKNOWN;
-            } catch (RemoteException | RuntimeException error) {
-                state = MediaSettingsStore.PLAYBACK_UNKNOWN;
+            if (binder == null) {
+                finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
+                return;
             }
 
-            finish(state);
+            Thread queryThread = new Thread(() -> {
+                String state;
+                try {
+                    boolean a2dpConnected = queryBoolean(binder, 1);
+                    boolean avrcpConnected = queryBoolean(binder, 2);
+                    boolean playing = queryBoolean(binder, 3);
+                    state = a2dpConnected && avrcpConnected
+                            ? (playing ? MediaSettingsStore.PLAYBACK_PLAYING
+                            : MediaSettingsStore.PLAYBACK_PAUSED)
+                            : MediaSettingsStore.PLAYBACK_UNKNOWN;
+                } catch (RemoteException | RuntimeException error) {
+                    state = MediaSettingsStore.PLAYBACK_UNKNOWN;
+                }
+
+                finish(state);
+            }, "MediaBluetoothQuery");
+            queryThread.setDaemon(true);
+            try {
+                queryThread.start();
+            } catch (RuntimeException error) {
+                finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
+            }
         }
 
         @Override
@@ -84,6 +103,11 @@ public final class BluetoothMusicClient {
             } catch (RuntimeException error) {
                 bound = false;
             }
+
+            if (bound && !timeoutHandler.postDelayed(timeoutRunnable, BIND_TIMEOUT_MS)) {
+                timeoutHandler.removeCallbacks(timeoutRunnable);
+                return false;
+            }
             return bound;
         }
     }
@@ -92,6 +116,7 @@ public final class BluetoothMusicClient {
         synchronized (lock) {
             if (closed) return;
             closed = true;
+            timeoutHandler.removeCallbacks(timeoutRunnable);
             unbindLocked();
         }
     }
@@ -116,6 +141,7 @@ public final class BluetoothMusicClient {
         synchronized (lock) {
             if (closed || completed) return;
             completed = true;
+            timeoutHandler.removeCallbacks(timeoutRunnable);
             unbindLocked();
         }
         listener.onSnapshot(state);
