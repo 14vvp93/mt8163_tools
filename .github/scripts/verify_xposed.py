@@ -31,8 +31,8 @@ try:
         fail("Manifest must declare xposedmodule=true.")
 
     min_version = metadata.get("xposedminversion")
-    if min_version is None or min_version.get(ANDROID_NS + "value") != "93":
-        fail("Manifest xposedminversion must be exactly 93.")
+    if min_version is None or min_version.get(ANDROID_NS + "value") != "82":
+        fail("Manifest xposedminversion must be exactly 82.")
 
     scope = metadata.get("xposedscope")
     if scope is None or scope.get(ANDROID_NS + "value") != "android":
@@ -65,8 +65,8 @@ except OSError as error:
 
 try:
     docs = docs_path.read_text(encoding="utf-8")
-    if "xposedminversion=93" not in docs:
-        fail("Project documentation must state xposedminversion=93.")
+    if "xposedminversion=82" not in docs:
+        fail("Project documentation must state xposedminversion=82.")
     if "de.robv.android.xposed:api:82" not in docs:
         fail("Project documentation must explain the Legacy API 82 compile artifact.")
 except OSError as error:
@@ -90,4 +90,4 @@ if errors:
         print(f"- {error}")
     sys.exit(1)
 
-print("Xposed configuration is consistent: Legacy XposedBridge, runtime minversion 93, compileOnly API 82, scope android.")
+print("Xposed configuration is consistent: Legacy XposedBridge API 82, scope android.")

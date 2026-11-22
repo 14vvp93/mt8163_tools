@@ -33,7 +33,8 @@ MT8163 Tools/
 │       │       ├── HookRegistry.java
 │       │       ├── PackageHook.java
 │       │       └── hooks/
-│       │           └── voltage/
+│       │           ├── media/MediaHook.java
+│       │           └── voltage/VoltageHook.java
 │       └── res/
 │           ├── drawable/
 │           ├── layout/
@@ -55,7 +56,7 @@ MT8163 Tools/
 └── settings.gradle
 ```
 
-The tree lists the current tracked project files and directories. The repository does not currently contain a Gradle wrapper (`gradlew`, `gradlew.bat`, or `gradle/wrapper/`). Hook implementation code currently exists only in `xposed/hooks/voltage/`; the other hook documentation folders do not imply implemented hooks.
+The tree lists the current tracked project files and directories. The repository does not currently contain a Gradle wrapper (`gradlew`, `gradlew.bat`, or `gradle/wrapper/`).
 
 ## Root-level folders
 
@@ -63,7 +64,7 @@ The tree lists the current tracked project files and directories. The repository
 
 Contains GitHub automation:
 - `scripts/verify_xposed.py` — validates Xposed-related project configuration.
-- `workflows/manual-build.yml` — manually triggered APK build workflow.
+- `workflows/manual-build.yml` — builds the debug APK on pushes to `development` and by manual dispatch.
 
 ### `app/`
 
@@ -80,7 +81,7 @@ All project documentation belongs here. Keep documentation in English.
 
 ### `com.mt8163.tools`
 
-- `MainApplication` initializes application preferences and the module registry, loads saved module states, initializes the Events state, and publishes the initial Voltage configuration.
+- `MainApplication` initializes application preferences and the module registry, loads saved module states, initializes Events, and publishes the initial Voltage and Media configurations.
 
 ### `com.mt8163.tools.core`
 
@@ -98,7 +99,7 @@ Feature modules are separated by responsibility:
 
 | Package | Responsibility | Default state |
 |---|---|---|
-| `media` | Media module definition | Disabled |
+| `media` | Audio source and playback-state presentation/configuration | Disabled |
 | `protection` | Protection module definition | Disabled |
 | `voltage` | Voltage settings and module UI | Disabled |
 | `autorun` | Autorun module definition | Disabled |
@@ -116,9 +117,28 @@ Legacy XposedBridge integration:
 - `XposedEntry` — implements `IXposedHookLoadPackage` and is registered through `assets/xposed_init`.
 - `HookRegistry` — dispatches package-load callbacks to registered hooks and isolates installation failures.
 - `PackageHook` — interface for package-specific hook implementations.
+- `hooks/media/MediaHook` — observes firmware SourceService source and music callbacks in the Android system process.
 - `hooks/voltage/VoltageHook` — Voltage hook implementation for the Android system process.
 
-The current registry contains the Voltage hook. Additional hook implementations can be added independently when required.
+Each feature hook remains isolated in its own package.
+
+## Media source monitoring
+
+Stage 1 reads and presents only:
+- the selected Audio Source package;
+- the playback state reported by firmware `MusicInfo.state`.
+
+`MediaHook` observes the firmware `SourceService.callManager` callbacks. A source callback updates the package and resets the displayed playback state to unknown until a music callback arrives. A music callback updates the raw playback state without replacing the selected package.
+
+When the Media screen opens, the app requests a snapshot. The system-process hook reads `SourceInfo.getSourcePackage()` and `SourceInfo.getMusicInfo()`, then sends the values to the app through an explicit package broadcast. The UI receiver is registered only while the activity is resumed.
+
+Raw playback values are preserved for diagnostics and mapped for display:
+- `start` and `write` → `PLAYING`
+- `paused` → `PAUSED`
+- `stop` and `stopped` → `STOPPED`
+- empty or unrecognized values → `UNKNOWN`
+
+The hook does not replace `SourceInfo.OnEventListener`, issue playback commands, manage ACC transitions, or use the Bluetooth Binder service.
 
 ## Voltage configuration and process behavior
 
@@ -133,16 +153,14 @@ The hook targets `android.carsource.McuService` and its battery packet callback.
 
 ## Xposed API and build configuration
 
-The module uses the **Legacy XposedBridge API**, not Modern libxposed.
+The module uses the **Legacy XposedBridge API 82**, not Modern libxposed.
 
 - `de.robv.android.xposed:api:82` is the compile-time Legacy API dependency and is declared as `compileOnly`.
-- `xposedminversion=93` declares the minimum Xposed runtime API.
+- `xposedminversion=82` declares the minimum Xposed runtime API.
 - `assets/xposed_init` registers the Legacy Xposed entry point.
-- The declared LSPosed scope is `android`, matching the process targeted by the Voltage hook.
+- The declared LSPosed scope is `android`, matching the process targeted by the Media and Voltage hooks.
 - Android `minSdk` and `targetSdk` are both 28. The project compiles against SDK 35.
 - Java source and target compatibility are Java 17.
-
-The compile-time API artifact version, runtime Xposed API requirement, and Android SDK levels are separate version values.
 
 ## Dependency direction
 
