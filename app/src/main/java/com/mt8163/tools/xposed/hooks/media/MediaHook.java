@@ -213,7 +213,7 @@ public final class MediaHook implements PackageHook {
         boolean isForeground = false;
 
         try {
-            Object infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
+            Class<?> infoClass = XposedHelpers.findClass(SOURCE_INFO_CLASS, null);
             Object info = XposedHelpers.callStaticMethod(infoClass, "getInstance");
             Object sourceValue = XposedHelpers.callMethod(info, "getSourcePackage");
             packageName = sourceValue instanceof String
