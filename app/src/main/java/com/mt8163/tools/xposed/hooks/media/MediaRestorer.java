@@ -73,8 +73,13 @@ public final class MediaRestorer {
                 ? restoreBackgroundBluetooth : restoreBackgroundMedia);
 
         if (BLUETOOTH_PACKAGE.equals(packageName)) {
+            if (!isPlaying(state)) {
+                if (launchActivity) launchBluetoothActivity(appContext);
+                notifyCompletion(completion);
+                return () -> { };
+            }
             BluetoothRestore restore = new BluetoothRestore(
-                    appContext, launchActivity, state, completion);
+                    appContext, launchActivity, completion);
             restore.start();
             return restore;
         }
@@ -123,24 +128,28 @@ public final class MediaRestorer {
         }
 
         void start() {
-            if (launchActivity) launchPackageActivity(context, packageName);
-
             if (!playing) {
+                if (launchActivity) launchPackageActivity(context, packageName);
                 finish(null);
                 return;
             }
             if (manager == null) {
+                if (launchActivity) launchPackageActivity(context, packageName);
                 finish(null);
                 return;
             }
 
             handler.postDelayed(timeout, MEDIA_TIMEOUT_MS);
-            if (!launchActivity) {
-                MediaController existing = findStandardSession(getActiveSessions());
-                if (existing != null) {
-                    finish(existing);
-                    return;
-                }
+            if (launchActivity) {
+                registerListener();
+                if (!finished.get()) launchPackageActivity(context, packageName);
+                return;
+            }
+
+            MediaController existing = findStandardSession(getActiveSessions());
+            if (existing != null) {
+                finish(existing);
+                return;
             }
             registerListener();
         }
@@ -257,8 +266,7 @@ public final class MediaRestorer {
             }
         };
 
-        BluetoothRestore(Context context, boolean launchActivity, String playbackState,
-                         Completion completion) {
+        BluetoothRestore(Context context, boolean launchActivity, Completion completion) {
             this.context = context;
             this.launchActivity = launchActivity;
             this.completion = completion;
@@ -276,6 +284,7 @@ public final class MediaRestorer {
 
             if (launchActivity) {
                 registerListener();
+                if (state.get() != State.ACTIVE) return;
                 launchBluetoothActivity(context);
             } else {
                 sessionReady = hasVendorSession(getActiveSessions());
