@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
     private FrameLayout header;
     private FrameLayout content;
     private View overlay;
+    private View glow;
     private int selected;
 
     @Override
@@ -45,6 +46,7 @@ public final class MainActivity extends Activity {
         header = findViewById(R.id.header_container);
         content = findViewById(R.id.content_container);
         overlay = findViewById(R.id.disabled_overlay);
+        glow = findViewById(R.id.disabled_glow);
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
@@ -101,6 +103,7 @@ public final class MainActivity extends Activity {
         boolean enabled = modules.get(selected).isEnabled();
         content.setVisibility(enabled ? View.VISIBLE : View.GONE);
         overlay.setVisibility(enabled ? View.GONE : View.VISIBLE);
+        glow.setVisibility(enabled ? View.GONE : View.VISIBLE);
     }
 
     @Override
