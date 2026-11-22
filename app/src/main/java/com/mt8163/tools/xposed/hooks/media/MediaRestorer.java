@@ -13,6 +13,7 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
+import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
 
 import java.util.List;
@@ -64,6 +65,7 @@ public final class MediaRestorer {
                                       Completion completion) {
         Context appContext = context == null ? null : context.getApplicationContext();
         if (appContext == null || packageName == null || packageName.isEmpty()) {
+            logEvent(appContext, "restoreRejected", "Missing context or source package");
             if (completion != null) completion.onComplete();
             return () -> { };
         }
@@ -72,8 +74,13 @@ public final class MediaRestorer {
                 || (BLUETOOTH_PACKAGE.equals(packageName)
                 ? restoreBackgroundBluetooth : restoreBackgroundMedia);
 
+        logEvent(appContext, "restoreRequested", "Source: " + packageName
+                + ", playback: " + state + ", foreground: " + isForeground
+                + ", launchActivity: " + launchActivity);
+
         if (BLUETOOTH_PACKAGE.equals(packageName)) {
             if (!isPlaying(state)) {
+                logEvent(appContext, "bluetoothRestoreSkipped", "Playback state is " + state);
                 if (launchActivity) launchBluetoothActivity(appContext);
                 notifyCompletion(completion);
                 return () -> { };
@@ -129,25 +136,35 @@ public final class MediaRestorer {
 
         void start() {
             if (!playing) {
-                if (launchActivity) launchPackageActivity(context, packageName);
+                logEvent(context, "mediaPlaySkipped", "Snapshot state is not playing: " + packageName);
+                if (launchActivity) {
+                    logEvent(context, "mediaActivityLaunch", "Launching " + packageName);
+                    launchPackageActivity(context, packageName);
+                }
                 finish(null);
                 return;
             }
             if (manager == null) {
+                logEvent(context, "mediaRestoreFailed", "MediaSessionManager unavailable");
                 if (launchActivity) launchPackageActivity(context, packageName);
                 finish(null);
                 return;
             }
 
+            logEvent(context, "mediaRestoreWaiting", "Waiting for MediaSession: " + packageName);
             handler.postDelayed(timeout, MEDIA_TIMEOUT_MS);
             if (launchActivity) {
                 registerListener();
-                if (!finished.get()) launchPackageActivity(context, packageName);
+                if (!finished.get()) {
+                    logEvent(context, "mediaActivityLaunch", "Launching " + packageName);
+                    launchPackageActivity(context, packageName);
+                }
                 return;
             }
 
             MediaController existing = findStandardSession(getActiveSessions());
             if (existing != null) {
+                logEvent(context, "mediaSessionFound", "Existing session: " + packageName);
                 finish(existing);
                 return;
             }
@@ -176,7 +193,9 @@ public final class MediaRestorer {
             try {
                 manager.addOnActiveSessionsChangedListener(listener, null, handler);
                 listenerRegistered = true;
+                logEvent(context, "mediaSessionListenerRegistered", "Source: " + packageName);
             } catch (RuntimeException error) {
+                logEvent(context, "mediaSessionListenerFailed", error.toString());
                 finish(null);
             }
         }
@@ -184,12 +203,18 @@ public final class MediaRestorer {
         private void onSessionsChanged(List<MediaController> sessions) {
             if (finished.get()) return;
             MediaController controller = findStandardSession(sessions);
-            if (controller != null) finish(controller);
+            if (controller != null) {
+                logEvent(context, "mediaSessionFound", "Active session: " + packageName);
+                finish(controller);
+            }
         }
 
         private void finish(MediaController controller) {
             if (!finished.compareAndSet(false, true)) return;
             handler.removeCallbacks(timeout);
+            if (controller == null) {
+                logEvent(context, "mediaRestoreEnded", "No matching MediaSession; PLAY not sent");
+            }
             if (listenerRegistered) {
                 listenerRegistered = false;
                 try {
@@ -200,7 +225,9 @@ public final class MediaRestorer {
             if (controller != null && playing) {
                 try {
                     controller.getTransportControls().play();
-                } catch (RuntimeException ignored) {
+                    logEvent(context, "mediaPlaySent", "TransportControls.play(): " + packageName);
+                } catch (RuntimeException error) {
+                    logEvent(context, "mediaPlayFailed", error.toString());
                 }
             }
             notifyCompletion(completion);
@@ -278,6 +305,7 @@ public final class MediaRestorer {
         }
 
         void start() {
+            logEvent(context, "bluetoothRestoreStarted", "Waiting for vendor MediaSession and Binder service");
             if (manager == null) {
                 fail();
                 return;
@@ -291,6 +319,7 @@ public final class MediaRestorer {
                 launchBluetoothActivity(context);
             } else {
                 sessionReady = hasVendorSession(getActiveSessions());
+                if (sessionReady) logEvent(context, "bluetoothMediaSessionFound", "Existing vendor session");
                 if (!sessionReady) registerListener();
             }
 
@@ -326,6 +355,7 @@ public final class MediaRestorer {
 
         private void onSessionsChanged(List<MediaController> sessions) {
             if (state.get() != State.ACTIVE || !hasVendorSession(sessions)) return;
+            logEvent(context, "bluetoothMediaSessionFound", "Vendor MediaSession became active");
             synchronized (lock) {
                 sessionReady = true;
             }
@@ -341,7 +371,12 @@ public final class MediaRestorer {
             } catch (RuntimeException error) {
                 bound = false;
             }
-            if (!bound) fail();
+            if (!bound) {
+                logEvent(context, "bluetoothBindFailed", "Unable to bind vendor service");
+                fail();
+            } else {
+                logEvent(context, "bluetoothServiceBound", "Vendor service binding requested");
+            }
         }
 
         private void startWorkerIfReady() {
@@ -362,14 +397,18 @@ public final class MediaRestorer {
 
         private void restoreBluetooth(IBinder service) {
             try {
-                if (state.get() != State.ACTIVE
-                        || !queryBoolean(service, TRANSACTION_IS_A2DP_CONNECTED)) {
+                if (state.get() != State.ACTIVE) return;
+                boolean a2dpConnected = queryBoolean(service, TRANSACTION_IS_A2DP_CONNECTED);
+                logEvent(context, "bluetoothA2dpCheck", "Connected: " + a2dpConnected);
+                if (!a2dpConnected) {
                     fail();
                     return;
                 }
 
-                if (state.get() != State.ACTIVE
-                        || !queryBoolean(service, TRANSACTION_IS_AVRCP_CONNECTED)) {
+                if (state.get() != State.ACTIVE) return;
+                boolean avrcpConnected = queryBoolean(service, TRANSACTION_IS_AVRCP_CONNECTED);
+                logEvent(context, "bluetoothAvrcpCheck", "Connected: " + avrcpConnected);
+                if (!avrcpConnected) {
                     fail();
                     return;
                 }
@@ -377,9 +416,11 @@ public final class MediaRestorer {
                 if (!state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) return;
 
                 sendPlay(service);
+                logEvent(context, "bluetoothPlaySent", "send_Avrcp_Cmd(PLAY) transaction completed");
                 state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
                 finishResources();
             } catch (RemoteException | RuntimeException error) {
+                logEvent(context, "bluetoothRestoreFailed", error.toString());
                 fail();
             }
         }
@@ -418,6 +459,7 @@ public final class MediaRestorer {
         }
 
         private void onTimeout() {
+            logEvent(context, "bluetoothRestoreTimeout", "10-second restoration deadline reached");
             if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
                 finishResources();
             } else if (state.get() == State.PLAY_COMMITTED) {
@@ -426,7 +468,9 @@ public final class MediaRestorer {
         }
 
         private void fail() {
-            state.compareAndSet(State.ACTIVE, State.COMPLETED);
+            if (state.compareAndSet(State.ACTIVE, State.COMPLETED)) {
+                logEvent(context, "bluetoothRestoreFailed", "Readiness or connection check failed");
+            }
             finishResources();
         }
 
@@ -459,6 +503,7 @@ public final class MediaRestorer {
         public void cancel() {
             if (state.compareAndSet(State.ACTIVE, State.CANCELLED)
                     || state.get() == State.PLAY_COMMITTED) {
+                logEvent(context, "bluetoothRestoreCancelled", "Restoration cancelled");
                 finishResources();
             }
         }
@@ -481,6 +526,14 @@ public final class MediaRestorer {
             intent.setComponent(new ComponentName(BLUETOOTH_PACKAGE, BLUETOOTH_ACTIVITY));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private static void logEvent(Context context, String source, String message) {
+        if (context == null) return;
+        try {
+            EventLogger.log(context, "Media", source, message);
         } catch (RuntimeException ignored) {
         }
     }
