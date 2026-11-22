@@ -238,8 +238,11 @@ public final class VoltageHook implements PackageHook {
         }
 
         synchronized (LOCK) {
-            boolean changed = moduleEnabled != enabled
-                    || Float.compare(voltageOffset, offset) != 0;
+            boolean offsetChanged = Float.compare(voltageOffset, offset) != 0;
+            boolean changed = moduleEnabled != enabled || offsetChanged;
+
+            if (offsetChanged) hasReportedVoltageApplied = false;
+
             moduleEnabled = enabled;
             voltageOffset = offset;
             configurationGeneration++;
