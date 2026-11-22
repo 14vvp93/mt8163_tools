@@ -11,6 +11,7 @@ import android.os.RemoteException;
 
 public final class BluetoothMusicClient {
     public interface Listener {
+        void onSnapshot(String state);
         void onPlaybackState(String state);
         void onConnectionLost();
     }
@@ -35,6 +36,8 @@ public final class BluetoothMusicClient {
     private boolean bound;
     private boolean registered;
     private boolean closed;
+    private boolean initialSnapshotSent;
+    private String lastPlaybackState;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -42,13 +45,14 @@ public final class BluetoothMusicClient {
             synchronized (lock) {
                 if (closed) return;
                 service = binder;
-                try {
-                    binder.linkToDeath(deathRecipient, 0);
-                    registerCallbackLocked();
-                    publishSnapshotLocked();
-                } catch (RemoteException | RuntimeException error) {
-                    handleDisconnectLocked();
-                }
+            }
+
+            try {
+                binder.linkToDeath(deathRecipient, 0);
+                registerCallback(binder);
+                publishInitialSnapshot(binder);
+            } catch (RemoteException | RuntimeException error) {
+                handleDisconnect();
             }
         }
 
@@ -95,33 +99,43 @@ public final class BluetoothMusicClient {
         }
     }
 
-    private void registerCallbackLocked() throws RemoteException {
+    private void registerCallback(IBinder binder) throws RemoteException {
         Parcel data = Parcel.obtain();
         Parcel reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(SERVICE_DESCRIPTOR);
             data.writeStrongBinder(callback);
-            service.transact(10, data, reply, 0);
+            binder.transact(10, data, reply, 0);
             reply.readException();
-            registered = true;
+            synchronized (lock) {
+                if (service == binder && !closed) registered = true;
+            }
         } finally {
             reply.recycle();
             data.recycle();
         }
     }
 
-    private void publishSnapshotLocked() throws RemoteException {
-        boolean connected = queryBooleanLocked(1);
-        boolean playing = queryBooleanLocked(3);
-        listener.onPlaybackState(connected ? (playing ? "start" : "stop") : "unavailable");
+    private void publishInitialSnapshot(IBinder binder) throws RemoteException {
+        synchronized (lock) {
+            if (closed || service != binder || initialSnapshotSent) return;
+            boolean connected = queryBoolean(binder, 1);
+            boolean playing = queryBoolean(binder, 3);
+            String state = connected ? (playing ? "start" : "stop") : "unavailable";
+            if (!initialSnapshotSent) {
+                initialSnapshotSent = true;
+                lastPlaybackState = state;
+                listener.onSnapshot(state);
+            }
+        }
     }
 
-    private boolean queryBooleanLocked(int transaction) throws RemoteException {
+    private boolean queryBoolean(IBinder binder, int transaction) throws RemoteException {
         Parcel data = Parcel.obtain();
         Parcel reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(SERVICE_DESCRIPTOR);
-            service.transact(transaction, data, reply, 0);
+            binder.transact(transaction, data, reply, 0);
             reply.readException();
             return reply.readInt() != 0;
         } finally {
@@ -130,15 +144,25 @@ public final class BluetoothMusicClient {
         }
     }
 
-    private void handleDisconnect() {
+    private void dispatchPlaybackState(String state) {
         synchronized (lock) {
-            handleDisconnectLocked();
+            if (closed) return;
+            lastPlaybackState = state;
+            if (!initialSnapshotSent) {
+                initialSnapshotSent = true;
+                listener.onSnapshot(state);
+            } else {
+                listener.onPlaybackState(state);
+            }
         }
     }
 
-    private void handleDisconnectLocked() {
-        clearConnectionLocked();
-        if (!closed) listener.onConnectionLost();
+    private void handleDisconnect() {
+        synchronized (lock) {
+            if (closed) return;
+            clearConnectionLocked();
+            listener.onConnectionLost();
+        }
     }
 
     private void clearConnectionLocked() {
@@ -193,7 +217,7 @@ public final class BluetoothMusicClient {
             switch (code) {
                 case 1:
                     int a2dpState = data.readInt();
-                    if (a2dpState != 2) listener.onPlaybackState("stop");
+                    if (a2dpState != 2) dispatchPlaybackState("stop");
                     if (reply != null) reply.writeNoException();
                     return true;
                 case 2:
@@ -217,7 +241,7 @@ public final class BluetoothMusicClient {
                         data.readLong();
                         state = normalizeState(playbackState);
                     }
-                    listener.onPlaybackState(state);
+                    dispatchPlaybackState(state);
                     if (reply != null) reply.writeNoException();
                     return true;
                 default:
