@@ -357,6 +357,7 @@ public final class MediaRestorer {
                 new AtomicReference<>(State.ACTIVE);
         private final AtomicBoolean cleaned = new AtomicBoolean();
         private final Object lock = new Object();
+        private long deadlineElapsedRealtime;
 
         private IBinder binder;
         private boolean sessionReady;
