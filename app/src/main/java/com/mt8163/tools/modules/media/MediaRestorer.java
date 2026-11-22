@@ -47,6 +47,7 @@ public final class MediaRestorer {
                 thread.setDaemon(true);
                 return thread;
             });
+    private static final AtomicBoolean BLUETOOTH_WORKER_BUSY = new AtomicBoolean();
 
     public interface Cancellable {
         void cancel();
@@ -495,13 +496,27 @@ public final class MediaRestorer {
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || binder == null
                         || !sessionReady || workerSubmitted) return;
-                workerSubmitted = true;
                 service = binder;
+                if (!BLUETOOTH_WORKER_BUSY.compareAndSet(false, true)) {
+                    workerSubmitted = true;
+                    logEvent(context, "bluetoothRestoreBusy",
+                            "Previous Bluetooth Binder operation has not returned");
+                    fail();
+                    return;
+                }
+                workerSubmitted = true;
             }
 
             try {
-                BLUETOOTH_WORKER.execute(() -> restoreBluetooth(service));
+                BLUETOOTH_WORKER.execute(() -> {
+                    try {
+                        restoreBluetooth(service);
+                    } finally {
+                        BLUETOOTH_WORKER_BUSY.set(false);
+                    }
+                });
             } catch (RuntimeException error) {
+                BLUETOOTH_WORKER_BUSY.set(false);
                 fail();
             }
         }
