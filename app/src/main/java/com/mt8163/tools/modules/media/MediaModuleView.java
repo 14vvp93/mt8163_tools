@@ -33,17 +33,10 @@ public final class MediaModuleView {
         rawState.setText(raw.isEmpty() ? "Raw state: unavailable" : "Raw state: " + raw);
         foregroundState.setText(isForeground ? "FOREGROUND / FOCUSED" : "NOT FOREGROUND");
 
-        if ("start".equalsIgnoreCase(raw) || "write".equalsIgnoreCase(raw)) {
+        if ("playing".equalsIgnoreCase(raw)) {
             playbackState.setText("PLAYING");
         } else if ("paused".equalsIgnoreCase(raw)) {
             playbackState.setText("PAUSED");
-        } else if ("stop".equalsIgnoreCase(raw) || "stopped".equalsIgnoreCase(raw)) {
-            playbackState.setText("STOPPED");
-        } else if ("buffering".equalsIgnoreCase(raw)) {
-            playbackState.setText("BUFFERING");
-        } else if ("fast_forwarding".equalsIgnoreCase(raw)
-                || "rewinding".equalsIgnoreCase(raw)) {
-            playbackState.setText("PLAYING");
         } else {
             playbackState.setText("UNKNOWN");
         }
