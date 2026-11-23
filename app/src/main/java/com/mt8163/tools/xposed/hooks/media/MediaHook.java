@@ -49,6 +49,7 @@ public final class MediaHook implements PackageHook {
     private static boolean accHookInstalled;
     private static boolean windowManagerHookInstalled;
     private static long configurationGeneration;
+    private static boolean configurationLoaded;
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
@@ -223,13 +224,16 @@ public final class MediaHook implements PackageHook {
         BluetoothMusicClient cancelClient = null;
         MediaRestorer.Cancellable cancelRestore = null;
         boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
+        boolean changed;
         synchronized (LOCK) {
+            changed = configurationLoaded && moduleEnabled != enabled;
             configurationGeneration++;
             moduleEnabled = enabled;
             restoreBackgroundMedia = intent.getBooleanExtra(
                     EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
             restoreBackgroundBluetooth = intent.getBooleanExtra(
                     EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
+            configurationLoaded = true;
 
             if (!enabled) {
                 snapshotInProgress = false;
@@ -244,7 +248,9 @@ public final class MediaHook implements PackageHook {
 
         if (cancelClient != null) cancelClient.disconnect();
         if (cancelRestore != null) cancelRestore.cancel();
-        logEvent("configurationChanged", "Media enabled: " + enabled);
+        if (changed) {
+            logEvent("configurationChanged", "Media enabled: " + enabled);
+        }
     }
 
     private static void loadConfiguration() {
@@ -269,6 +275,7 @@ public final class MediaHook implements PackageHook {
                 moduleEnabled = enabled;
                 restoreBackgroundMedia = restoreMedia;
                 restoreBackgroundBluetooth = restoreBluetooth;
+                configurationLoaded = true;
             }
             logEvent("configurationLoaded", "Media settings loaded: enabled=" + enabled);
         } catch (Throwable error) {
