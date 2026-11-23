@@ -13,9 +13,12 @@ android {
     sourceSets {
         main {
             java {
-                srcDirs = ["../../app/src/main/java"]
-                include "com/mt8163/tools/modules/voltage/VoltageSettingsStore.java"
-                include "com/mt8163/tools/core/EventLogger.java"
+                srcDirs = [
+                        "../../app/src/main/java/com/mt8163/tools/modules/voltage",
+                        "../../app/src/main/java/com/mt8163/tools/core"
+                ]
+                include "VoltageSettingsStore.java"
+                include "EventLogger.java"
             }
         }
     }
