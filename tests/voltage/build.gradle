@@ -2,6 +2,8 @@ plugins {
     id 'com.android.library' version '8.7.3'
 }
 
+def moduleTestSources = layout.buildDirectory.dir("generated/moduleTestSources")
+
 android {
     namespace 'com.mt8163.tools.tests.voltage'
     compileSdk 35
@@ -16,14 +18,24 @@ android {
 
     sourceSets {
         main {
-            java {
-                setSrcDirs([
-                        "../../app/src/main/java/com/mt8163/tools/modules/voltage",
-                        "../../app/src/main/java/com/mt8163/tools/core"
-                ])
-                include "VoltageSettingsStore.java", "EventLogger.java"
-            }
+            java.srcDir(moduleTestSources)
         }
+    }
+}
+
+tasks.register("prepareModuleTestSources", Sync) {
+    from(rootProject.file("app/src/main/java/com/mt8163/tools/modules/voltage/VoltageSettingsStore.java")) {
+        into("com/mt8163/tools/modules/voltage")
+    }
+    from(rootProject.file("app/src/main/java/com/mt8163/tools/core/EventLogger.java")) {
+        into("com/mt8163/tools/core")
+    }
+    into(moduleTestSources)
+}
+
+tasks.configureEach { task ->
+    if (task.name == "compileDebugJavaWithJavac") {
+        task.dependsOn("prepareModuleTestSources")
     }
 }
 
