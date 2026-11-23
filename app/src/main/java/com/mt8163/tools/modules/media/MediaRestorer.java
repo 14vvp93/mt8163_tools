@@ -77,26 +77,28 @@ public final class MediaRestorer {
         boolean launchActivity = isForeground
                 || (BLUETOOTH_PACKAGE.equals(packageName)
                 ? restoreBackgroundBluetooth : restoreBackgroundMedia);
+        boolean shouldPlay = isPlaying(state);
 
         logEvent(appContext, "restoreRequested", "Source: " + packageName
                 + ", playback: " + state + ", foreground: " + isForeground
-                + ", launchActivity: " + launchActivity);
+                + ", launchActivity: " + launchActivity
+                + ", shouldPlay: " + shouldPlay);
 
         if (BLUETOOTH_PACKAGE.equals(packageName)) {
-            if (!isPlaying(state)) {
+            if (!shouldPlay) {
                 logEvent(appContext, "bluetoothRestoreSkipped", "Playback state is " + state);
-                if (launchActivity) launchBluetoothActivity(appContext);
+                if (launchActivity) launchSourceActivity(appContext, packageName);
                 notifyCompletion(completion);
                 return () -> { };
             }
             BluetoothRestore restore = new BluetoothRestore(
-                    appContext, launchActivity, completion);
+                    appContext, packageName, launchActivity, completion);
             restore.start();
             return restore;
         }
 
         StandardRestore restore = new StandardRestore(
-                appContext, packageName, launchActivity, state, completion);
+                appContext, packageName, launchActivity, shouldPlay, completion);
         restore.start();
         return restore;
     }
@@ -140,11 +142,11 @@ public final class MediaRestorer {
         private final Runnable timeout = this::onTimeout;
 
         StandardRestore(Context context, String packageName, boolean launchActivity,
-                        String state, Completion completion) {
+                        boolean shouldPlay, Completion completion) {
             this.context = context;
             this.packageName = packageName;
             this.launchActivity = launchActivity;
-            this.playing = isPlaying(state);
+            this.playing = shouldPlay;
             this.completion = completion;
             this.manager = (MediaSessionManager) context.getSystemService(
                     Context.MEDIA_SESSION_SERVICE);
@@ -154,14 +156,14 @@ public final class MediaRestorer {
             if (!playing) {
                 logEvent(context, "mediaPlaySkipped",
                         "Snapshot state is not playing: " + packageName);
-                if (launchActivity) launchPackageActivity(context, packageName);
+                if (launchActivity) launchSourceActivity(context, packageName);
                 completeWithoutPlay();
                 return;
             }
 
             if (manager == null) {
                 logEvent(context, "mediaRestoreFailed", "MediaSessionManager unavailable");
-                if (launchActivity) launchPackageActivity(context, packageName);
+                if (launchActivity) launchSourceActivity(context, packageName);
                 completeWithoutPlay();
                 return;
             }
@@ -176,13 +178,13 @@ public final class MediaRestorer {
 
             registerListener();
             if (!isActive()) {
-                if (launchActivity) launchPackageActivity(context, packageName);
+                if (launchActivity) launchSourceActivity(context, packageName);
                 return;
             }
 
             if (launchActivity) {
                 logEvent(context, "mediaActivityLaunch", "Launching " + packageName);
-                launchPackageActivity(context, packageName);
+                launchSourceActivity(context, packageName);
                 return;
             }
 
@@ -349,6 +351,7 @@ public final class MediaRestorer {
         private static final long PLAY_DELAY_MS = 1000L;
 
         private final Context context;
+        private final String packageName;
         private final boolean launchActivity;
         private final Completion completion;
         private final Handler handler = new Handler(Looper.getMainLooper());
@@ -410,8 +413,10 @@ public final class MediaRestorer {
             }
         };
 
-        BluetoothRestore(Context context, boolean launchActivity, Completion completion) {
+        BluetoothRestore(Context context, String packageName, boolean launchActivity,
+                         Completion completion) {
             this.context = context;
+            this.packageName = packageName;
             this.launchActivity = launchActivity;
             this.completion = completion;
             this.manager = (MediaSessionManager) context.getSystemService(
@@ -422,7 +427,7 @@ public final class MediaRestorer {
             logEvent(context, "bluetoothRestoreStarted",
                     "Waiting for vendor MediaSession and Binder service");
             if (manager == null) {
-                if (launchActivity) launchBluetoothActivity(context);
+                if (launchActivity) launchSourceActivity(context, packageName);
                 fail("MediaSessionManager unavailable");
                 return;
             }
@@ -435,12 +440,12 @@ public final class MediaRestorer {
 
             registerListener();
             if (state.get() != State.ACTIVE) {
-                if (launchActivity) launchBluetoothActivity(context);
+                if (launchActivity) launchSourceActivity(context, packageName);
                 return;
             }
 
             if (launchActivity) {
-                launchBluetoothActivity(context);
+                launchSourceActivity(context, packageName);
             }
 
             if (state.get() != State.ACTIVE) return;
@@ -946,31 +951,28 @@ public final class MediaRestorer {
         }
     }
 
-    private static void launchPackageActivity(Context context, String packageName) {
+    private static void launchSourceActivity(Context context, String packageName) {
         try {
-            PackageManager packageManager = context.getPackageManager();
-            Intent intent = packageManager.getLaunchIntentForPackage(packageName);
-            if (intent == null) {
-                logEvent(context, "mediaActivityLaunchFailed", "No launch Activity for " + packageName);
-                return;
+            Intent intent;
+            if (BLUETOOTH_PACKAGE.equals(packageName)) {
+                intent = new Intent();
+                intent.setComponent(new ComponentName(packageName, BLUETOOTH_ACTIVITY));
+            } else {
+                PackageManager packageManager = context.getPackageManager();
+                intent = packageManager.getLaunchIntentForPackage(packageName);
+                if (intent == null) {
+                    logEvent(context, "mediaActivityLaunchFailed",
+                            "No launch Activity for " + packageName);
+                    return;
+                }
             }
+
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-            logEvent(context, "mediaActivityLaunched", "Activity started: " + packageName);
+            logEvent(context, "mediaActivityLaunched",
+                    "Activity started: " + packageName);
         } catch (RuntimeException error) {
             logEvent(context, "mediaActivityLaunchFailed", error.toString());
-        }
-    }
-
-    private static void launchBluetoothActivity(Context context) {
-        try {
-            Intent intent = new Intent();
-            intent.setComponent(new ComponentName(BLUETOOTH_PACKAGE, BLUETOOTH_ACTIVITY));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
-            logEvent(context, "bluetoothActivityLaunched", "BtMusicActivity started");
-        } catch (RuntimeException error) {
-            logEvent(context, "bluetoothActivityLaunchFailed", error.toString());
         }
     }
 
