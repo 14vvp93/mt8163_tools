@@ -38,8 +38,6 @@ public final class MediaRestorer {
             "com.hcn.bluetooth.service.IBluetoothMusicService";
     private static final String SESSION_TAG_A2DP = "A2dpMediaBrowserService";
     private static final String SESSION_TAG_BLUETOOTH = "BluetoothMediaBrowserService";
-    private static final int TRANSACTION_IS_A2DP_CONNECTED = 1;
-    private static final int TRANSACTION_IS_AVRCP_CONNECTED = 2;
     private static final int TRANSACTION_SEND_AVRCP_COMMAND = 5;
     private static final long MEDIA_TIMEOUT_MS = 5000L;
     private static final long BLUETOOTH_TIMEOUT_MS = 30_000L;
@@ -369,14 +367,12 @@ public final class MediaRestorer {
         private boolean listenerRegistered;
         private boolean callbackRegistrationStarted;
         private boolean callbackRegistered;
-        private boolean initialStateReady;
+        private boolean callbacksReady;
         private boolean a2dpConnected;
         private boolean avrcpConnected;
         private boolean playDelayScheduled;
         private boolean playTaskSubmitted;
         private int profileStateVersion;
-        private int a2dpCallbackVersion;
-        private int avrcpCallbackVersion;
 
         private final MusicCallback callback = new MusicCallback();
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
@@ -450,14 +446,8 @@ public final class MediaRestorer {
 
             if (state.get() != State.ACTIVE) return;
             boolean existingSession = hasVendorSession(getActiveSessions());
-            synchronized (lock) {
-                if (state.get() == State.ACTIVE && existingSession) {
-                    sessionReady = true;
-                }
-            }
             if (existingSession) {
-                logEvent(context, "bluetoothMediaSessionFound",
-                        "Existing vendor session");
+                markSessionReady("Existing vendor session");
             }
 
             if (state.get() != State.ACTIVE) return;
@@ -500,14 +490,34 @@ public final class MediaRestorer {
         }
 
         private void onSessionsChanged(List<MediaController> sessions) {
-            if (state.get() != State.ACTIVE || !hasVendorSession(sessions)) return;
-            logEvent(context, "bluetoothMediaSessionFound",
-                    "Vendor MediaSession became active");
-            synchronized (lock) {
-                if (state.get() != State.ACTIVE) return;
-                sessionReady = true;
+            if (hasVendorSession(sessions)) {
+                markSessionReady("Vendor MediaSession became active");
             }
+        }
+
+        private void markSessionReady(String message) {
+            boolean removeListener;
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE || sessionReady) return;
+                sessionReady = true;
+                removeListener = listenerRegistered;
+                listenerRegistered = false;
+            }
+
+            if (removeListener) removeSessionListener();
+            logEvent(context, "bluetoothMediaSessionFound", message);
             startWorkerIfReady();
+        }
+
+        private void removeSessionListener() {
+            try {
+                manager.removeOnActiveSessionsChangedListener(listener);
+                logEvent(context, "bluetoothSessionListenerUnregistered",
+                        "MediaSession listener removed");
+            } catch (RuntimeException error) {
+                logEvent(context, "bluetoothSessionListenerUnregisterFailed",
+                        error.toString());
+            }
         }
 
         private void bindService() {
@@ -550,7 +560,6 @@ public final class MediaRestorer {
                         fail("Bluetooth initialization failed: " + error);
                     } finally {
                         BLUETOOTH_WORKER_BUSY.set(false);
-                        handler.post(this::onInitialStateReady);
                     }
                 });
             } catch (RuntimeException error) {
@@ -563,11 +572,9 @@ public final class MediaRestorer {
             if (state.get() != State.ACTIVE) return;
             registerCallback(service);
             if (state.get() != State.ACTIVE) return;
-
-            readInitialConnectionState(service, true);
-            if (state.get() != State.ACTIVE) return;
-
-            readInitialConnectionState(service, false);
+            if (!handler.post(this::onCallbacksReady)) {
+                fail("Unable to dispatch Bluetooth callback readiness");
+            }
         }
 
         private void registerCallback(IBinder service) throws RemoteException {
@@ -590,45 +597,26 @@ public final class MediaRestorer {
                 data.recycle();
             }
 
+            boolean active;
             synchronized (lock) {
                 callbackRegistered = true;
+                active = state.get() == State.ACTIVE;
+            }
+            if (!active) {
+                unregisterCallback(service);
+                return;
             }
             logEvent(context, "bluetoothCallbackRegistered",
                     "Waiting for A2DP and AVRCP state callbacks");
         }
 
-        private void readInitialConnectionState(IBinder service, boolean a2dp)
-                throws RemoteException {
-            final int callbackVersion;
+        private void onCallbacksReady() {
             synchronized (lock) {
-                callbackVersion = a2dp ? a2dpCallbackVersion : avrcpCallbackVersion;
+                if (state.get() != State.ACTIVE || !callbackRegistered) return;
+                callbacksReady = true;
             }
-
-            int transaction = a2dp
-                    ? TRANSACTION_IS_A2DP_CONNECTED : TRANSACTION_IS_AVRCP_CONNECTED;
-            boolean connected = queryBoolean(service, transaction);
-
-            synchronized (lock) {
-                if (state.get() != State.ACTIVE) return;
-                if (a2dp && callbackVersion == a2dpCallbackVersion) {
-                    a2dpConnected = connected;
-                } else if (!a2dp && callbackVersion == avrcpCallbackVersion) {
-                    avrcpConnected = connected;
-                }
-            }
-
-            logEvent(context, a2dp ? "bluetoothA2dpInitialState"
-                            : "bluetoothAvrcpInitialState",
-                    "Connected: " + connected);
-        }
-
-        private void onInitialStateReady() {
-            synchronized (lock) {
-                if (state.get() != State.ACTIVE) return;
-                initialStateReady = true;
-                logEvent(context, "bluetoothInitialStateReady",
-                        "A2DP: " + a2dpConnected + ", AVRCP: " + avrcpConnected);
-            }
+            logEvent(context, "bluetoothCallbacksReady",
+                    "Vendor callbacks registered; waiting for profile events");
             updatePlayDelay();
         }
 
@@ -639,10 +627,8 @@ public final class MediaRestorer {
 
                 profileStateVersion++;
                 if (a2dp) {
-                    a2dpCallbackVersion++;
                     a2dpConnected = connected;
                 } else {
-                    avrcpCallbackVersion++;
                     avrcpConnected = connected;
                 }
 
@@ -661,7 +647,7 @@ public final class MediaRestorer {
         private void updatePlayDelay() {
             boolean schedule = false;
             synchronized (lock) {
-                if (state.get() != State.ACTIVE || !initialStateReady
+                if (state.get() != State.ACTIVE || !callbacksReady
                         || !a2dpConnected || !avrcpConnected
                         || playDelayScheduled || playTaskSubmitted) {
                     return;
@@ -688,7 +674,7 @@ public final class MediaRestorer {
             final int connectionVersion;
             synchronized (lock) {
                 playDelayScheduled = false;
-                if (state.get() != State.ACTIVE || !initialStateReady
+                if (state.get() != State.ACTIVE || !callbacksReady
                         || !a2dpConnected || !avrcpConnected || binder == null
                         || playTaskSubmitted) {
                     return;
@@ -828,7 +814,7 @@ public final class MediaRestorer {
                 synchronized (lock) {
                     readiness = "MediaSession: " + sessionReady
                             + ", Binder: " + (binder != null)
-                            + ", initialStateReady: " + initialStateReady
+                            + ", callbacksReady: " + callbacksReady
                             + ", A2DP: " + a2dpConnected
                             + ", AVRCP: " + avrcpConnected;
                 }
@@ -873,18 +859,17 @@ public final class MediaRestorer {
                     bound = false;
                     try {
                         context.unbindService(connection);
-                    } catch (IllegalArgumentException ignored) {
+                        logEvent(context, "bluetoothServiceUnbound",
+                                "Vendor service unbound");
+                    } catch (IllegalArgumentException error) {
+                        logEvent(context, "bluetoothServiceUnbindFailed",
+                                error.toString());
                     }
                 }
                 binder = null;
             }
 
-            if (removeListener) {
-                try {
-                    manager.removeOnActiveSessionsChangedListener(listener);
-                } catch (RuntimeException ignored) {
-                }
-            }
+            if (removeListener) removeSessionListener();
 
             if (unregister && service != null) {
                 try {
