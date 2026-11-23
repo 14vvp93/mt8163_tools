@@ -124,7 +124,7 @@ jobs:
               .empty-events { min-height: 220px; display: grid; place-items: center; padding: 24px; color: var(--muted); text-align: center; font-size: 14px; }
               .footer-note { padding: 10px 2px 0; color: var(--muted); font-size: 11px; }
               @media (max-width: 900px) {
-                .stage { padding: 0; }
+                .stage { padding: 0; justify-content: flex-start; }
                 .app { border: 0; }
               }
               @media (max-height: 680px) {
