@@ -205,7 +205,7 @@ public final class EventsModuleView {
         int sourceStart = moduleStart + module.length();
         text.setSpan(new ForegroundColorSpan(Color.RED), moduleStart, sourceStart,
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.setSpan(new ForegroundColorSpan(Color.rgb(76, 175, 80)), sourceStart,
+        text.setSpan(new ForegroundColorSpan(Color.rgb(255, 64, 64)), sourceStart,
                 sourceStart + source.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         line.setText(text);
         return line;

@@ -35,9 +35,7 @@
         android:id="@+id/header_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="64dp"
-        android:minHeight="56dp"
-        android:showText="false"
-        android:thumbTint="@color/switch_thumb"
-        android:trackTint="@color/switch_track" />
+        android:minWidth="76dp"
+        android:minHeight="64dp"
+        android:showText="false" />
 </LinearLayout>

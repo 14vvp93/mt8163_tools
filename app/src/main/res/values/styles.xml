@@ -1,1 +1,19 @@
-<resources><style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">@color/neon_red</item><item name="android:windowLightStatusBar">false</item><item name="android:statusBarColor">@color/app_background</item><item name="android:navigationBarColor">@color/app_background</item><item name="android:windowBackground">@color/app_background</item></style></resources>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/neon_red</item>
+        <item name="android:switchStyle">@style/AppSwitch</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
+        <item name="android:windowBackground">@color/app_background</item>
+    </style>
+
+    <style name="AppSwitch" parent="@android:style/Widget.Material.CompoundButton.Switch">
+        <item name="android:thumbTint">@color/switch_thumb</item>
+        <item name="android:trackTint">@color/switch_track</item>
+        <item name="android:minWidth">72dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:switchMinWidth">56dp</item>
+    </style>
+</resources>
