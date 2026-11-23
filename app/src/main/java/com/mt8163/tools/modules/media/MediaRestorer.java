@@ -707,7 +707,8 @@ public final class MediaRestorer {
 
                         committed = !expired && state.get() == State.ACTIVE
                                 && a2dpConnected && avrcpConnected
-                                && connectionVersion == profileStateVersion;
+                                && connectionVersion == profileStateVersion
+                                && state.compareAndSet(State.ACTIVE, State.COMPLETED);
                         if (committed) playCommitted = true;
                         else playTaskSubmitted = false;
                     }
@@ -734,7 +735,6 @@ public final class MediaRestorer {
                     } catch (RemoteException | RuntimeException error) {
                         logEvent(context, "bluetoothPlayFailed", error.toString());
                     } finally {
-                        state.compareAndSet(State.ACTIVE, State.COMPLETED);
                         BLUETOOTH_WORKER_BUSY.set(false);
                         finishResources();
                     }
@@ -813,8 +813,9 @@ public final class MediaRestorer {
             synchronized (lock) {
                 committed = playCommitted;
                 if (state.get() == State.ACTIVE) {
-                    timedOut = state.compareAndSet(State.ACTIVE,
-                            committed ? State.COMPLETED : State.CANCELLED);
+                    timedOut = state.compareAndSet(State.ACTIVE, State.CANCELLED);
+                } else if (state.get() == State.COMPLETED && committed) {
+                    timedOut = true;
                 }
                 readiness = "MediaSession: " + sessionReady
                         + ", Binder: " + (binder != null)
