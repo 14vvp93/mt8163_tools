@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.library' version '8.7.3'
+}
+
+android {
+    namespace 'com.mt8163.tools.tests.media'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 28
+    }
+
+    sourceSets {
+        main {
+            java {
+                srcDirs = ["../../app/src/main/java"]
+                include "com/mt8163/tools/modules/media/MediaSettingsStore.java"
+                include "com/mt8163/tools/core/EventLogger.java"
+            }
+        }
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
