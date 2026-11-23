@@ -332,7 +332,6 @@ public final class MediaRestorer {
     private static final class BluetoothRestore implements Cancellable {
         private enum State {
             ACTIVE,
-            PLAY_COMMITTED,
             COMPLETED,
             CANCELLED
         }
@@ -372,6 +371,7 @@ public final class MediaRestorer {
         private boolean avrcpConnected;
         private boolean playDelayScheduled;
         private boolean playTaskSubmitted;
+        private boolean playCommitted;
         private int profileStateVersion;
 
         private final MusicCallback callback = new MusicCallback();
@@ -707,9 +707,9 @@ public final class MediaRestorer {
 
                         committed = !expired && state.get() == State.ACTIVE
                                 && a2dpConnected && avrcpConnected
-                                && connectionVersion == profileStateVersion
-                                && state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED);
-                        if (!committed) playTaskSubmitted = false;
+                                && connectionVersion == profileStateVersion;
+                        if (committed) playCommitted = true;
+                        else playTaskSubmitted = false;
                     }
 
                     if (!committed) {
@@ -734,7 +734,7 @@ public final class MediaRestorer {
                     } catch (RemoteException | RuntimeException error) {
                         logEvent(context, "bluetoothPlayFailed", error.toString());
                     } finally {
-                        state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
+                        state.compareAndSet(State.ACTIVE, State.COMPLETED);
                         BLUETOOTH_WORKER_BUSY.set(false);
                         finishResources();
                     }
@@ -807,31 +807,34 @@ public final class MediaRestorer {
         }
 
         private void onTimeout() {
-            if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
+            boolean timedOut = false;
+            boolean committed;
+            String readiness;
+            synchronized (lock) {
+                committed = playCommitted;
+                if (state.get() == State.ACTIVE) {
+                    timedOut = state.compareAndSet(State.ACTIVE,
+                            committed ? State.COMPLETED : State.CANCELLED);
+                }
+                readiness = "MediaSession: " + sessionReady
+                        + ", Binder: " + (binder != null)
+                        + ", callbacksReady: " + callbacksReady
+                        + ", A2DP: " + a2dpConnected
+                        + ", AVRCP: " + avrcpConnected;
+            }
+            if (timedOut) {
                 long elapsedMs = SystemClock.elapsedRealtime()
                         - (deadlineElapsedRealtime - BLUETOOTH_TIMEOUT_MS);
-                String readiness;
-                synchronized (lock) {
-                    readiness = "MediaSession: " + sessionReady
-                            + ", Binder: " + (binder != null)
-                            + ", callbacksReady: " + callbacksReady
-                            + ", A2DP: " + a2dpConnected
-                            + ", AVRCP: " + avrcpConnected;
-                }
                 logEvent(context, "bluetoothRestoreTimeout",
                         "30-second restoration deadline reached after "
-                                + elapsedMs + " ms; " + readiness);
-                finishResources();
-            } else if (state.get() == State.PLAY_COMMITTED) {
-                logEvent(context, "bluetoothRestoreTimeout",
-                        "Deadline reached after PLAY was committed");
+                                + elapsedMs + " ms; PLAY committed: "
+                                + committed + "; " + readiness);
                 finishResources();
             }
         }
 
         private void fail(String reason) {
-            boolean failed = state.compareAndSet(State.ACTIVE, State.COMPLETED)
-                    || state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
+            boolean failed = state.compareAndSet(State.ACTIVE, State.COMPLETED);
             if (failed) {
                 logEvent(context, "bluetoothRestoreFailed", reason);
                 finishResources();
@@ -885,10 +888,17 @@ public final class MediaRestorer {
 
         @Override
         public void cancel() {
-            if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
+            boolean cancelled;
+            boolean committed;
+            synchronized (lock) {
+                committed = playCommitted;
+                cancelled = !committed
+                        && state.compareAndSet(State.ACTIVE, State.CANCELLED);
+            }
+            if (cancelled) {
                 logEvent(context, "bluetoothRestoreCancelled", "Restoration cancelled");
                 finishResources();
-            } else if (state.get() == State.PLAY_COMMITTED) {
+            } else if (committed) {
                 logEvent(context, "bluetoothRestoreCancelIgnored",
                         "PLAY transaction was already committed");
             }
