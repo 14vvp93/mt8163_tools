@@ -27,6 +27,9 @@ tasks.register("prepareModuleTestSources", Sync) {
     from(rootProject.file("app/src/main/java/com/mt8163/tools/modules/media/MediaSettingsStore.java")) {
         into("com/mt8163/tools/modules/media")
     }
+    from(rootProject.file("app/src/main/java/com/mt8163/tools/modules/media/MediaRestorer.java")) {
+        into("com/mt8163/tools/modules/media")
+    }
     from(rootProject.file("app/src/main/java/com/mt8163/tools/core/EventLogger.java")) {
         into("com/mt8163/tools/core")
     }
