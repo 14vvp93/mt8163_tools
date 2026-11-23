@@ -11,6 +11,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +47,11 @@ public final class MediaSettingsStoreTest {
         when(modulePreferences.edit()).thenReturn(moduleEditor);
         when(hookPreferences.edit()).thenReturn(hookEditor);
         when(statePreferences.edit()).thenReturn(stateEditor);
+
+        when(moduleEditor.putBoolean(anyString(), anyBoolean())).thenReturn(moduleEditor);
+        when(hookEditor.putBoolean(anyString(), anyBoolean())).thenReturn(hookEditor);
+        when(stateEditor.putString(anyString(), anyString())).thenReturn(stateEditor);
+        when(stateEditor.putBoolean(anyString(), anyBoolean())).thenReturn(stateEditor);
 
         when(moduleEditor.putBoolean(
                 MediaSettingsStore.EXTRA_RESTORE_BACKGROUND_MEDIA, true))
