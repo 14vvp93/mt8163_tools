@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.compile.JavaCompile
+
 plugins {
     id 'com.android.library' version '8.7.3'
 }
@@ -10,22 +12,16 @@ android {
         minSdk 28
     }
 
-    sourceSets {
-        main {
-            java {
-                srcDirs = [
-                        "../../app/src/main/java/com/mt8163/tools/modules/voltage",
-                        "../../app/src/main/java/com/mt8163/tools/core"
-                ]
-                include "VoltageSettingsStore.java"
-                include "EventLogger.java"
-            }
-        }
-    }
-
     testOptions {
         unitTests.returnDefaultValues = true
     }
+}
+
+tasks.named("compileDebugJavaWithJavac", JavaCompile) {
+    source = files(
+            "../../app/src/main/java/com/mt8163/tools/modules/voltage/VoltageSettingsStore.java",
+            "../../app/src/main/java/com/mt8163/tools/core/EventLogger.java"
+    )
 }
 
 dependencies {
