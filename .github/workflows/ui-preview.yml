@@ -46,7 +46,7 @@ jobs:
               html, body { margin: 0; min-height: 100%; background: #090a0c; color: var(--primary); font-family: Arial, Helvetica, sans-serif; }
               body { overflow: auto; }
               button, input { font: inherit; }
-              .stage { width: 100%; min-height: 100vh; padding: 18px; display: flex; justify-content: center; align-items: flex-start; }
+              .stage { width: 100%; min-height: 100vh; padding: 0; display: flex; justify-content: center; align-items: flex-start; }
               .app { width: min(1280px, 100%); min-width: 860px; height: 720px; min-height: 640px; display: grid; grid-template-columns: 280px minmax(0, 1fr); background: var(--app); border: 1px solid #25282e; overflow: hidden; box-shadow: 0 16px 55px #0009; }
               .sidebar { min-width: 0; padding: 24px 20px 18px; background: var(--sidebar); display: flex; flex-direction: column; }
               .brand { height: 72px; display: flex; align-items: center; padding-left: 8px; flex: 0 0 auto; }
