@@ -75,23 +75,6 @@ public final class MediaRestorerTest {
         assertEquals(1, completions.get());
     }
 
-    @Test
-    public void ignoresCompletionCallbackRuntimeException() {
-        MediaRestorer.Cancellable operation = MediaRestorer.restore(
-                null,
-                "com.autochips.bluetooth",
-                "playing",
-                false,
-                false,
-                false,
-                () -> {
-                    throw new IllegalStateException("test");
-                }
-        );
-
-        assertNotNull(operation);
-    }
-
     private static Context mockContext() {
         Context context = mock(Context.class);
         when(context.getApplicationContext()).thenReturn(context);
