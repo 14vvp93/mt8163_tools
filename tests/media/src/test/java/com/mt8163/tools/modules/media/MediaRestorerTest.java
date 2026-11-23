@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
 import android.media.session.MediaController;
+import android.media.session.MediaSession;
 import android.media.session.MediaSessionManager;
 import android.os.Binder;
 import android.os.Handler;
@@ -12,13 +13,17 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,6 +52,7 @@ public final class MediaRestorerTest {
 
     private Context context;
     private MediaSessionManager manager;
+    private final List<MediaSession> mediaSessions = new ArrayList<>();
 
     @Before
     public void setUp() {
@@ -56,6 +62,14 @@ public final class MediaRestorerTest {
         when(context.getApplicationContext()).thenReturn(context);
         when(context.getSystemService(Context.MEDIA_SESSION_SERVICE)).thenReturn(manager);
         when(manager.getActiveSessions(null)).thenReturn(Collections.emptyList());
+    }
+
+    @After
+    public void tearDown() {
+        for (MediaSession session : mediaSessions) {
+            session.release();
+        }
+        mediaSessions.clear();
     }
 
     @Test
@@ -122,9 +136,8 @@ public final class MediaRestorerTest {
     @Test
     public void playsMatchingSessionOnceAndRemovesListener() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls =
-                mock(MediaController.TransportControls.class);
-        when(controller.getTransportControls()).thenReturn(controls);
+        AtomicInteger plays = new AtomicInteger();
+        when(controller.getTransportControls()).thenReturn(createTransportControls(plays));
         AtomicInteger completions = new AtomicInteger();
 
         MediaRestorer.Cancellable operation = startRestore(completions);
@@ -132,12 +145,15 @@ public final class MediaRestorerTest {
 
         listener.onActiveSessionsChanged(Collections.singletonList(
                 mockController("com.example.other")));
-        verify(controls, never()).play();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertEquals(0, plays.get());
 
         listener.onActiveSessionsChanged(Collections.singletonList(controller));
+        shadowOf(Looper.getMainLooper()).idle();
         listener.onActiveSessionsChanged(Collections.singletonList(controller));
+        shadowOf(Looper.getMainLooper()).idle();
 
-        verify(controls, times(1)).play();
+        assertEquals(1, plays.get());
         verify(manager, times(1)).removeOnActiveSessionsChangedListener(listener);
         assertEquals(1, completions.get());
 
@@ -148,9 +164,8 @@ public final class MediaRestorerTest {
     @Test
     public void cancelsRestoreAndIgnoresLateSessionCallback() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls =
-                mock(MediaController.TransportControls.class);
-        when(controller.getTransportControls()).thenReturn(controls);
+        AtomicInteger plays = new AtomicInteger();
+        when(controller.getTransportControls()).thenReturn(createTransportControls(plays));
         AtomicInteger completions = new AtomicInteger();
 
         MediaRestorer.Cancellable operation = startRestore(completions);
@@ -160,7 +175,7 @@ public final class MediaRestorerTest {
         listener.onActiveSessionsChanged(Collections.singletonList(controller));
         shadowOf(Looper.getMainLooper()).idleFor(6, TimeUnit.SECONDS);
 
-        verify(controls, never()).play();
+        assertEquals(0, plays.get());
         verify(manager, times(1)).removeOnActiveSessionsChangedListener(listener);
         assertEquals(1, completions.get());
     }
@@ -168,9 +183,8 @@ public final class MediaRestorerTest {
     @Test
     public void timesOutAfterFiveSecondsAndIgnoresLateSessionCallback() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls =
-                mock(MediaController.TransportControls.class);
-        when(controller.getTransportControls()).thenReturn(controls);
+        AtomicInteger plays = new AtomicInteger();
+        when(controller.getTransportControls()).thenReturn(createTransportControls(plays));
         AtomicInteger completions = new AtomicInteger();
 
         startRestore(completions);
@@ -178,8 +192,9 @@ public final class MediaRestorerTest {
 
         shadowOf(Looper.getMainLooper()).idleFor(5, TimeUnit.SECONDS);
         listener.onActiveSessionsChanged(Collections.singletonList(controller));
+        shadowOf(Looper.getMainLooper()).idle();
 
-        verify(controls, never()).play();
+        assertEquals(0, plays.get());
         verify(manager, times(1)).removeOnActiveSessionsChangedListener(listener);
         assertEquals(1, completions.get());
     }
@@ -304,6 +319,23 @@ public final class MediaRestorerTest {
         MediaController controller = mock(MediaController.class);
         when(controller.getPackageName()).thenReturn(packageName);
         return controller;
+    }
+
+    private MediaController.TransportControls createTransportControls(AtomicInteger plays) {
+        MediaSession session = new MediaSession(
+                RuntimeEnvironment.getApplication(), "MediaRestorerTest");
+        session.setCallback(new MediaSession.Callback() {
+            @Override
+            public void onPlay() {
+                plays.incrementAndGet();
+            }
+        }, new Handler(Looper.getMainLooper()));
+        session.setActive(true);
+        mediaSessions.add(session);
+
+        MediaController controller = new MediaController(
+                RuntimeEnvironment.getApplication(), session.getSessionToken());
+        return controller.getTransportControls();
     }
 
     private static final class RecordingBinder extends Binder {
