@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   generate-ui-preview:
-    name: Generate full app UI preview
+    name: Capture native Android UI and build HTML preview
     runs-on: ubuntu-latest
     steps:
       - name: Checkout development
@@ -16,87 +16,141 @@ jobs:
         with:
           ref: development
 
-      - name: Generate HTML preview
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Capture screens on Android 9 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          target: default
+          arch: x86
+          profile: pixel_2
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            mkdir -p ui-preview/screens
+            adb shell wm size 1280x720
+            adb shell wm density 160
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n com.mt8163.tools/.ui.MainActivity
+            sleep 3
+
+            adb exec-out screencap -p > ui-preview/screens/events.png
+
+            adb shell input tap 140 132
+            adb shell input tap 1216 40
+            sleep 1
+            adb exec-out screencap -p > ui-preview/screens/media.png
+
+            adb shell input tap 140 212
+            adb shell input tap 1216 40
+            sleep 1
+            adb exec-out screencap -p > ui-preview/screens/protection.png
+
+            adb shell input tap 140 292
+            adb shell input tap 1216 40
+            sleep 1
+            adb exec-out screencap -p > ui-preview/screens/voltage.png
+
+            adb shell input tap 140 372
+            adb shell input tap 1216 40
+            sleep 1
+            adb exec-out screencap -p > ui-preview/screens/autorun.png
+
+      - name: Build standalone HTML preview
         shell: bash
         run: |
-          cat > mt8163-tools-ui-preview.html <<'HTML'
-          <!DOCTYPE html>
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+
+          screens = [
+              ("Events", "events"),
+              ("Media", "media"),
+              ("Protection", "protection"),
+              ("Voltage", "voltage"),
+              ("Autorun", "autorun"),
+          ]
+
+          buttons = []
+          sections = []
+          for index, (title, key) in enumerate(screens):
+              image = Path(f"ui-preview/screens/{key}.png")
+              if not image.is_file():
+                  raise SystemExit(f"Missing native screenshot: {image}")
+              encoded = base64.b64encode(image.read_bytes()).decode("ascii")
+              active = " active" if index == 0 else ""
+              hidden = "" if index == 0 else " hidden"
+              buttons.append(
+                  f'<button class="tab{active}" data-screen="{key}">{title}</button>'
+              )
+              sections.append(
+                  f'<section class="screen{hidden}" id="screen-{key}">'
+                  f'<img src="data:image/png;base64,{encoded}" '
+                  f'alt="{title} screen captured from the Android app">'
+                  f'</section>'
+              )
+
+          html = """<!doctype html>
           <html lang="en">
           <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>MT8163 Tools — Full UI Preview</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>MT8163 Tools — Native UI Preview</title>
           <style>
-          :root{--app:#111316;--sidebar:#15171a;--header:#17191d;--panel:#1b1d22;--line:#2b2e34;--red:#ff3348;--primary:#f1f2f4;--secondary:#aeb2ba;--muted:#858a94;--off:#555b65;--green:#63d69a;--amber:#ffb45c}
-          *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08090b;color:var(--primary);font-family:Arial,Helvetica,sans-serif}
-          body{display:grid;place-items:center}#stage{width:1280px;height:720px;display:flex;background:var(--app);transform-origin:center center;overflow:hidden;box-shadow:0 18px 70px #0009}
-          .sidebar{width:280px;flex:none;background:var(--sidebar);padding:24px 20px 16px;display:flex;flex-direction:column}
-          .brand{height:72px;display:flex;align-items:center;padding-left:8px;margin-bottom:0}.brand-icon{width:44px;height:44px;border-radius:9px;background:var(--red);display:grid;place-items:center;font-size:16px;font-weight:800}
-          .brand-copy{padding-left:14px}.brand-name{font-size:17px;font-weight:800}.brand-sub{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.6px}
-          nav{display:flex;flex-direction:column;gap:8px;margin-top:0}.nav-item{height:72px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--secondary);display:flex;align-items:center;text-align:left;padding:0 12px;font-size:16px;font-weight:700;cursor:pointer}
-          .nav-item.active{background:#202329;color:var(--primary);box-shadow:inset 3px 0 var(--red)}.nav-icon{width:42px;height:42px;border-radius:5px;background:#202329;margin-right:14px;display:grid;place-items:center;font-size:21px;color:var(--secondary)}.nav-item.active .nav-icon{color:var(--red);background:#302126}
-          .nav-dot{width:8px;height:8px;border-radius:50%;margin-left:auto;background:var(--green)}.sidebar-foot{margin-top:auto;padding:10px 8px;color:#666c76;font-size:10px;letter-spacing:.7px}
-          .main{flex:1;min-width:0;display:flex;flex-direction:column}.header{height:80px;flex:none;background:var(--header);display:flex;align-items:center;padding:0 32px}
-          .header-title{font-size:24px;font-weight:750}.header-status{font-size:15px;color:var(--muted);margin-top:4px}.switch-area{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--secondary);font-size:13px}
-          .switch{appearance:none;-webkit-appearance:none;width:52px;height:28px;flex:none;border-radius:18px;border:0;background:var(--off);position:relative;cursor:pointer;margin:0}.switch:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:white;border-radius:50%;box-shadow:0 1px 3px #0008;transition:transform .15s}.switch:checked{background:var(--red)}.switch:checked:before{transform:translateX(24px)}
-          .content{height:640px;min-height:0;position:relative;background:var(--app);overflow:hidden}.page{display:none;height:100%;overflow:auto}.page.active{display:block}
-          .voltage{padding:24px;display:flex;flex-direction:column}.eyebrow{font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--red)}.page-title{font-size:30px;margin:6px 0 6px;font-weight:750}.page-desc{font-size:17px;color:var(--muted);margin:0}
-          .voltage-card{flex:1;min-height:0;margin-top:22px;background:var(--panel);padding:24px 32px;display:flex;flex-direction:column;justify-content:center}
-          .center{text-align:center}.small-label{font-size:14px;color:var(--muted);font-weight:700;letter-spacing:1.2px}.voltage-value{font-size:52px;font-weight:800;margin:10px 0 12px;font-variant-numeric:tabular-nums}
-          input[type=range]{width:100%;height:72px;appearance:none;background:transparent;cursor:pointer;accent-color:var(--red)}input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:6px;background:linear-gradient(to right,var(--red) 0,var(--red) var(--pct,50%),var(--line) var(--pct,50%),var(--line) 100%)}input[type=range]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-6.5px;box-shadow:0 1px 4px #0008}
-          input[type=range]::-moz-range-track{height:5px;background:var(--line)}input[type=range]::-moz-range-progress{height:5px;background:var(--red)}input[type=range]::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:#fff}
-          .scale{display:flex;justify-content:space-between;color:var(--muted);font-size:15px;margin-top:-3px}.scale span:nth-child(2){color:var(--secondary);font-weight:700}.step{text-align:center;color:var(--muted);font-size:14px;margin-top:14px}
-          button{font:inherit}.action{height:60px;border:0;border-radius:3px;background:var(--header);color:var(--primary);font-size:16px;cursor:pointer}.reset{margin-top:24px;height:64px;font-size:18px}
-          .media{padding:36px}.media h2{font-size:30px;margin:12px 0 24px}.info{margin-top:20px}.info-label{font-size:15px;color:var(--muted);margin-bottom:6px}.info-value{font-size:22px;overflow-wrap:anywhere}.info-value.strong{font-size:26px;font-weight:700}.raw{font-size:14px;color:var(--muted);margin-top:8px}
-          .divider{height:1px;background:var(--line);margin:24px 0 18px}.section{font-size:14px;color:var(--red);font-weight:700;letter-spacing:1px;margin-bottom:12px}.setting{display:flex;align-items:center;gap:20px;padding:12px 0;border-bottom:1px solid var(--line)}.setting-copy{flex:1}.setting-title{font-size:18px}.setting-desc{font-size:13px;color:var(--muted);margin-top:3px}
-          .plain{padding:36px;display:flex;align-items:center}.plain h2{font-size:32px;margin:12px 0}.plain p{font-size:18px;color:var(--muted);margin:0}
-          .events{padding:20px 28px 16px;display:flex;flex-direction:column;gap:0}.event-actions{height:64px;display:grid;grid-template-columns:repeat(4,1fr);gap:0}.event-actions .action{height:60px;font-size:15px}.filter{height:60px;width:100%;font-size:16px;text-align:left;padding:0 16px}.count{padding:12px 6px;color:#d3d3d3;font-size:15px}.log{flex:1;overflow:auto}.log-row{font-family:Consolas,monospace;font-size:15px;color:white;padding:12px 14px;overflow-wrap:anywhere}.log-row .mod{color:#ff3348}.log-row .src{color:#4caf50}
-          .disabled{display:none;position:absolute;inset:0;z-index:5;align-items:center;justify-content:center;background:#111316a8}.disabled.show{display:flex}.disabled-card{padding:28px;background:#202329;border:1px solid #343840;text-align:center}.disabled-card strong{font-size:18px}.disabled-card p{font-size:15px;color:var(--muted);margin:10px 0 0}
-          button:focus-visible,input:focus-visible{outline:2px solid var(--red);outline-offset:3px}
-          @media(max-width:700px){body{display:block}#stage{transform-origin:top left}}
+          *{box-sizing:border-box}
+          html,body{margin:0;min-height:100%;background:#090a0c;color:#f1f2f4;
+            font-family:Arial,Helvetica,sans-serif}
+          body{display:flex;flex-direction:column;align-items:center;padding:18px}
+          .top{width:min(1280px,100%);display:flex;align-items:center;gap:18px;
+            flex-wrap:wrap;margin-bottom:14px}
+          h1{font-size:18px;margin:0;font-weight:700}
+          .tabs{display:flex;gap:6px;flex-wrap:wrap}
+          .tab{border:1px solid #343840;background:#17191d;color:#aeb2ba;
+            padding:9px 15px;border-radius:4px;font-size:14px;cursor:pointer}
+          .tab.active{background:#ff3348;border-color:#ff3348;color:white}
+          .frame{width:min(1280px,100%);aspect-ratio:16/9;background:#111316;
+            box-shadow:0 12px 48px #0009;overflow:hidden}
+          .screen{width:100%;height:100%}
+          .screen[hidden]{display:none}
+          img{display:block;width:100%;height:100%;object-fit:contain}
+          .note{width:min(1280px,100%);color:#858a94;font-size:12px;margin-top:10px}
           </style>
           </head>
           <body>
-          <div id="stage">
-            <aside class="sidebar">
-              <div class="brand"><div class="brand-icon">MT</div><div class="brand-copy"><div class="brand-name">MT8163 TOOLS</div><div class="brand-sub">SYSTEM CONTROL PANEL</div></div></div>
-              <nav aria-label="Modules">
-                <button class="nav-item" data-id="media"><span class="nav-icon">♫</span>Media<span class="nav-dot"></span></button>
-                <button class="nav-item" data-id="protection"><span class="nav-icon">◇</span>Protection<span class="nav-dot"></span></button>
-                <button class="nav-item" data-id="voltage"><span class="nav-icon">ϟ</span>Voltage<span class="nav-dot"></span></button>
-                <button class="nav-item" data-id="autorun"><span class="nav-icon">↗</span>Autorun<span class="nav-dot"></span></button>
-                <button class="nav-item active" data-id="events"><span class="nav-icon">≋</span>Events<span class="nav-dot"></span></button>
-              </nav>
-              <div class="sidebar-foot">MT8163 TOOLS</div>
-            </aside>
-            <main class="main">
-              <header class="header"><div><div class="header-title" id="header-title">Events</div><div class="header-status" id="header-status">Module enabled</div></div><div class="switch-area"><span id="switch-label">Module enabled</span><input class="switch" id="module-switch" type="checkbox" aria-label="Enable module"></div></header>
-              <section class="content">
-                <div class="page voltage" id="page-voltage"><div class="eyebrow">VOLTAGE</div><h1 class="page-title">Voltage Offset</h1><p class="page-desc">Adjust the voltage reported by the MCU</p><div class="voltage-card"><div class="small-label center">CURRENT CORRECTION</div><div class="voltage-value center" id="voltage-value">+0.0 V</div><input id="voltage-range" type="range" min="0" max="40" step="1" value="20" aria-label="Voltage correction"><div class="scale"><span>−2.0 V</span><span>0.0 V</span><span>+2.0 V</span></div><div class="step">STEP&nbsp; 0.1 V</div><button class="action reset" id="reset-voltage">Reset to 0.0 V</button></div></div>
-                <div class="page media" id="page-media"><div class="eyebrow">MEDIA</div><h2>Audio Source</h2><div class="info"><div class="info-label">Source package</div><div class="info-value" id="source-package">Unknown</div></div><div class="info"><div class="info-label">Playback state</div><div class="info-value strong" id="playback-state">UNKNOWN</div><div class="raw" id="raw-state">Raw state: unavailable</div></div><div class="info"><div class="info-label">Window focus</div><div class="info-value strong" id="focus-state">NOT FOREGROUND</div></div><div class="divider"></div><div class="section">BACKGROUND RESTORE</div><div class="setting"><div class="setting-copy"><div class="setting-title">Restore background media player</div><div class="setting-desc">Open the media app when it was in the background</div></div><input class="switch" type="checkbox" checked aria-label="Restore background media player"></div><div class="setting"><div class="setting-copy"><div class="setting-title">Restore background Bluetooth player</div><div class="setting-desc">Open Bluetooth music when it was in the background</div></div><input class="switch" type="checkbox" checked aria-label="Restore background Bluetooth player"></div></div>
-                <div class="page plain" id="page-protection"><div><div class="eyebrow">PROTECTION</div><h2>Protection</h2><p>Модуль налаштування захисту системи.</p></div></div>
-                <div class="page plain" id="page-autorun"><div><div class="eyebrow">AUTORUN</div><h2>Autorun</h2><p>Модуль керування автоматичним запуском.</p></div></div>
-                <div class="page events active" id="page-events"><div class="event-actions"><button class="action" id="refresh">Оновити</button><button class="action" id="copy">Копіювати</button><button class="action" id="clear">Очистити</button><button class="action" id="export">Експорт</button></div><button class="action filter" id="filter">Усі модулі&nbsp; ▾</button><div class="count" id="event-count">0 завантажено · втрачено 0 · максимум 5000 · прокрутіть угору для старіших</div><div class="log" id="log"><div class="log-row">23.11.26 13:42:10 <span class="mod">[Voltage]</span><span class="src">[settingsChanged]</span>: Voltage offset: +0.0 V → +0.2 V</div><div class="log-row">23.11.26 13:41:52 <span class="mod">[Media]</span><span class="src">[stateChanged]</span>: Playback state updated</div><div class="log-row">23.11.26 13:40:06 <span class="mod">[Voltage]</span><span class="src">[moduleEnabled]</span>: Voltage module enabled</div><div class="log-row">23.11.26 13:39:42 <span class="mod">[Events]</span><span class="src">[moduleEnabled]</span>: Events module enabled</div></div></div>
-                <div class="disabled" id="disabled"><div class="disabled-card"><strong>MODULE DISABLED</strong><p>Enable this module using the switch above</p></div></div>
-              </section>
-            </main>
-          </div>
+          <header class="top"><h1>MT8163 Tools · Native Android UI</h1>
+          <nav class="tabs">""" + "".join(buttons) + """</nav></header>
+          <main class="frame">""" + "".join(sections) + """</main>
+          <p class="note">Screens captured from the app on Android 9 (API 28), 1280×720,
+          160 dpi. The screenshots show native Android rendering.</p>
           <script>
-          (()=>{const stage=document.getElementById('stage');function fit(){const s=Math.min(innerWidth/1280,innerHeight/720);stage.style.transform='scale('+s+')'}addEventListener('resize',fit);fit();
-          const ids=['media','protection','voltage','autorun','events'];const enabled={media:true,protection:false,voltage:true,autorun:false,events:true};let selected='events';
-          const title=document.getElementById('header-title'),status=document.getElementById('header-status'),label=document.getElementById('switch-label'),toggle=document.getElementById('module-switch'),disabled=document.getElementById('disabled');
-          function render(){document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.id===selected));document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+selected));title.textContent=selected[0].toUpperCase()+selected.slice(1);toggle.checked=enabled[selected];status.textContent=enabled[selected]?'Module enabled':'Module disabled';label.textContent=status.textContent;disabled.classList.toggle('show',!enabled[selected])}
-          document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>{selected=b.dataset.id;render()}));toggle.addEventListener('change',()=>{enabled[selected]=toggle.checked;render()});
-          const range=document.getElementById('voltage-range'),value=document.getElementById('voltage-value');function update(){const n=(Number(range.value)-20)/10;value.textContent=(n>=0?'+':'−')+Math.abs(n).toFixed(1)+' V';range.style.setProperty('--pct',(Number(range.value)/40*100)+'%')}range.addEventListener('input',update);document.getElementById('reset-voltage').addEventListener('click',()=>{range.value='20';update()});update();
-          document.getElementById('refresh').addEventListener('click',()=>{document.getElementById('event-count').textContent='Демонстраційний журнал оновлено'});document.getElementById('copy').addEventListener('click',async()=>{const text=[...document.querySelectorAll('.log-row')].map(x=>x.innerText).join('\n');try{await navigator.clipboard.writeText(text);document.getElementById('event-count').textContent='Записи скопійовано'}catch(e){document.getElementById('event-count').textContent='Буфер обміну недоступний'}});
-          document.getElementById('clear').addEventListener('click',()=>{if(confirm('Очистити демонстраційний журнал?')){document.getElementById('log').replaceChildren();document.getElementById('event-count').textContent='0 завантажено · втрачено 0 · максимум 5000'}});
-          document.getElementById('export').addEventListener('click',()=>{const blob=new Blob([[...document.querySelectorAll('.log-row')].map(x=>x.innerText).join('\n')],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='MT8163Tools_Events.txt';a.click();URL.revokeObjectURL(url)});
-          document.getElementById('filter').addEventListener('click',()=>{const choices=['Усі модулі','Media','Protection','Voltage','Autorun','Events'];const choice=prompt('Введіть назву модуля для фільтра:\n'+choices.join('\n'),'Усі модулі');if(!choice||!choices.includes(choice))return;document.getElementById('filter').textContent=choice+'  ▾';document.querySelectorAll('.log-row').forEach(row=>row.hidden=choice!=='Усі модулі'&&!row.textContent.includes('['+choice+']'))});
-          render()})();
+          document.querySelectorAll(".tab").forEach(button=>{
+            button.addEventListener("click",()=>{
+              document.querySelectorAll(".tab").forEach(item=>item.classList.remove("active"));
+              document.querySelectorAll(".screen").forEach(item=>item.hidden=true);
+              button.classList.add("active");
+              document.getElementById("screen-"+button.dataset.screen).hidden=false;
+            });
+          });
           </script>
-          </body>
-          </html>
-          HTML
+          </body></html>"""
+
+          Path("mt8163-tools-ui-preview.html").write_text(html, encoding="utf-8")
+          PY
 
       - name: Upload HTML preview
         uses: actions/upload-artifact@v4
