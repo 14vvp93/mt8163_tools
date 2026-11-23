@@ -42,7 +42,7 @@ public final class MediaRestorer {
     private static final int TRANSACTION_IS_AVRCP_CONNECTED = 2;
     private static final int TRANSACTION_SEND_AVRCP_COMMAND = 5;
     private static final long MEDIA_TIMEOUT_MS = 5000L;
-    private static final long BLUETOOTH_TIMEOUT_MS = 5000L;
+    private static final long BLUETOOTH_TIMEOUT_MS = 30_000L;
 
     private static final ExecutorService BLUETOOTH_WORKER =
             Executors.newSingleThreadExecutor(runnable -> {
@@ -433,26 +433,26 @@ public final class MediaRestorer {
                 return;
             }
 
+            registerListener();
+            if (state.get() != State.ACTIVE) {
+                if (launchActivity) launchBluetoothActivity(context);
+                return;
+            }
+
             if (launchActivity) {
-                registerListener();
-                if (state.get() != State.ACTIVE) {
-                    launchBluetoothActivity(context);
-                    return;
-                }
                 launchBluetoothActivity(context);
-            } else {
-                registerListener();
-                if (state.get() != State.ACTIVE) return;
-                boolean existingSession = hasVendorSession(getActiveSessions());
-                synchronized (lock) {
-                    if (state.get() == State.ACTIVE && existingSession) {
-                        sessionReady = true;
-                    }
+            }
+
+            if (state.get() != State.ACTIVE) return;
+            boolean existingSession = hasVendorSession(getActiveSessions());
+            synchronized (lock) {
+                if (state.get() == State.ACTIVE && existingSession) {
+                    sessionReady = true;
                 }
-                if (existingSession) {
-                    logEvent(context, "bluetoothMediaSessionFound",
-                            "Existing vendor session");
-                }
+            }
+            if (existingSession) {
+                logEvent(context, "bluetoothMediaSessionFound",
+                        "Existing vendor session");
             }
 
             if (state.get() != State.ACTIVE) return;
@@ -724,8 +724,11 @@ public final class MediaRestorer {
                     if (!committed) {
                         BLUETOOTH_WORKER_BUSY.set(false);
                         if (expired) {
+                            long elapsedMs = SystemClock.elapsedRealtime()
+                                    - (deadlineElapsedRealtime - BLUETOOTH_TIMEOUT_MS);
                             logEvent(context, "bluetoothRestoreTimeout",
-                                    "5-second deadline reached before PLAY commit");
+                                    "30-second deadline reached before PLAY commit after "
+                                            + elapsedMs + " ms");
                             finishResources();
                         } else {
                             handler.post(this::updatePlayDelay);
@@ -814,8 +817,19 @@ public final class MediaRestorer {
 
         private void onTimeout() {
             if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
+                long elapsedMs = SystemClock.elapsedRealtime()
+                        - (deadlineElapsedRealtime - BLUETOOTH_TIMEOUT_MS);
+                String readiness;
+                synchronized (lock) {
+                    readiness = "MediaSession: " + sessionReady
+                            + ", Binder: " + (binder != null)
+                            + ", initialStateReady: " + initialStateReady
+                            + ", A2DP: " + a2dpConnected
+                            + ", AVRCP: " + avrcpConnected;
+                }
                 logEvent(context, "bluetoothRestoreTimeout",
-                        "5-second restoration deadline reached");
+                        "30-second restoration deadline reached after "
+                                + elapsedMs + " ms; " + readiness);
                 finishResources();
             } else if (state.get() == State.PLAY_COMMITTED) {
                 logEvent(context, "bluetoothRestoreTimeout",
