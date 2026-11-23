@@ -1,10 +1,16 @@
 package com.mt8163.tools.modules.media;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.ServiceConnection;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
+import android.os.Binder;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
+import android.os.Parcel;
+import android.os.RemoteException;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -15,6 +21,7 @@ import org.robolectric.annotation.Config;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.mockito.ArgumentCaptor;
 
@@ -22,6 +29,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -33,6 +41,9 @@ import static org.robolectric.Shadows.shadowOf;
 @Config(sdk = 28)
 public final class MediaRestorerTest {
     private static final String SOURCE_PACKAGE = "com.example.player";
+    private static final String BLUETOOTH_PACKAGE = "com.autochips.bluetooth";
+    private static final String CALLBACK_DESCRIPTOR =
+            "com.hcn.bluetooth.service.IBluetoothMusicService";
 
     private Context context;
     private MediaSessionManager manager;
@@ -55,7 +66,7 @@ public final class MediaRestorerTest {
         for (String playbackState : states) {
             MediaRestorer.Cancellable operation = MediaRestorer.restore(
                     context,
-                    "com.autochips.bluetooth",
+                    BLUETOOTH_PACKAGE,
                     playbackState,
                     false,
                     false,
@@ -76,7 +87,7 @@ public final class MediaRestorerTest {
 
         MediaRestorer.Cancellable operation = MediaRestorer.restore(
                 null,
-                "com.autochips.bluetooth",
+                BLUETOOTH_PACKAGE,
                 "playing",
                 false,
                 false,
@@ -111,7 +122,8 @@ public final class MediaRestorerTest {
     @Test
     public void playsMatchingSessionOnceAndRemovesListener() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls = mock(MediaController.TransportControls.class);
+        MediaController.TransportControls controls =
+                mock(MediaController.TransportControls.class);
         when(controller.getTransportControls()).thenReturn(controls);
         AtomicInteger completions = new AtomicInteger();
 
@@ -136,7 +148,8 @@ public final class MediaRestorerTest {
     @Test
     public void cancelsRestoreAndIgnoresLateSessionCallback() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls = mock(MediaController.TransportControls.class);
+        MediaController.TransportControls controls =
+                mock(MediaController.TransportControls.class);
         when(controller.getTransportControls()).thenReturn(controls);
         AtomicInteger completions = new AtomicInteger();
 
@@ -155,7 +168,8 @@ public final class MediaRestorerTest {
     @Test
     public void timesOutAfterFiveSecondsAndIgnoresLateSessionCallback() {
         MediaController controller = mockController(SOURCE_PACKAGE);
-        MediaController.TransportControls controls = mock(MediaController.TransportControls.class);
+        MediaController.TransportControls controls =
+                mock(MediaController.TransportControls.class);
         when(controller.getTransportControls()).thenReturn(controls);
         AtomicInteger completions = new AtomicInteger();
 
@@ -189,6 +203,57 @@ public final class MediaRestorerTest {
         assertEquals(1, completions.get());
     }
 
+    @Test
+    public void bluetoothCancelBeforeBinderConnectionPreventsLateInitialization() {
+        AtomicReference<ServiceConnection> connection = new AtomicReference<>();
+        RecordingBinder binder = new RecordingBinder();
+        AtomicInteger completions = new AtomicInteger();
+        prepareBluetoothService(connection);
+
+        MediaRestorer.Cancellable operation = startBluetoothRestore(completions);
+        assertNotNull(connection.get());
+
+        operation.cancel();
+        connection.get().onServiceConnected(
+                new ComponentName("com.hcn.bluetoothservice",
+                        "com.hcn.bluetooth.service.BluetoothMusicService"),
+                binder);
+
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(0, binder.getRegisterCalls());
+        assertEquals(0, binder.getPlayCalls());
+        assertEquals(1, completions.get());
+        verify(context, times(1)).unbindService(connection.get());
+    }
+
+    @Test
+    public void bluetoothThirtySecondTimeoutPreventsLateBinderInitialization() {
+        AtomicReference<ServiceConnection> connection = new AtomicReference<>();
+        RecordingBinder binder = new RecordingBinder();
+        AtomicInteger completions = new AtomicInteger();
+        prepareBluetoothService(connection);
+
+        MediaRestorer.Cancellable operation = startBluetoothRestore(completions);
+        assertNotNull(connection.get());
+
+        shadowOf(Looper.getMainLooper()).idleFor(30, TimeUnit.SECONDS);
+        connection.get().onServiceConnected(
+                new ComponentName("com.hcn.bluetoothservice",
+                        "com.hcn.bluetooth.service.BluetoothMusicService"),
+                binder);
+
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(0, binder.getRegisterCalls());
+        assertEquals(0, binder.getPlayCalls());
+        assertEquals(1, completions.get());
+        verify(context, times(1)).unbindService(connection.get());
+
+        operation.cancel();
+        assertEquals(1, completions.get());
+    }
+
     private MediaRestorer.Cancellable startRestore(AtomicInteger completions) {
         return MediaRestorer.restore(
                 context,
@@ -199,6 +264,30 @@ public final class MediaRestorerTest {
                 false,
                 completions::incrementAndGet
         );
+    }
+
+    private MediaRestorer.Cancellable startBluetoothRestore(AtomicInteger completions) {
+        return MediaRestorer.restore(
+                context,
+                BLUETOOTH_PACKAGE,
+                "playing",
+                false,
+                false,
+                false,
+                completions::incrementAndGet
+        );
+    }
+
+    private void prepareBluetoothService(AtomicReference<ServiceConnection> connection) {
+        MediaController vendorController = mock(MediaController.class);
+        when(vendorController.getTag()).thenReturn("A2dpMediaBrowserService");
+        when(manager.getActiveSessions(null)).thenReturn(
+                Collections.singletonList(vendorController));
+
+        doAnswer(invocation -> {
+            connection.set(invocation.getArgument(1));
+            return true;
+        }).when(context).bindService(any(), any(ServiceConnection.class), any(Integer.class));
     }
 
     private MediaSessionManager.OnActiveSessionsChangedListener captureListener() {
@@ -215,5 +304,38 @@ public final class MediaRestorerTest {
         MediaController controller = mock(MediaController.class);
         when(controller.getPackageName()).thenReturn(packageName);
         return controller;
+    }
+
+    private static final class RecordingBinder extends Binder {
+        private final AtomicInteger registerCalls = new AtomicInteger();
+        private final AtomicInteger playCalls = new AtomicInteger();
+
+        @Override
+        protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
+                throws RemoteException {
+            if (code == 10) {
+                registerCalls.incrementAndGet();
+                if (reply != null) reply.writeNoException();
+                return true;
+            }
+            if (code == 5) {
+                playCalls.incrementAndGet();
+                if (reply != null) reply.writeNoException();
+                return true;
+            }
+            if (code == 11) {
+                if (reply != null) reply.writeNoException();
+                return true;
+            }
+            return super.onTransact(code, data, reply, flags);
+        }
+
+        int getRegisterCalls() {
+            return registerCalls.get();
+        }
+
+        int getPlayCalls() {
+            return playCalls.get();
+        }
     }
 }
