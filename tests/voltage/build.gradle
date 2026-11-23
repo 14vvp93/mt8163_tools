@@ -17,11 +17,13 @@ android {
     }
 }
 
-tasks.named("compileDebugJavaWithJavac", JavaCompile) {
-    source = files(
-            "../../app/src/main/java/com/mt8163/tools/modules/voltage/VoltageSettingsStore.java",
-            "../../app/src/main/java/com/mt8163/tools/core/EventLogger.java"
-    )
+tasks.configureEach { task ->
+    if (task.name == "compileDebugJavaWithJavac" && task instanceof JavaCompile) {
+        task.source = files(
+                "../../app/src/main/java/com/mt8163/tools/modules/voltage/VoltageSettingsStore.java",
+                "../../app/src/main/java/com/mt8163/tools/core/EventLogger.java"
+        )
+    }
 }
 
 dependencies {
