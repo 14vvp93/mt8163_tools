@@ -7,34 +7,157 @@ permissions:
   contents: read
 
 concurrency:
-  group: html-preview-${{ github.ref }}
+  group: html-preview
   cancel-in-progress: true
 
 jobs:
   html-preview:
-    name: Generate HTML Preview
+    name: Build current Android UI and generate HTML
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout selected branch
-        uses: actions/checkout@v7
+    timeout-minutes: 35
 
-      - name: Validate preview
+    steps:
+      - name: Checkout current development source
+        uses: actions/checkout@v7
+        with:
+          ref: development
+          path: source
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: Build app and UI instrumentation tests
+        working-directory: source
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Run Android 9 and capture current UI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          target: default
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          force-avd-creation: true
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+
+            adb shell wm size 1280x720
+            adb shell wm density 160
+            adb shell settings put system font_scale 1.0
+
+            adb install -r source/app/build/outputs/apk/debug/app-debug.apk
+            adb install -r source/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell pm clear com.mt8163.tools
+
+            TEST_OUTPUT="$(adb shell am instrument -w -r \
+              -e class com.mt8163.tools.UiPreviewTest \
+              com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner 2>&1)"
+            printf '%s\\n' "$TEST_OUTPUT"
+            grep -q 'OK (1 test)' <<< "$TEST_OUTPUT"
+
+            mkdir -p dist/html-preview/screenshots
+            adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview dist/html-preview/screenshots
+
+      - name: Generate HTML from captured Android screens
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          test -s preview/index.html
-          grep -q '<title>MT8163 Tools — HTML Preview</title>' preview/index.html
-          grep -q 'id="voltage-range"' preview/index.html
-          grep -q 'id="add-application"' preview/index.html
-          grep -q 'id="backdrop"' preview/index.html
-          sed -n '/<script>/,/<\\/script>/p' preview/index.html | sed '1d;$d' > /tmp/preview.js
-          node --check /tmp/preview.js
-          echo "HTML Preview validated ($(wc -c < preview/index.html) bytes)." >> "$GITHUB_STEP_SUMMARY"
+          SOURCE_COMMIT="$(git -C source rev-parse HEAD)"
+          export SOURCE_COMMIT
 
-      - name: Upload HTML Preview
+          python3 - <<'PY'
+          from datetime import datetime, timezone
+          from html import escape
+          from pathlib import Path
+          import os
+
+          output = Path("dist/html-preview")
+          screenshots = sorted((output / "screenshots" / "ui-preview").glob("*.png"))
+          if not screenshots:
+              screenshots = sorted((output / "screenshots").glob("*.png"))
+          if not screenshots:
+              raise SystemExit("No Android UI screenshots were captured.")
+
+          cards = []
+          for image in screenshots:
+              name = image.stem
+              title = name.split("-", 1)[1].replace("-", " ").title() if "-" in name else name
+              cards.append(
+                  '<a class="screen" href="screenshots/ui-preview/{0}" target="_blank" rel="noopener">'
+                  '<img src="screenshots/ui-preview/{0}" alt="{1}" loading="lazy">'
+                  '<span>{1}</span></a>'.format(escape(image.name), escape(title))
+              )
+
+          source_commit = escape(os.environ["SOURCE_COMMIT"])
+          generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+          document = """<!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="theme-color" content="#111316">
+            <title>MT8163 Tools — Live UI Preview</title>
+            <style>
+              :root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;background:#090a0c;color:#f1f2f4}
+              *{box-sizing:border-box}
+              body{margin:0}
+              header{padding:24px clamp(16px,4vw,48px);background:#17191d;border-bottom:1px solid #343a40}
+              h1{margin:0;font-size:24px}
+              .meta{margin-top:10px;color:#aeb2ba;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+              main{max-width:1600px;margin:auto;padding:24px clamp(16px,4vw,48px)}
+              .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:20px}
+              .screen{display:block;min-width:0;padding:10px;border:1px solid #343a40;border-radius:6px;background:#1b1d22;color:inherit;text-decoration:none}
+              .screen img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#111316}
+              .screen span{display:block;padding:12px 4px 4px;font-size:14px;font-weight:600}
+              footer{padding:20px;color:#858a94;text-align:center;font-size:12px}
+            </style>
+          </head>
+          <body>
+            <header>
+              <h1>MT8163 Tools — Live UI Preview</h1>
+              <div class="meta">Source: development · Commit: """ + source_commit + """<br>
+              Generated: """ + escape(generated) + """ · Android 9 (API 28) · 1280×720 · 160 dpi<br>
+              Screens are captured from the built application using UIAutomator.</div>
+            </header>
+            <main><div class="grid">""" + "".join(cards) + """</div></main>
+            <footer>Generated from the current development source. No stored HTML mockup is used.</footer>
+          </body>
+          </html>
+          """
+          (output / "index.html").write_text(document, encoding="utf-8")
+          print("Generated HTML preview with {} current Android screenshots.".format(len(screenshots)))
+          PY
+
+      - name: Validate generated HTML
+        run: |
+          set -euo pipefail
+          test -s dist/html-preview/index.html
+          grep -q 'MT8163 Tools — Live UI Preview' dist/html-preview/index.html
+          grep -q 'Source: development' dist/html-preview/index.html
+          SCREEN_COUNT="$(find dist/html-preview/screenshots -type f -name '*.png' | wc -l)"
+          test "$SCREEN_COUNT" -gt 0
+          echo "Generated preview with $SCREEN_COUNT Android screenshots from development." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload generated HTML preview
         uses: actions/upload-artifact@v7
         with:
           name: MT8163Tools_HTML_Preview_${{ github.run_number }}
-          path: preview/index.html
+          path: dist/html-preview/
           if-no-files-found: error
           retention-days: 14
