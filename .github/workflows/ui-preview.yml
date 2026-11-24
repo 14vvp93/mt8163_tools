@@ -51,7 +51,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build app and UI instrumentation tests
-        run: gradle --no-daemon :app:assembleDebugAndroidTest
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
 
       - name: Download APK from Manual Build
         if: inputs.mode == 'reuse'
