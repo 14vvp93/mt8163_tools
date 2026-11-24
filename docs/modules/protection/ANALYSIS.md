@@ -2436,3 +2436,66 @@ These findings confirm on the target firmware that persisted task IDs are loaded
 - No Protection hooks or firmware binaries were modified.
 
 **Status** — target firmware confirms the key Android 9 task-ID allocation and Recents persistence mechanisms previously inferred from AOSP. Source-level JADX decompilation and runtime validation remain pending.
+
+
+## 64. Target Recents trimming can finish task activities
+
+Sources: target `services.vdex` CompactDEX disassembly from workflow artifact `44771655098`:
+
+- `com.android.server.am.RecentTasks`
+- `com.android.server.am.ActivityStackSupervisor`
+- `com.android.server.am.TaskRecord`
+- `com.android.server.am.ActivityStack`
+
+### Trim notification cascade
+
+**Confirmed in target firmware** — both the global maximum-count branch and the inactive/out-of-visible-range branch in `RecentTasks.trimInactiveRecentTasks()` remove the selected record from `mTasks` and call `notifyTaskRemoved(task, true)`. The latter branch also calls `notifyTaskPersisterLocked(task, true)`.
+
+**Confirmed** — `RecentTasks.notifyTaskRemoved(task, true)` dispatches `RecentTasks.Callbacks.onRecentTaskRemoved(task, true)`.
+
+**Confirmed** — `ActivityStackSupervisor.onRecentTaskRemoved(task, true)` calls:
+
+```text
+removeTaskByIdLocked(taskId, false, false, false, "recent-task-trimmed")
+TaskRecord.removedFromRecents()
+```
+
+The trim callback therefore does more than remove a row from the in-memory RecentTasks list.
+
+### Activity finishing
+
+**Confirmed** — the target `ActivityStackSupervisor.removeTaskByIdLocked(taskId, ...)` resolves the task record and unconditionally calls `TaskRecord.removeTaskActivitiesLocked(firstBoolean, reason)` before the remaining cleanup.
+
+**Confirmed** — `TaskRecord.removeTaskActivitiesLocked(false, reason)` calls `performClearTaskAtIndexLocked(0, false, reason)`.
+
+**Confirmed** — `performClearTaskAtIndexLocked()` iterates the task's `mActivities` list. For each ActivityRecord that is not already finishing, it calls `ActivityStack.finishActivityLocked(...)` when the task has an ActivityStack. If the task has no stack, it calls `ActivityRecord.takeFromHistory()` and removes the record from the task's activity list.
+
+Consequently, target firmware Recents trimming can finish the activities belonging to the trimmed task. It is not safe to describe this target path as a UI-only or cache-only eviction.
+
+### Process-cleanup boundary
+
+**Confirmed** — the same `removeTaskByIdLocked()` call passes `false, false` to `cleanUpRemovedTaskLocked(task, ...)`. In that method, the final false flag causes an early return after `ActiveServices.cleanUpRemovedTaskLocked()`, before its later scan of process records and explicit `ProcessRecord.kill()` calls.
+
+**Not established** — whether normal Activity finishing or other independent framework lifecycle paths subsequently terminate the application process. The inspected trim call does not itself enter the explicit process-kill loop in `cleanUpRemovedTaskLocked()`; this is not a guarantee that the process remains alive.
+
+### Distinction from other RecentTasks cleanup
+
+**Confirmed** — `RecentTasks.cleanupLocked(userId)` removes an `autoRemoveRecents` task when its top Activity is null and calls `notifyTaskRemoved(task, false)`. The supervisor callback's false branch does not call `removeTaskByIdLocked()`; it proceeds to `TaskRecord.removedFromRecents()`.
+
+This differs from trim notification with `true`, which enters the task-activity removal path described above.
+
+### Protection implications
+
+- A task retained in the SystemUI Recents display is not guaranteed to remain in framework RecentTasks indefinitely. Framework max-count and inactive/out-of-range trimming remain independent.
+- UI-only Protection filtering cannot prevent this SystemServer trimming path.
+- Do not globally hook or suppress `RecentTasks.remove()`, `removeTaskByIdLocked()`, `finishActivityLocked()`, or task persistence. Such interception would affect ordinary framework lifecycle and unrelated task removals.
+- Keep the existing Protection boundary focused on user-initiated Recents actions and the separately audited Memory Cleaner path unless the product requirement explicitly expands to framework-level retention.
+- A task removed by automatic trimming must not be represented as successfully retained merely because a stale SystemUI card remains visible.
+
+### Evidence limitations
+
+- All target findings are static CompactDEX disassembly; JADX did not reconstruct Java source for `services.vdex`.
+- The exact runtime timing and user-visible animation when a task is trimmed have not been tested on the head unit.
+- The framework may perform additional process lifecycle work outside the inspected `cleanUpRemovedTaskLocked()` branch.
+
+**Status** — target firmware confirms that Recents trimming can finish task activities through SystemServer. No Protection hooks or firmware binaries were modified.
