@@ -137,7 +137,7 @@ This is a separate deletion path from the Recents X and Close all flows. Protect
 
 **Candidate** — filter or skip protected tasks in the cleaner's task-processing path before any destructive operation is performed. Preserve the original processing for all unprotected tasks.
 
-**Pending** — inspect the complete cleaner method to identify how it obtains and orders its task list, whether it has other cleanup branches, and whether additional Memory Cleaner entry points exist.
+**Completed in Section 33** — the complete cleaner method, task-list construction, processing order, and available Java entry point have been traced. Runtime behavior remains pending.
 
 ## 8. Implementation constraints
 
@@ -156,7 +156,7 @@ This is a separate deletion path from the Recents X and Close all flows. Protect
 2. Trace all producers and consumers of `DeleteTaskDataEvent`.
 3. Inspect `TaskStack.setTasks(List<Task>, boolean)` in full and determine how protected tasks behave during reload and reconciliation.
 4. Trace the complete grid and non-grid Close all callback sequence, including task-view filtering and trigger completion.
-5. Inspect the complete Memory Cleaner method and search for other cleanup entry points.
+5. **Completed in Section 33:** inspect the complete Memory Cleaner method, task-list construction, destructive sequence, and Java entry points.
 6. Trace relevant `TaskStackListener` callbacks and Recents reload behavior after system task changes.
 7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
 8. Validate the behavior on the target MT8163 head unit running Android 9.
@@ -169,7 +169,7 @@ This is a separate deletion path from the Recents X and Close all flows. Protect
 - The card header X action calls `TaskView.dismissTask()`.
 - Close all uses a separate bulk-dismiss path with grid and non-grid animations.
 - `DeleteTaskDataEvent` deletes task data, removes the system task, and force-stops the package.
-- Memory Cleaner independently deletes task data, removes system tasks, and force-stops packages.
+- Memory Cleaner independently deletes task data, removes system tasks, and force-stops packages; its complete selection and execution flow is documented in Section 33.
 - Recents reloads tasks from the system Recent Tasks list.
 - TaskStack removal callbacks perform important UI cleanup and cannot be bypassed casually.
 
