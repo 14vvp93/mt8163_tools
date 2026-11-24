@@ -2023,3 +2023,74 @@ mStack.removeTask(task, AnimationProps.IMMEDIATE, false);
 **Pending** — validate the attached/unattached behavior on the target head unit, including package uninstall, component disable/removal, and package modification. The source does not establish that an ActivityInfo lookup can be transiently null during every package-change event, so no temporary-absence recovery rule is inferred here.
 
 **Status** — the source-level branch and its distinct downstream side effects are confirmed. No hooks or firmware code were changed.
+
+## 56. External task removal and Recents stack reconciliation
+
+Sources:
+
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/system/TaskStackChangeListener.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/system/TaskStackChangeListeners.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/system/ActivityManagerWrapper.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/RecentsImpl.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/RecentsActivity.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/TaskStack.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/TaskStackView.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/RecentsView.java`
+
+### System task-removal notification
+
+**Confirmed** — the firmware's `TaskStackChangeListener.onTaskRemoved(int taskId)` callback carries only the task ID. It does not carry package name or user ID.
+
+**Confirmed** — `TaskStackChangeListeners.onTaskRemoved(int taskId)` posts message 13 to its Handler. The Handler dispatches `onTaskRemoved(taskId)` to registered listeners.
+
+**Confirmed** — `RecentsImpl.TaskStackListenerImpl` does not override `onTaskRemoved()`. Its inherited implementation is empty. The inspected RecentsActivity does not register a TaskStackChangeListener either.
+
+**Conclusion** — there is no source evidence that RecentsActivity directly removes or protects a card in response to this callback. The callback alone is not a suitable package/user protection predicate.
+
+### General task-stack-changed notification
+
+**Confirmed** — `TaskStackChangeListeners.onTaskStackChanged()` first snapshots registered listeners and invokes `onTaskStackChangedBackground()` on them. It then removes any pending message 1 and posts a new message 1 to its Handler. This coalesces pending foreground stack-change notifications.
+
+**Confirmed** — `RecentsImpl.TaskStackListenerImpl.onTaskStackChangedBackground()` can preload a fresh Recents task plan and load thumbnails for cache when Overview is not enabled, the current-user check passes, the svelte level is zero, and the window bounds are non-empty.
+
+**Confirmed** — this background path does not call `RecentsActivity.reloadTaskStack()`, dispatch `MultiWindowStateChangedEvent`, or mutate the active RecentsActivity TaskStack in the inspected method.
+
+**Conclusion** — the observed TaskStackListener background path is cache/preload work, not the active Recents card reconciliation boundary.
+
+### Active Recents reload paths
+
+**Confirmed** — `RecentsActivity.onStart()` calls `reloadStackView()`. That method obtains or creates a `RecentsTaskLoadPlan`, preloads tasks when necessary, loads task data, and passes the resulting stack to `RecentsView.onReload()`. The same stack's task count is used for the navigation-bar scrim.
+
+**Confirmed** — `reloadTaskStack(boolean, boolean)` builds a fresh load plan and sends `MultiWindowStateChangedEvent` with the resulting stack. Its inspected callers are multi-window mode changes and the visible ActivityUnpinnedEvent handler.
+
+**Confirmed** — `RecentsView.onBusEvent(MultiWindowStateChangedEvent)` calls `updateStack(event.stack, false)`. This updates empty-state visibility but does not itself call `TaskStackView.setTasks()`.
+
+**Confirmed** — `TaskStackView.setTasks(stack, allowNotifyStackChanges)` delegates to the internal TaskStack with notifications enabled only when the caller allows them and the layout algorithm is already initialized. When notifications are enabled, TaskStack computes added and removed task keys and calls the corresponding TaskStack callbacks.
+
+### TaskStack replacement semantics
+
+**Confirmed** — `TaskStack.setTasks(List<Task>, notifyStackChanges)` compares old and new task-key maps. When notifications are enabled, tasks missing from the new list are removed from the model and passed to `onStackTaskRemoved()` with `AnimationProps.IMMEDIATE`; new keys are passed to `onStackTaskAdded()`; the operation then calls `onStackTasksUpdated()`.
+
+**Confirmed** — when notifications are disabled, the method replaces the raw and filtered task lists without generating the removed/added callbacks. Existing task objects are reused by key and updated with `copyFrom()`.
+
+**Important distinction** — a stack refresh can therefore replace the visible model without invoking per-task removal callbacks, depending on the notification flag and layout initialization state. Do not assume every externally missing task passes through `TaskView.dismissTask()` or `DeleteTaskDataEvent`.
+
+### Protection implications
+
+- `onTaskRemoved(taskId)` is a notification, not a veto point; returning from it cannot preserve a system task already removed by ActivityManager.
+- Do not infer package identity from task ID alone or persist task-ID protection as a substitute for package/user identity.
+- The observed RecentsImpl background listener refreshes cache data; it is not evidence of active-card retention.
+- RecentsActivity's next `onStart()` reload obtains a new task plan. A task absent from that plan cannot be retained merely by filtering the old visible stack.
+- Stack replacement may bypass per-task callbacks when notifications are disabled. Any future Protection filtering must operate on the incoming stack before it becomes the active UI model, not depend exclusively on removal callbacks.
+- Keep display filtering separate from system task removal. A task omitted from the displayed stack must not be removed from ActivityManager or have loader data deleted solely because it is hidden.
+- Do not globally intercept `ActivityManagerWrapper.removeTask()` or `TaskStackChangeListener.onTaskRemoved()`; both are broader than a user-configured Recents policy.
+
+**Pending validation**:
+
+1. Confirm the exact firmware's ActivityManager callback ordering for `onTaskRemoved()` and `onTaskStackChanged()`.
+2. Verify whether the active Recents UI can remain visible while an external task removal occurs, and which event causes its next reload on this firmware.
+3. Test a protected task removed externally by Android, then reopen Recents and confirm the expected policy: Protection must not resurrect a task that the system no longer reports.
+4. Test task-stack replacement with notification enabled and disabled, including attached and unattached TaskViews.
+5. Confirm whether the target firmware has any vendor-specific listener or refresh path not represented in the inspected SystemUI source.
+
+**Status** — callback payloads, listener dispatch, RecentsImpl background behavior, Activity reload paths, and TaskStack replacement semantics are source-verified. Callback ordering and active-UI behavior under external removal remain device-validation items. No hooks or firmware code were changed.
