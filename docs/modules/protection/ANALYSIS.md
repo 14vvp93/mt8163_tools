@@ -2199,3 +2199,41 @@ These are firmware loader assumptions, not safe fallback rules for Protection. D
 **Pending** — inspect the framework's ActivityTaskManager/TaskRecord implementation to establish persistent task-ID allocation and reuse behavior; verify actual malformed/null task records on the target head unit. The current source audit confirms SystemUI's use of `persistentId`, but not the framework's ID recycling contract.
 
 **Status** — component provenance, the distinct `topActivity`/base-intent/source-component access paths, loader null assumptions, and task-key cache semantics are source-confirmed. Framework task-ID reuse policy remains unverified. No hooks or firmware code were changed.
+
+
+## 59. Framework task-ID allocation and persistent identity
+
+Sources:
+
+- AOSP Android 9 framework reference: `ActivityStackSupervisor.java`, commit `efb758420d4385e7064df8740611fbd9fdcdbcac`, especially `MAX_TASK_IDS_PER_USER`, `nextTaskIdForUser()`, and `getNextTaskIdForUserLocked()`.
+- AOSP `ActivityManager.RecentTaskInfo` API contract: `persistentId` is the task's true identifier and remains valid when the task is not running.
+- Target firmware SystemUI: `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/RecentsTaskLoadPlan.java`.
+
+### Task-ID allocation
+
+**Confirmed in the AOSP Android 9 reference** — task IDs are allocated per user from a bounded range of `UserHandle.PER_USER_RANGE`. The allocator advances the per-user counter, wraps at the end of that user's range, and searches for an ID not currently present in either the recent-task collection or active task stacks.
+
+**Confirmed** — ID reuse is therefore intentional after an ID becomes free and the allocator wraps around. The framework prevents simultaneous collisions with tasks currently known in stacks or Recents; it does not provide a never-reuse lifetime guarantee.
+
+**Important distinction** — the allocator's collision checks include recent tasks as well as active tasks. A task may remain addressable in Recents while not actively running, which is consistent with `RecentTaskInfo.persistentId` being valid even when `RecentTaskInfo.id` indicates that the task is not running.
+
+### Meaning of persistentId
+
+**Confirmed by the Android 9 API contract** — `RecentTaskInfo.persistentId` is the stable task identifier used to address the task while it remains in the recent-task model, including when it is not running. Target SystemUI copies this field into `Task.TaskKey.id` and uses that ID for task operations.
+
+**Not a permanent identity** — because the framework allocator can wrap and reuse IDs after they are no longer occupied, `persistentId` must not be used as a durable application identity or as the sole key for a Protection allow/deny decision.
+
+### Implications for Protection
+
+- The previously selected identity remains correct: `packageName + userId`.
+- A task ID may be used only as a transient handle to address a current task operation, after resolving the current task record.
+- Never persist Protection state by `taskId` / `persistentId`.
+- Do not assume an ID remains associated with the same package after the original task has been removed.
+- `TaskKey.equals()` in target SystemUI additionally includes `windowingMode` and `userId`, but excludes package/component identity; this is a UI reconciliation key, not a safe Protection identity.
+- When an incoming task list is reconciled, evaluate the current task's package and user rather than trusting a previously cached decision.
+
+### Firmware-specific confidence
+
+The task-ID allocator source inspected here is the AOSP Android 9 reference, not a decompilation of the head unit's `services.jar`. The target firmware's SystemUI confirms use of `persistentId`, but its exact allocator implementation and any MediaTek modifications remain unverified. Treat ID recycling as the Android 9 framework baseline and confirm the vendor implementation before relying on implementation-specific details.
+
+**Status** — Android 9 reference establishes bounded per-user allocation, wraparound, collision checks against active and recent tasks, and eventual ID reuse. Target SystemUI confirms `persistentId` is consumed as the task handle. No hooks or firmware code were changed.
