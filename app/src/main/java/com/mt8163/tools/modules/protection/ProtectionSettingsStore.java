@@ -25,9 +25,8 @@ public final class ProtectionSettingsStore {
     }
 
     public static ProtectionConfig.ApplicationSettings getApplicationSettings(
-            Context context, String packageName, int userId) {
-        if (context == null || !ProtectionConfig.isValidPackageName(packageName)
-                || userId < 0) {
+            Context context, String packageName) {
+        if (context == null || !ProtectionConfig.isValidPackageName(packageName)) {
             return new ProtectionConfig.ApplicationSettings(false, false, false);
         }
 
@@ -36,8 +35,8 @@ public final class ProtectionSettingsStore {
                     .getSharedPreferences(SETTINGS, Context.MODE_PRIVATE)
                     .getString(KEY_APPLICATIONS, "{}");
             JSONObject applications = new JSONObject(json);
-            JSONObject item = applications.optJSONObject(
-                    ProtectionConfig.key(packageName, userId));
+            JSONObject item = applications.optJSONObject(ProtectionConfig.key(packageName));
+            if (item == null) item = applications.optJSONObject(packageName + "|0");
             if (item == null) {
                 return new ProtectionConfig.ApplicationSettings(false, false, false);
             }
@@ -52,11 +51,10 @@ public final class ProtectionSettingsStore {
         }
     }
 
-    public static boolean setApplicationSettings(Context context, String packageName, int userId,
+    public static boolean setApplicationSettings(Context context, String packageName,
                                                  boolean keepRecents, boolean hideRecents,
                                                  boolean protectCleaner) {
-        if (context == null || !ProtectionConfig.isValidPackageName(packageName)
-                || userId < 0) return false;
+        if (context == null || !ProtectionConfig.isValidPackageName(packageName)) return false;
 
         Context app = context.getApplicationContext();
         SharedPreferences preferences = app.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE);
@@ -68,7 +66,8 @@ public final class ProtectionSettingsStore {
             settings.put("keep_recents", keepRecents && !hideRecents);
             settings.put("hide_recents", hideRecents);
             settings.put("protect_cleaner", protectCleaner);
-            applications.put(ProtectionConfig.key(packageName, userId), settings);
+            applications.put(ProtectionConfig.key(packageName), settings);
+            applications.remove(packageName + "|0");
 
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
@@ -81,10 +80,8 @@ public final class ProtectionSettingsStore {
         }
     }
 
-    public static boolean removeApplicationSettings(Context context, String packageName,
-                                                    int userId) {
-        if (context == null || !ProtectionConfig.isValidPackageName(packageName)
-                || userId < 0) return false;
+    public static boolean removeApplicationSettings(Context context, String packageName) {
+        if (context == null || !ProtectionConfig.isValidPackageName(packageName)) return false;
 
         Context app = context.getApplicationContext();
         SharedPreferences preferences = app.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE);
@@ -92,7 +89,8 @@ public final class ProtectionSettingsStore {
         try {
             JSONObject applications = new JSONObject(
                     preferences.getString(KEY_APPLICATIONS, "{}"));
-            applications.remove(ProtectionConfig.key(packageName, userId));
+            applications.remove(ProtectionConfig.key(packageName));
+            applications.remove(packageName + "|0");
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
             publish(app);
