@@ -549,3 +549,34 @@ Repository-wide search for `removeTask(` identified the following relevant uses:
 - No additional MtkSystemUI Java caller pairing `deleteTaskData()`, `removeTask()`, and `forceStopPackage()` was found in the repository search.
 - Remaining: inspect all `DeleteTaskDataEvent` dispatch paths and validate the proposed guards on the target Android 9 firmware.
 
+
+## 27. Grid Close All callback ordering
+
+Sources:
+
+- `recents/views/TaskStackAnimationHelper.java`
+- `recents/views/TaskStackView.java`
+- `recents/misc/ReferenceCountedTrigger.java`
+- `recents/events/EventBus.java`
+
+**Confirmed from source** — the grid Close All path registers one last-decrement callback per animated `TaskView`. Each callback invokes `TaskStackViewTouchHandler.onChildDismissed()`, which dispatches `TaskViewDismissedEvent`. The `TaskStackView` handler then removes that task from the in-memory stack and sends an individual `DeleteTaskDataEvent`.
+
+After scheduling the grid animations, `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` registers its bulk post-animation callback. That callback removes all remaining stack entries and sends another `DeleteTaskDataEvent` for every task in the original pre-animation snapshot.
+
+**Confirmed callback ordering** — `ReferenceCountedTrigger.addLastDecrementRunnable()` appends callbacks to an ordered `ArrayList`; when the count reaches zero, `flushLastDecrementRunnables()` runs them in insertion order. The per-view grid callbacks are therefore executed before the bulk callback.
+
+**Confirmed source-level consequence** — every task view included in the grid animation receives an individual `DeleteTaskDataEvent` before the bulk callback sends another event for the same task from its original snapshot. This is not merely a possible ordering: it follows directly from callback registration and flush order.
+
+**Not established** — the source inspection does not establish the runtime consequences of duplicate cleanup (for example, whether repeated `removeTask()` or `forceStopPackage()` calls produce visible errors on this firmware). That requires target-device validation.
+
+### Protection implications
+
+- A grid Close All implementation must not allow the per-view callbacks to dismiss protected tasks.
+- The bulk callback must operate on the filtered unprotected snapshot, not the original full snapshot.
+- The implementation must account for the per-view callbacks and the bulk callback as separate cleanup producers.
+- Do not assume that filtering only the bulk snapshot is sufficient; the grid animation callback can independently dispatch individual dismissal events.
+- Keep the non-grid path distinct: its animation helper only completes the shared trigger, after which the bulk callback removes the stack and dispatches cleanup for its snapshot.
+
+### Updated status
+
+The previous note in Section 20 described duplicate grid cleanup as a possible sequence pending runtime confirmation. The callback order and duplicate event dispatch are now **confirmed from source**. Only the effects of repeated destructive operations remain pending device validation.
