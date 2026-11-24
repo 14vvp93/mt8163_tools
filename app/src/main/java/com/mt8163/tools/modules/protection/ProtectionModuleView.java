@@ -181,17 +181,25 @@ public final class ProtectionModuleView {
                 "Allow close via X", saved.shouldAllowCloseViaX());
 
         LinearLayout options = new LinearLayout(context);
-        options.setGravity(Gravity.CENTER_VERTICAL);
-        options.setOrientation(LinearLayout.HORIZONTAL);
+        options.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams optionsParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         optionsParams.topMargin = dp(8);
         card.addView(options, optionsParams);
 
-        addOption(options, keep);
-        addOption(options, hide);
-        addOption(options, cleaner);
-        addOption(options, allowCloseViaX);
+        LinearLayout firstRow = new LinearLayout(context);
+        firstRow.setGravity(Gravity.CENTER_VERTICAL);
+        firstRow.setOrientation(LinearLayout.HORIZONTAL);
+        options.addView(firstRow);
+        addOption(firstRow, keep);
+        addOption(firstRow, hide);
+
+        LinearLayout secondRow = new LinearLayout(context);
+        secondRow.setGravity(Gravity.CENTER_VERTICAL);
+        secondRow.setOrientation(LinearLayout.HORIZONTAL);
+        options.addView(secondRow);
+        addOption(secondRow, cleaner);
+        addOption(secondRow, allowCloseViaX);
 
         boolean[] updating = {false};
         keep.setOnCheckedChangeListener((button, checked) -> {
