@@ -33,26 +33,24 @@ public final class ProtectionConfig {
 
             while (keys.hasNext()) {
                 String key = keys.next();
-                int separator = key.lastIndexOf('|');
-                if (separator <= 0 || separator == key.length() - 1) continue;
+                int separator = key.indexOf('|');
+                String packageName = key;
 
-                String packageName = key.substring(0, separator);
-                int userId;
-                try {
-                    userId = Integer.parseInt(key.substring(separator + 1));
-                } catch (NumberFormatException ignored) {
-                    continue;
+                if (separator >= 0) {
+                    if (separator == 0 || separator == key.length() - 1
+                            || !"0".equals(key.substring(separator + 1))) continue;
+                    packageName = key.substring(0, separator);
+                    if (root.has(packageName)) continue;
                 }
-                if (!isValidPackageName(packageName) || userId < 0) continue;
 
+                if (!isValidPackageName(packageName)) continue;
                 JSONObject item = root.optJSONObject(key);
                 if (item == null) continue;
 
-                ApplicationSettings settings = new ApplicationSettings(
+                applications.put(packageName, new ApplicationSettings(
                         item.optBoolean("keep_recents", false),
                         item.optBoolean("hide_recents", false),
-                        item.optBoolean("protect_cleaner", false));
-                applications.put(key(packageName, userId), settings);
+                        item.optBoolean("protect_cleaner", false)));
             }
         } catch (JSONException ignored) {
             applications.clear();
@@ -65,13 +63,13 @@ public final class ProtectionConfig {
         return enabled;
     }
 
-    public ApplicationSettings getApplicationSettings(String packageName, int userId) {
-        if (!enabled || !isValidPackageName(packageName) || userId < 0) return null;
-        return applications.get(key(packageName, userId));
+    public ApplicationSettings getApplicationSettings(String packageName) {
+        if (!enabled || !isValidPackageName(packageName)) return null;
+        return applications.get(packageName);
     }
 
-    public static String key(String packageName, int userId) {
-        return packageName + "|" + userId;
+    public static String key(String packageName) {
+        return packageName;
     }
 
     public static boolean isValidPackageName(String packageName) {
@@ -91,16 +89,8 @@ public final class ProtectionConfig {
             this.protectCleaner = protectCleaner;
         }
 
-        public boolean shouldKeepRecents() {
-            return keepRecents;
-        }
-
-        public boolean shouldHideRecents() {
-            return hideRecents;
-        }
-
-        public boolean shouldProtectCleaner() {
-            return protectCleaner;
-        }
+        public boolean shouldKeepRecents() { return keepRecents; }
+        public boolean shouldHideRecents() { return hideRecents; }
+        public boolean shouldProtectCleaner() { return protectCleaner; }
     }
 }
