@@ -478,3 +478,74 @@ The bulk post-animation callback registered by `TaskStackView.onBusEvent(Dismiss
 - A blanket `TaskView.dismissTask()` hook is unsafe because the method has system-driven callers.
 - A blanket `DeleteTaskDataEvent` guard is insufficient because it does not preserve the visible stack/model.
 
+## 23. MTK Memory Cleaner entry point and execution
+
+Source: `qs/tiles/MemoryCleanerTile.java`
+
+### Quick Settings entry point
+
+**Confirmed** — `QSFactoryImpl.createTileInternal()` maps the Quick Settings tile spec `memorycleaner` to `new MemoryCleanerTile(mHost)`.
+
+**Confirmed** — `MemoryCleanerTile.handleClick()` collapses Quick Settings panels and schedules message `what == 1` with a 1500 ms delay. Its Handler then calls `clearRecentsTask()` and displays the completion toast.
+
+This is a one-shot delayed action initiated by the user, not a periodic cleaner loop.
+
+### Cleaner task enumeration and destructive sequence
+
+**Confirmed** — `clearRecentsTask()` creates a fresh `RecentsTaskLoadPlan`, preloads current-user Recent Tasks using `preloadTasks(loadPlan, -1)`, loads task data, obtains the resulting `TaskStack`, and iterates its task list.
+
+For every task, the current implementation performs this sequence without a protection check:
+
+1. `RecentsTaskLoader.deleteTaskData(task, false)`
+2. `ActivityManagerWrapper.getInstance().removeTask(task.key.id)`
+3. `ActivityManager.forceStopPackage(task.key.getComponent().getPackageName())`
+
+The cleaner does not send `DeleteTaskDataEvent` and does not route cleanup through `RecentsActivity`.
+
+**Candidate hook** — check Protection inside the cleaner's task loop before the first destructive operation. For a protected task, skip all three operations and continue processing the remaining tasks. Preserve the existing sequence for unprotected tasks.
+
+**Identity requirement** — use `task.key.userId` together with a safely resolved package name. Do not use task ID as the persisted setting key.
+
+### Nullability hazard
+
+**Confirmed** — `Task.TaskKey.getComponent()` directly calls `baseIntent.getComponent()`; it does not guard a null `baseIntent`. The cleaner then directly dereferences the returned component to obtain its package name.
+
+Therefore, the existing cleaner assumes both a non-null base intent and a non-null explicit component. A task with a null base intent or package-only intent can fail during package resolution. The failure occurs after `deleteTaskData()` and `removeTask()` have already been requested.
+
+**Implementation constraint** — Protection lookup must not introduce the same unchecked assumptions. Resolve package identity using a null-safe component-first, intent-package fallback. If package identity cannot be resolved, do not classify the task as protected by guessing; retain the firmware's original behavior for that task and record no package-level match.
+
+## 24. Other task-removal APIs found in MtkSystemUI
+
+Repository-wide search for `removeTask(` identified the following relevant uses:
+
+- `RecentsActivity.onBusEvent(DeleteTaskDataEvent)`: destructive Recents dismissal path; deletes loader data, removes the system task, and force-stops its package.
+- `MemoryCleanerTile.clearRecentsTask()`: separate destructive bulk-cleaner path; directly deletes loader data, removes the system task, and force-stops the package.
+- `WorkLockActivityController`: calls `IActivityManager.removeTask(taskId)` when starting the work-lock flow fails. This is a security/work-profile error-recovery path, not a Recents dismissal or Memory Cleaner entry point.
+- `TaskStack.removeTask()`: changes the in-memory Recents model and dispatches stack callbacks; it is not itself the ActivityManager system-task removal API.
+- `RecentsView` dock/drag completion and `TaskStackView` package-change handling can remove tasks from the in-memory stack. These paths must not be conflated with the two confirmed bulk destructive cleanup paths.
+
+**Finding** — within the searched MtkSystemUI Java sources, the two confirmed user-facing Recents cleanup paths that pair loader-data deletion, ActivityManager task removal, and package force-stop are `RecentsActivity.onBusEvent(DeleteTaskDataEvent)` and `MemoryCleanerTile.clearRecentsTask()`.
+
+**Scope limitation** — this search covers the retrieved MtkSystemUI source tree, not every system service or privileged package in the firmware. It does not prove that no other package can remove Recent Tasks.
+
+## 25. Memory Cleaner implementation constraints
+
+- Protect tasks before `deleteTaskData()`; checking only before `forceStopPackage()` is too late.
+- Skip all cleaner operations for a protected task, not only the final force-stop.
+- Match settings by resolved package name and `TaskKey.userId`.
+- Keep the cleaner's current-user scope; do not silently broaden it to other Android users.
+- A null or unresolved package identity must not match a configured package.
+- Preserve the cleaner's existing behavior for unprotected tasks.
+- The 1500 ms Handler delay is only the click-to-execution delay; it is not a recurring or polling mechanism.
+
+## 26. Updated findings and remaining validation
+
+- The Quick Settings spec is `memorycleaner`, created by `QSFactoryImpl`.
+- The tile's only discovered execution entry point is its click handler, which schedules one delayed invocation.
+- Memory Cleaner independently loads current-user Recents and directly performs all three destructive operations.
+- Memory Cleaner bypasses `DeleteTaskDataEvent`; a RecentsActivity-only guard cannot protect against it.
+- `Task.TaskKey.getComponent()` and the cleaner's package lookup are not null-safe for package-only or incomplete task intents.
+- A separate `WorkLockActivityController` task removal exists for work-lock launch failure; it is outside the intended Keep-card and Memory Cleaner policies.
+- No additional MtkSystemUI Java caller pairing `deleteTaskData()`, `removeTask()`, and `forceStopPackage()` was found in the repository search.
+- Remaining: inspect all `DeleteTaskDataEvent` dispatch paths and validate the proposed guards on the target Android 9 firmware.
+
