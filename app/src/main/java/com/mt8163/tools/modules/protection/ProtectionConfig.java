@@ -76,7 +76,7 @@ public final class ProtectionConfig {
 
     public static boolean isValidPackageName(String packageName) {
         return packageName != null
-                && packageName.matches("[A-Za-z0-9_]+(\\\\.[A-Za-z0-9_]+)+");
+                && packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+");
     }
 
     public static final class ApplicationSettings {
