@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ui-preview-\${{ github.ref }}
+  group: ui-preview-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,8 +56,8 @@ jobs:
       - name: Download APK from Manual Build
         if: inputs.mode == 'reuse'
         env:
-          GH_TOKEN: \${{ github.token }}
-          SOURCE_RUN_ID: \${{ inputs.source_run_id }}
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -110,7 +110,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: ui-preview-avd-api28-pixel2-\${{ runner.os }}
+          key: ui-preview-avd-api28-pixel2-${{ runner.os }}
 
       - name: Run Android 9 emulator and capture screens
         uses: reactivecircus/android-emulator-runner@v2
@@ -161,13 +161,13 @@ jobs:
               echo "Density: 160 dpi"
               echo "Source branch: development"
               echo "Source commit: $GITHUB_SHA"
-              echo "Preview mode: \${{ inputs.mode }}"
+              echo "Preview mode: ${{ inputs.mode }}"
             } > artifacts/ui-preview/preview-info.txt
 
       - name: Upload UI screenshots
         uses: actions/upload-artifact@v7
         with:
-          name: MT8163Tools_UI_Preview_\${{ github.run_number }}
+          name: MT8163Tools_UI_Preview_${{ github.run_number }}
           path: artifacts/ui-preview/
           if-no-files-found: error
           retention-days: 14
