@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.view.View;
 import android.view.ViewParent;
 
@@ -444,18 +443,15 @@ public final class ProtectionHook implements PackageHook {
                     if (intent == null
                             || !ProtectionSettingsStore.ACTION_CONFIG_CHANGED.equals(
                             intent.getAction())) return;
-                    if (!isTrustedSender(receiverContext, getSendingUid())) {
-                        XposedBridge.log(
-                                "MT8163 Tools: Protection rejected configuration broadcast");
-                        return;
-                    }
                     loadConfiguration();
                 }
             };
 
             try {
                 appContext.registerReceiver(receiver,
-                        new IntentFilter(ProtectionSettingsStore.ACTION_CONFIG_CHANGED));
+                        new IntentFilter(ProtectionSettingsStore.ACTION_CONFIG_CHANGED),
+                        "com.mt8163.tools.permission.UPDATE_PROTECTION_CONFIG",
+                        null);
                 receiverRegistered = true;
             } catch (Throwable error) {
                 XposedBridge.log("MT8163 Tools: Protection receiver registration failed: "
@@ -466,16 +462,6 @@ public final class ProtectionHook implements PackageHook {
 
         loadConfiguration();
         XposedBridge.log("MT8163 Tools: Protection configuration receiver registered");
-    }
-
-    private static boolean isTrustedSender(Context context, int sendingUid) {
-        if (context == null || sendingUid < 0) return false;
-        try {
-            int appUid = context.getPackageManager().getPackageUid(APP_PACKAGE, 0);
-            return sendingUid == appUid;
-        } catch (PackageManager.NameNotFoundException | RuntimeException error) {
-            return false;
-        }
     }
 
     private static void loadConfiguration() {
