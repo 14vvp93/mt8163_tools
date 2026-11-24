@@ -2094,3 +2094,52 @@ Sources:
 5. Confirm whether the target firmware has any vendor-specific listener or refresh path not represented in the inspected SystemUI source.
 
 **Status** — callback payloads, listener dispatch, RecentsImpl background behavior, Activity reload paths, and TaskStack replacement semantics are source-verified. Callback ordering and active-UI behavior under external removal remain device-validation items. No hooks or firmware code were changed.
+
+## 57. Task identity null-safety and TaskKey reuse audit
+
+Sources:
+
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/Task.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/TaskStack.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/RecentsTaskLoadPlan.java`
+
+### TaskKey identity
+
+**Confirmed** — `Task.TaskKey` stores:
+
+- `id`: persistent task ID;
+- `windowingMode`;
+- `userId`;
+- `baseIntent`;
+- `sourceComponent`.
+
+**Confirmed** — `TaskKey.equals()` and `hashCode()` use only `id + windowingMode + userId`. Package name and component are not part of TaskKey equality.
+
+**Confirmed** — during `TaskStack.setTasks()`, an incoming task with an equal TaskKey reuses the existing Task object and calls `currentTask.copyFrom(newTask)`. `copyFrom()` replaces the Task's key with the incoming key.
+
+**Protection consequence** — a Task object can be reused while its package/component identity changes if the same task ID, windowing mode, and user ID are represented by the incoming task. Never cache a Protection decision by Task object identity or task ID alone. Resolve package name and user ID from the current TaskKey whenever evaluating the policy.
+
+### Nullable identity fields
+
+**Confirmed** — the TaskKey constructor accepts the supplied Intent without a null check. `getComponent()` and `getPackageName()` dereference `baseIntent`; both can throw if it is null.
+
+**Confirmed** — `getPackageName()` returns the component package when the Intent has a component, otherwise it returns `Intent.getPackage()`. That package value may itself be null or empty.
+
+**Confirmed** — `getComponent()` can return null when the base Intent has no explicit component.
+
+**Confirmed** — `TaskStack.computeComponentsRemoved()` calls `t.getComponent()` and immediately dereferences `cn.getPackageName()` for matching user IDs. A null base Intent or null component can therefore cause a NullPointerException in this firmware method.
+
+### Protection predicate requirements
+
+For every task evaluation:
+
+1. Validate Task, TaskKey, and baseIntent before dereferencing identity.
+2. Prefer the explicit component package when a component exists.
+3. If the component is absent, accept Intent.getPackage() only when it is non-null and non-empty and the product policy explicitly permits package-only identity.
+4. Require a valid package string and the current TaskKey.userId before matching a Protection entry.
+5. Treat incomplete identity as **not protected** for destructive-operation filtering; do not guess from title, label, sourceComponent, task ID, or cached TaskView state.
+6. Re-evaluate after TaskStack refresh/copyFrom because a reused Task object may now represent a different package.
+
+**Boundary note** — `sourceComponent` is a separate TaskKey field populated from the task's source/real component in RecentsTaskLoadPlan. It is not interchangeable with `baseIntent.getComponent()` without a verified policy decision. The task's top activity is also a separate field.
+
+**Status** — TaskKey equality, Task reuse, identity accessors, and null-dereference sites are source-confirmed. The proposed null-safe Protection predicate is a design requirement, not implemented code. Runtime validation with malformed or package-only task intents remains outstanding.
