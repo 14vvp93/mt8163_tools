@@ -25,7 +25,7 @@ Protection has three independent per-application settings:
 2. **Hide from Recents** — omit the card from the visible Recents UI without deleting the system task.
 3. **Protect from Memory Cleaner** — skip the application's task before the MTK cleaner performs destructive operations.
 
-Persistent application matching must use validated package name and Android user ID. A task ID identifies a task instance and must not be used as the persistent application key.
+Persistent application matching uses the validated package name. The target head unit has one Android user. A task ID identifies a temporary task instance and must never be used as the persistent application key.
 
 Protection must not:
 - terminate or force-stop an application merely to hide or retain its card;
@@ -72,10 +72,10 @@ They are not targets in the `android` SystemServer process.
 
 **Implemented:**
 - `ProtectionSettingsStore` mirrors the global module state and per-application settings to `protection_hook_config`.
-- Application settings are keyed by package name and Android user ID.
+- Application settings are keyed by package name only.
 - Configuration changes are sent explicitly to `com.android.systemui`.
 - The SystemUI receiver requires the signature-level sender permission and reloads the configuration.
-- `ProtectionTaskMatcher` publishes immutable configuration snapshots through a volatile reference. Its three predicates share the same package/user identity key.
+- `ProtectionTaskMatcher` publishes immutable configuration snapshots through a volatile reference. Its three predicates share the same package-name key.
 - Keep and Hide are normalized as mutually exclusive; Hide takes precedence if both values are supplied.
 
 **Pending:** confirm cross-process preference readability with the target LSPosed build and verify configuration updates after SystemUI restart and app process restart.
@@ -97,7 +97,7 @@ Sources:
 **Implementation requirements:**
 - Resolve package identity defensively from available task data.
 - Validate every nullable field before dereferencing it.
-- Match both package name and user ID.
+- Match by validated package name only; the target head unit has one Android user.
 - If identity cannot be established, do not guess. Preserve the original firmware behavior and do not claim the task is protected.
 - Never persist settings by task ID.
 
@@ -220,10 +220,10 @@ Source: `qs/tiles/MemoryCleanerTile.java`.
 
 This path does not depend on `DeleteTaskDataEvent`; intercepting that event alone cannot protect tasks from Memory Cleaner.
 
-**Implemented** — the hook scopes a per-thread cleaner state to `clearRecentsTask()`. At `deleteTaskData(task, false)`, it resolves the package/user identity and records whether that task is protected. For protected tasks it suppresses cache deletion, the matching `ActivityManagerWrapper.removeTask(taskId)`, and the matching `ActivityManager.forceStopPackage(packageName)`. Unprotected tasks retain the original sequence.
+**Implemented** — the hook scopes a per-thread cleaner state to `clearRecentsTask()`. At `deleteTaskData(task, false)`, it resolves the package identity and records whether that task is protected. For protected tasks it suppresses cache deletion, the matching `ActivityManagerWrapper.removeTask(taskId)`, and the matching `ActivityManager.forceStopPackage(packageName)`. Unprotected tasks retain the original sequence.
 
 **Implementation requirements:**
-- Match package name and user ID defensively.
+- Match package name defensively.
 - Do not filter the shared task-load plan.
 - Do not suppress Android system memory management.
 - Preserve normal cleaner behavior for unprotected tasks.
@@ -279,7 +279,7 @@ Exact method descriptors and target class-loader resolution must be checked agai
 
 - SystemUI main-process routing and the `SystemUIApplication.onCreate()` bootstrap hook.
 - One process-wide configuration receiver with sender-UID validation.
-- Configuration model, persistence mirror, and package/user matcher.
+- Configuration model, persistence mirror, and package-name matcher.
 - Keep: swipe, card X, keyboard dismissal, and selective Close all.
 - Hide: initial Recents stack and deferred multi-window refresh stack.
 - Memory Cleaner: cache deletion, task removal, and package force-stop guards.
