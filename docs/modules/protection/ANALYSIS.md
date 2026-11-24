@@ -2291,3 +2291,40 @@ AOSP Android 9 reference sources:
 These lifecycle and persistence findings are from the AOSP Android 9 framework reference. The target firmware SystemUI confirms its use of `RecentTaskInfo.persistentId`, but the exact MediaTek `services.jar` implementation has not yet been decompiled and compared. Vendor-specific changes to Recents retention, persistence, or allocator checks remain unverified.
 
 **Status** — AOSP Android 9 source confirms inactive Recents retention, automatic/list-limit removal paths, per-user persisted task-ID reservations, and persistence restoration. No hooks or firmware code were changed.
+
+
+## 61. Target framework artifact audit — services VDEX is the available source
+
+Repository inspection:
+
+- `rom/system/framework/services.jar` — 183 bytes; ZIP contains only `META-INF/MANIFEST.MF`, with no DEX/classes.
+- `rom/system/framework/mediatek-services.jar` — 200 bytes; ZIP contains only `META-INF/MANIFEST.MF`, with no DEX/classes.
+- `rom/system/framework/oat/arm/services.vdex` — 10,046,264 bytes.
+- `rom/system/framework/oat/arm/mediatek-services.vdex` — 185,592 bytes.
+- Matching `services.odex` and `mediatek-services.odex` files are also present in `rom/system/framework/oat/arm/`.
+
+### Source availability
+
+**Confirmed** — the checked-in `services.jar` and `mediatek-services.jar` are manifest-only archive stubs. They cannot provide the framework server classes required to verify `RecentTasks`, `TaskRecord`, `TaskPersister`, or `ActivityStackSupervisor`.
+
+**Confirmed** — the repository does contain the compiled framework artifacts under `oat/arm`, including `services.vdex` and `mediatek-services.vdex`. These are the relevant inputs for target-firmware analysis; the empty JAR stubs must not be passed to JADX as though they contain the implementation.
+
+### GitHub Actions analysis path
+
+The existing `.github/workflows/analyze-framework-mcu.yml` already enumerates framework VDEX files, extracts their DEX/CompactDEX content, and includes `oat/arm/services.vdex` and `oat/arm/mediatek-services.vdex` in its disassembly selection.
+
+The workflow was extended to:
+- search the decompiled `services.vdex` sources for `RecentTasks`, `TaskRecord`, `TaskPersister`, and `ActivityStackSupervisor`;
+- publish matching Java source files under `artifacts/framework/services/`;
+- include task-retention and persisted-ID symbols in the generated report.
+
+**Not completed** — the push-triggered run for workflow commit `fd5f9feebbaa0ae253feccab1291c7c4b425aa88` ended with GitHub Actions conclusion `startup_failure` and returned no jobs. No VDEX extraction or decompilation result was produced by that run.
+
+### Protection conclusion
+
+- The previous Sections 59–60 remain AOSP Android 9 reference findings only.
+- No target-firmware conclusion about task-ID allocation, Recents trimming, auto-removal, or task persistence can be marked confirmed yet.
+- The next required evidence is successful extraction/decompilation of `services.vdex`, followed by a separate inspection of `mediatek-services.vdex` for vendor overrides or extensions.
+- Do not infer that the manifest-only JAR files are valid framework implementations, and do not silently substitute AOSP source for target-firmware evidence.
+
+**Status** — target artifact paths and archive contents are verified. The GitHub Actions analysis workflow has been prepared but its latest run failed before job startup. No hooks or firmware code were changed.
