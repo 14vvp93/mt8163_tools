@@ -46,6 +46,8 @@ Protection must not:
 
 They are not targets in the `android` SystemServer process.
 
+**Confirmed** — the target firmware defines `com.android.systemui.SystemUIApplication` as its Application class and implements the no-argument `onCreate()` method. The main-process startup path is present in the decompiled target source. This provides a process-wide initialization point before Recents or Memory Cleaner UI is opened.
+
 ### Existing project integration
 
 **Confirmed** — the project uses Legacy Xposed API 82 and the classic `assets/xposed_init` entry point. The current hook registry routes only the `android` package, so it does not yet install hooks in SystemUI.
@@ -58,7 +60,25 @@ They are not targets in the `android` SystemServer process.
 - Keep the existing SystemServer Media and Voltage initialization path unchanged.
 - Fail closed for an unavailable Protection hook rather than breaking SystemUI startup.
 
-**Status** — process boundary and API-level integration are source-verified. Protection routing and hooks are not implemented.
+**Implemented** — `HookRegistry` has a separate SystemUI route, gated by both package name and main process name. It does not alter the existing SystemServer Media/Voltage route. The Manifest scope includes `com.android.systemui`.
+
+**Implemented** — `ProtectionHook` hooks the target firmware's `SystemUIApplication.onCreate()` and registers one process-wide configuration receiver after Application initialization. The receiver is independent of RecentsActivity and MemoryCleanerTile.
+
+**Implemented** — the receiver validates the sending UID against the installed `com.mt8163.tools` package before accepting configuration-change broadcasts. The sender does not rely on the app-defined signature permissions used by the SystemServer configuration channels, because SystemUI is not assumed to hold those permissions.
+
+**Pending** — build verification and runtime validation on the target head unit. The actual Recents and Memory Cleaner behavior hooks are not implemented.
+
+### Protection configuration transport
+
+**Implemented:**
+- `ProtectionSettingsStore` mirrors the global module state and per-application settings to `protection_hook_config`.
+- Application settings are keyed by package name and Android user ID.
+- Configuration changes are sent explicitly to `com.android.systemui`.
+- The SystemUI receiver validates the sender UID and reloads the configuration.
+- `ProtectionTaskMatcher` publishes immutable configuration snapshots through a volatile reference. Its three predicates share the same package/user identity key.
+- Keep and Hide are normalized as mutually exclusive; Hide takes precedence if both values are supplied.
+
+**Pending:** confirm cross-process preference readability with the target LSPosed build and verify configuration updates after SystemUI restart and app process restart.
 
 ## 4. Task identity and null safety
 
@@ -256,6 +276,13 @@ Exact method descriptors and target class-loader resolution must be checked agai
 
 ## 11. Implementation readiness and validation
 
+### Implemented infrastructure
+
+- SystemUI main-process routing and the `SystemUIApplication.onCreate()` bootstrap hook.
+- One process-wide configuration receiver with sender-UID validation.
+- Configuration model, persistence mirror, and package/user matcher.
+- MainApplication startup publication and publication when the Protection module enabled state changes.
+
 ### Ready at source-analysis level
 
 - The three settings have separate firmware paths and boundaries.
@@ -268,9 +295,11 @@ Exact method descriptors and target class-loader resolution must be checked agai
 
 ### Required before release
 
-1. Implement the SystemUI Protection process routing and hook installer using Legacy Xposed API 82.
-2. Verify exact target method descriptors and class-loader visibility.
-3. Validate all three settings independently and their agreed mutual exclusion.
+1. Build the current branch and verify the SystemUI bootstrap integration.
+2. Verify configuration readability through XSharedPreferences on the target LSPosed build.
+3. Implement the actual Recents and Memory Cleaner interception points.
+4. Verify exact target method descriptors and class-loader visibility.
+5. Validate all three settings independently and their agreed mutual exclusion.
 4. Test swipe, X, keyboard dismissal, and Close all in Grid and non-Grid layouts.
 5. Test Memory Cleaner with protected and unprotected tasks.
 6. Test Hide from Recents on initial display and refresh, including restoration after disabling the setting.
