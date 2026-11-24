@@ -35,8 +35,11 @@ try:
         fail("Manifest xposedminversion must be exactly 82.")
 
     scope = metadata.get("xposedscope")
-    if scope is None or scope.get(ANDROID_NS + "value") != "android":
-        fail("Manifest xposedscope must target android.")
+    scope_value = "" if scope is None else scope.get(ANDROID_NS + "value", "")
+    scope_targets = {item.strip() for item in scope_value.split(",") if item.strip()}
+    required_targets = {"android", "com.android.systemui"}
+    if not required_targets.issubset(scope_targets):
+        fail("Manifest xposedscope must include android and com.android.systemui.")
 except (ET.ParseError, OSError, AttributeError) as error:
     fail(f"Cannot validate AndroidManifest.xml: {error}")
 
@@ -90,4 +93,4 @@ if errors:
         print(f"- {error}")
     sys.exit(1)
 
-print("Xposed configuration is consistent: Legacy XposedBridge API 82, scope android.")
+print("Xposed configuration is consistent: Legacy XposedBridge API 82, scopes android and com.android.systemui.")
