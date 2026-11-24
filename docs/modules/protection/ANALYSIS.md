@@ -2186,7 +2186,7 @@ These are firmware loader assumptions, not safe fallback rules for Protection. D
 
 **Confirmed** — the Recents key used for reconciliation and task-keyed caches combines `id`, `windowingMode`, and `userId`; component fields and last-active time are excluded. A task object can be reused for an equal key and then receive a new key through `copyFrom()`, as recorded in Section 57.
 
-**Not established**** — the inspected SystemUI sources do not show the ActivityTaskManager task-ID allocation/recycling policy. They do not prove when a removed persistent task ID may be reused, nor do they prove a global uniqueness lifetime. Do not claim that task IDs are never reused or rely on that assumption for Protection.
+**Not established** — the inspected SystemUI sources do not show the ActivityTaskManager task-ID allocation/recycling policy. They do not prove when a removed persistent task ID may be reused, nor do they prove a global uniqueness lifetime. Do not claim that task IDs are never reused or rely on that assumption for Protection.
 
 ### Protection requirements
 
