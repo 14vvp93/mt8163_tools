@@ -1856,3 +1856,106 @@ Source: `shared/recents/model/Task.java`.
 7. Confirm whether preference matching is package-global or user-scoped.
 
 **Status** — the Close All algorithm is now specified at source level for the identified layouts and edge cases. It is not implemented and has not been runtime-tested on the target head unit.
+
+## 51. Protection target process: SystemUI, not system_server
+
+Sources:
+
+- `artifacts/MtkSystemUI/apktool/AndroidManifest.xml`
+- `recents/RecentsActivity.java`
+- `qs/tiles/MemoryCleanerTile.java`
+- Current MT8163 Tools `AndroidManifest.xml`, `XposedEntry.java`, and `HookRegistry.java`.
+
+**Confirmed** — the firmware SystemUI APK package is `com.android.systemui`. Its application-level process is `com.android.systemui`.
+
+**Confirmed** — `RecentsActivity` is declared without its own `android:process`, so it uses the application process. `MemoryCleanerTile` is a SystemUI QS tile class and likewise runs in the SystemUI application process.
+
+**Confirmed** — the inspected SystemUI manifest also declares secondary processes such as `:screenshot`, `:tuner`, `:sweetsweetdesserts`, and `:fgservices`. These are not the target process for the Protection methods audited here.
+
+**Confirmed** — the current MT8163 Tools module declares `xposedscope=android`. Its `XposedEntry` forwards load-package callbacks to `HookRegistry`, but `HookRegistry.handleLoadPackage()` returns immediately unless `param.packageName` equals `android`. Its current hook list contains MediaHook and VoltageHook, both targeting `android`.
+
+**Conclusion** — the current package scope and runtime dispatch do not install Protection hooks in SystemUI. Adding a ProtectionHook class alone would not make it run.
+
+### Required target routing
+
+- Keep the existing `android` target for the current Media/Voltage hooks and SystemServer bootstrap.
+- Add `com.android.systemui` as a separate target for Protection.
+- Route SystemUI to its own hook set; do not call the SystemServer bootstrap from the SystemUI branch.
+- Restrict Protection installation to `processName == "com.android.systemui"` so it does not attempt Recents/Memory Cleaner class lookup in unrelated SystemUI secondary processes.
+- Keep a second package/process check inside the Protection hook installer. Scope metadata is a manager recommendation, not a substitute for runtime target validation.
+
+## 52. Legacy Xposed API 82: target class-loader and hook method compatibility
+
+References:
+
+- `app/build.gradle`: `compileOnly 'de.robv.android.xposed:api:82'`
+- `app/src/main/assets/xposed_init`: `com.mt8163.tools.xposed.XposedEntry`
+- `app/src/main/java/com/mt8163/tools/xposed/XposedEntry.java`
+- `app/src/main/java/com/mt8163/tools/xposed/HookRegistry.java`
+- Legacy Xposed API reference: `IXposedHookLoadPackage`, `XC_LoadPackage.LoadPackageParam`, and `XposedHelpers.findAndHookMethod()`.
+
+**Confirmed** — the project compiles against Legacy Xposed API 82 using `compileOnly`, and the classic `assets/xposed_init` entry names `XposedEntry`. `XposedEntry` implements `IXposedHookLoadPackage`.
+
+**Confirmed** — `LoadPackageParam` exposes `packageName`, `processName`, and the target package's `classLoader`. The callback is invoked early in package loading, before `Application.onCreate()`.
+
+**Confirmed** — API 82 provides `XposedHelpers.findAndHookMethod(String, ClassLoader, String, Object...)`. Its class loader resolves both the target class and any parameter classes. Exact parameter types are required; primitive parameters must use primitive class tokens such as `boolean.class`, not boxed `Boolean.class`.
+
+**Confirmed** — `findAndHookMethod()` resolves a method declared or overridden in the named class. It does not search inherited implementations as a substitute for a missing declaration. The exact method must therefore be verified on the target firmware before installation.
+
+### Loader rule for Protection
+
+Use the `classLoader` from the `LoadPackageParam` delivered for `com.android.systemui`. Do not use the SystemServer callback's class loader and do not pass null: null selects the Xposed boot/system class loader, not the SystemUI application loader.
+
+The SystemUI target classes are not compile-time dependencies of MT8163 Tools. Resolve them by their firmware class names through the SystemUI class loader and pass exact parameter types to the API 82 helper.
+
+### Candidate method descriptors
+
+These descriptors are source-derived from the inspected MT8163 SystemUI build. They are candidates for exact API 82 lookup, not proof of successful runtime hooking.
+
+| Target class | Method | Descriptor | Visibility |
+|---|---|---|---|
+| `com.android.systemui.recents.views.TaskStackViewTouchHandler` | `canChildBeDismissed` | `(android.view.View)Z` | public |
+| `com.android.systemui.recents.views.TaskViewHeader` | `onClick` | `(android.view.View)V` | public |
+| `com.android.systemui.recents.views.TaskStackView` | `onBusEvent` | `(com.android.systemui.recents.events.ui.focus.DismissFocusedTaskViewEvent)V` | public |
+| `com.android.systemui.recents.views.TaskStackView` | `onBusEvent` | `(com.android.systemui.recents.events.ui.DismissAllTaskViewsEvent)V` | public |
+| `com.android.systemui.recents.RecentsActivity` | `reloadStackView` | `()V` | private |
+| `com.android.systemui.recents.RecentsActivity` | `reloadTaskStack` | `(boolean, boolean)V` | private |
+| `com.android.systemui.qs.tiles.MemoryCleanerTile` | `clearRecentsTask` | `()V` | private |
+
+**Compatibility assessment** — all listed signatures can be expressed through the Legacy API 82 string-class-name/class-loader form of `findAndHookMethod()`. Private visibility is not, by itself, a blocker: XposedHelpers resolves the exact declared method and makes it accessible before hooking. Firmware signature drift, class-loader mismatch, or a method being inlined/removed remain runtime risks.
+
+## 53. LSPosed scope declaration and SystemUI process selection
+
+Reference: official LSPosed Module Scope documentation.
+
+**Confirmed** — LSPosed's legacy `xposedscope` metadata accepts a semicolon-separated package list and preselects those packages in the manager. The configured scope remains user-controlled.
+
+**Current state** — MT8163 Tools declares only `android`; therefore SystemUI is not in the module's recommended scope. The hook registry also explicitly rejects every package except `android`.
+
+**Required declaration for Protection** — retain `android` and add `com.android.systemui` to the legacy scope list. The user must verify that `com.android.systemui` is actually enabled in the module's LSPosed scope; changing the manifest recommendation alone does not update an already configured scope.
+
+**Process selection** — the Xposed callback exposes `processName`. For the inspected firmware, install the Protection hook set only when both package and process are `com.android.systemui`. This targets RecentsActivity and MemoryCleanerTile while avoiding unrelated secondary SystemUI processes.
+
+**Security boundary** — `com.android.systemui` is a privileged system application process. Do not add broad package scopes or install the Protection hooks in `android`/SystemServer: the audited target classes are in SystemUI, and a SystemServer hook is unnecessary for these features.
+
+## 54. Protection Xposed integration readiness
+
+### Confirmed
+
+- Legacy API 82 dependency and classic entry point are already configured.
+- The entry point receives package name, process name, and target class loader.
+- The current registry is restricted to `android`; it cannot currently dispatch a SystemUI Protection hook.
+- The firmware's Recents and Memory Cleaner targets run in the main `com.android.systemui` process.
+- All seven candidate hook descriptors can be represented with API 82 exact method lookup.
+- The correct target loader is the SystemUI `LoadPackageParam.classLoader`.
+
+### Required before implementation
+
+1. Add `com.android.systemui` to the recommended legacy LSPosed scope and verify the configured scope on-device.
+2. Extend package routing without changing the existing SystemServer Media/Voltage bootstrap path.
+3. Add a separate Protection hook installer gated by both package and main process name.
+4. Resolve every candidate method using the exact descriptor and SystemUI class loader; fail closed per hook if a method is absent.
+5. Verify the SystemUI process receives the callback and each hook installs exactly once after process start.
+6. Test restart/reload behavior after SystemUI process death and LSPosed scope changes.
+
+**Status** — the API-level integration path and process boundary are source-verified. No source code or manifest changes were made; no Protection hooks have been installed or runtime-tested.
