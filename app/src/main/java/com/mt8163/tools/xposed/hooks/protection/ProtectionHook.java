@@ -321,7 +321,11 @@ public final class ProtectionHook implements PackageHook {
             Class<?> eventClass = XposedHelpers.findClass(
                     "com.android.systemui.recents.events.ui.AllTaskViewsDismissedEvent",
                     loader);
-            Object event = XposedHelpers.newInstance(eventClass);
+            Class<?> stringsClass = XposedHelpers.findClass(
+                    "com.android.systemui.R$string", loader);
+            int messageId = XposedHelpers.getStaticIntField(
+                    stringsClass, "recents_empty_message_dismissed_all");
+            Object event = XposedHelpers.newInstance(eventClass, messageId);
             Class<?> busClass = XposedHelpers.findClass(
                     "com.android.systemui.recents.events.EventBus", loader);
             Object bus = XposedHelpers.callStaticMethod(busClass, "getDefault");
