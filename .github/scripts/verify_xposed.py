@@ -36,10 +36,10 @@ try:
 
     scope = metadata.get("xposedscope")
     scope_value = "" if scope is None else scope.get(ANDROID_NS + "value", "")
-    scope_targets = {item.strip() for item in scope_value.split(",") if item.strip()}
+    scope_targets = {item.strip() for item in scope_value.split(";") if item.strip()}
     required_targets = {"android", "com.android.systemui"}
     if not required_targets.issubset(scope_targets):
-        fail("Manifest xposedscope must include android and com.android.systemui.")
+        fail("Manifest xposedscope must include android and com.android.systemui, separated by semicolons.")
 except (ET.ParseError, OSError, AttributeError) as error:
     fail(f"Cannot validate AndroidManifest.xml: {error}")
 
