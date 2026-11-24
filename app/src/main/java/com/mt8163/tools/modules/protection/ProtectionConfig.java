@@ -41,7 +41,8 @@ public final class ProtectionConfig {
                 applications.put(packageName, new ApplicationSettings(
                         item.optBoolean("keep_recents", false),
                         item.optBoolean("hide_recents", false),
-                        item.optBoolean("protect_cleaner", false)));
+                        item.optBoolean("protect_cleaner", false),
+                        item.optBoolean("allow_close_via_x", false)));
             }
         } catch (JSONException ignored) {
             applications.clear();
@@ -72,16 +73,19 @@ public final class ProtectionConfig {
         private final boolean keepRecents;
         private final boolean hideRecents;
         private final boolean protectCleaner;
+        private final boolean allowCloseViaX;
 
         public ApplicationSettings(boolean keepRecents, boolean hideRecents,
-                                   boolean protectCleaner) {
+                                   boolean protectCleaner, boolean allowCloseViaX) {
             this.hideRecents = hideRecents;
             this.keepRecents = keepRecents && !hideRecents;
             this.protectCleaner = protectCleaner;
+            this.allowCloseViaX = allowCloseViaX;
         }
 
         public boolean shouldKeepRecents() { return keepRecents; }
         public boolean shouldHideRecents() { return hideRecents; }
         public boolean shouldProtectCleaner() { return protectCleaner; }
+        public boolean shouldAllowCloseViaX() { return allowCloseViaX; }
     }
 }
