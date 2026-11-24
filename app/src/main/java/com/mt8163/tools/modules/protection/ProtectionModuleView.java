@@ -145,7 +145,7 @@ public final class ProtectionModuleView {
         iconParams.rightMargin = dp(14);
         try {
             icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
-        } catch (PackageManager.NameNotFoundException ignored) {
+        } catch (RuntimeException ignored) {
             icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
         heading.addView(icon, iconParams);
