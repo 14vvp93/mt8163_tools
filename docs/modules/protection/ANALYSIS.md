@@ -1098,3 +1098,53 @@ That method first calls `RecentsTaskLoader.onPackageChanged(packageName)`, then 
 **Confirmed from source** — all `DeleteTaskDataEvent` producers and consumers found in JADX sources are classified; package monitor callbacks and task-stack listener dispatch behavior are traced.
 
 **Pending** — inspect the complete set of direct ActivityManager task-removal APIs and any vendor-specific cleanup paths outside the Recents package; validate package replacement, user/profile boundaries, and system callback timing on the target Android 9 firmware.
+
+## 36. Vendor CarServices package force-stop paths outside Recents
+
+Scope: this section records firmware-level package termination paths found outside `MtkSystemUI`. These are not Recents-card deletion paths, but they can independently stop an application's process. They must not be conflated with Protection's current Recents dismissal scope.
+
+Sources:
+
+- `artifacts/CarServises/jadx/boot-carservices_classes/sources/android/utilities/Util.java`
+- `android/link/CarletterInterface.java`
+- `android/link/CarZlinkInterface.java`
+- `android/sourceservice/SourceService.java`
+- `android/carstatus/CarStatusService.java`
+- `android/carsource/McuService.java`
+
+### Shared force-stop helpers
+
+**Confirmed** — `Util.forceStopPackage(String)` clears Binder calling identity, calls `ActivityManager.getService().forceStopPackage(pkg, -1)`, catches `RemoteException`, and restores the original calling identity.
+
+**Confirmed** — `SourceService.forceStopPackage(String)` resolves an application identifier through `Util.findPackageName()`, then invokes the same system service method with user argument `-1`. It also clears/restores Binder calling identity.
+
+Both helpers act on packages, not individual Recent Tasks. They do not call `ActivityManager.removeTask()` or mutate the Recents `TaskStack` directly.
+
+### Confirmed callers
+
+| Component | Trigger | Packages / target selection | Purpose |
+|---|---|---|---|
+| `CarletterInterface.stopCarletter()` | Its internal Handler message case 2 | LT CarPlay, Huawei Nearby, Huawei projection and related packages | Stops the Carletter connection stack |
+| `CarZlinkInterface.sendAccState(0)` | MCU ACC state changes to off | Active ZLink package | Stops ZLink during power-off handling |
+| `CarZlinkInterface` restart branch | Configuration/restart path when `restart == true` | Active ZLink package | Restarts ZLink |
+| `SourceService.setOnActivityResume(pkg)` | Activity-resume source arbitration | Competing CarPlay / EasyConnect packages | Stops competing projection applications when another source becomes active |
+| `SourceService` Handler message case 4 | Internal queued kill request | App identifier in `msg.obj`, except entries in `SYSTEM_PACKAGES` and `CurrentSource` | Stops an app that is not the active source |
+| `CarStatusService.findAndkillbyUid()` | Wake-lock cleanup branch | Package resolved from a WorkSource UID greater than 10000 | Stops a package associated with a selected wake-lock entry |
+
+**Confirmed** — `CarStatusService.checkWakeLock(clean)` reads the PowerManager wake-lock list and invokes `findAndkillbyUid()` for entries when `clean` is true. Its handler calls this check with `mCheckWakeLockTimes > 15` and schedules another check after 5 seconds. This is a separate vendor wake-lock cleanup mechanism, not a Recents action.
+
+**Confirmed** — `McuService` contains a private `forceStopPackage(String)` helper that calls `forceStopPackage(app,-1)`. The inspected source search found the helper definition but no caller in that class; it is not counted as an active call path without further evidence.
+
+### Protection scope boundary
+
+- These CarServices paths can stop a protected application's process independently of Swipe, X, Close All, or Memory Cleaner.
+- They do not remove a Recent Task by task ID in the inspected call paths. A task card may therefore remain or be updated separately from process termination.
+- Blocking these operations globally would interfere with projection-source arbitration, ACC power-off, restart handling, and vendor wake-lock cleanup.
+- The current Protection functional scope is preservation against Recents dismissal/cleanup and control of Recent Tasks card visibility. These vendor force-stop paths are outside that scope unless the functional specification is explicitly expanded to guarantee process survival against vendor services.
+- Do not hook the shared `forceStopPackage()` helpers indiscriminately. Any future policy would need to identify the initiating service and reason, then apply a narrowly scoped exception policy.
+
+### Research status
+
+**Confirmed from source** — major CarServices force-stop helper definitions and the identified callers are traced. These paths are separate from the Recents `DeleteTaskDataEvent` and system `removeTask(taskId)` paths.
+
+**Pending** — determine whether additional vendor services outside CarServices issue package force-stops or process kills relevant to the protected-app set. Runtime validation is required to establish which service paths are active on the target head unit and what happens to the corresponding Recent Task entries.
