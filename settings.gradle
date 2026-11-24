@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MT8163 Tools"
-include(":app", ":tests:voltage", ":tests:media")
+include(":app")
