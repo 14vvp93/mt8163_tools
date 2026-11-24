@@ -1148,3 +1148,21 @@ Both helpers act on packages, not individual Recent Tasks. They do not call `Act
 **Confirmed from source** — major CarServices force-stop helper definitions and the identified callers are traced. These paths are separate from the Recents `DeleteTaskDataEvent` and system `removeTask(taskId)` paths.
 
 **Pending** — determine whether additional vendor services outside CarServices issue package force-stops or process kills relevant to the protected-app set. Runtime validation is required to establish which service paths are active on the target head unit and what happens to the corresponding Recent Task entries.
+
+## 37. AutoBtClient and BluetoothService background-process kill helpers
+
+Sources:
+
+- `artifacts/AutoBtClient/jadx/sources/com/hcn/common/app/HProcessUtils.java`
+- `artifacts/BluetoothService/jadx/sources/com/hcn/common/app/HProcessUtils.java`
+
+**Confirmed** — both APKs contain equivalent `HProcessUtils` implementations with:
+
+- `killAllBackgroundProcesses()`: enumerates running app processes and calls `ActivityManager.killBackgroundProcesses(packageName)` for each package found.
+- `killBackgroundProcesses(packageName)`: checks running process package lists, requests background-process termination for the matching package, then checks whether that package remains in the running-process list.
+
+**Confirmed** — repository-wide source search found the method definitions but no call sites for either helper in the inspected JADX source trees. Their presence alone does not prove that these methods are invoked at runtime; they may be unused, called reflectively, or reached from code outside the extracted source set.
+
+**Scope distinction** — `killBackgroundProcesses()` targets background process cleanup and does not directly remove a Recent Task or dispatch `DeleteTaskDataEvent`. Do not classify it as a Recents card-deletion path without runtime evidence.
+
+**Research status** — helper definitions are recorded. Their runtime callers and actual effect on protected applications remain unverified.
