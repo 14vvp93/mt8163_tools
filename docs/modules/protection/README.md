@@ -2,120 +2,245 @@
 
 ## Purpose
 
-Protection controls how selected applications behave in Android Recents. The user chooses installed applications and configures each application's Recents behavior independently.
-
-The module is intended to prevent selected applications from being closed accidentally through individual Recents actions or the system-wide **Close all** action. It can also hide selected applications from Recents entirely.
+Protection controls how selected applications are represented and retained in the Android 9 Recents interface. It prevents selected tasks from being dismissed through Recents actions and can independently exclude selected applications from the Recents UI or the MTK SystemUI Memory Cleaner.
 
 Target platform: Android 9 (API 28), MT8163 head unit.
 
+This document records the agreed functional behavior and the findings from read-only analysis of the target firmware in `14vvp93/public_worker`, under `artifacts/MtkSystemUI`. It is implementation documentation, not a description of completed hooks.
+
 ## Per-application settings
 
-Each application selected for Protection has three settings.
+Each selected application has three settings.
 
 ### 1. Keep card in Recents
 
-- **Enabled:** prevent the application's Recents card from being dismissed by a swipe. The card remains visible.
-- **Disabled:** allow the card to be removed from Recents by a swipe.
-- Removing a card must not, by itself, cause Protection to terminate the application's process.
+- **Enabled:** protect the application's Recents task from Swipe-to-dismiss, the card's X button, and **Close all**.
+- **Disabled:** these Recents dismissal actions use the firmware's normal behavior.
+- The setting protects the Recents task/card. It must not prevent Android from managing the application's process or lifecycle.
 
-### 2. Allow closing with the card's X button
+### 2. Hide from Recents
 
-- **Enabled:** pressing the X button on the application's Recents card is allowed to close the application.
-- **Disabled:** pressing the X button must not close the application.
-
-This setting controls the individual X action only. It does not change the behavior of **Close all**.
-
-### 3. Hide from Recents
-
-- **Enabled:** the application must not appear in Recents and must not have a visible Recents card.
-- **Disabled:** the application may appear in Recents, subject to the other settings.
+- **Enabled:** the application's task must not be displayed in Recents.
+- **Disabled:** the application may be displayed according to the normal Recents behavior.
 - Enabling this setting automatically disables **Keep card in Recents**.
-- The hidden state takes precedence over card-retention behavior.
-- Hiding an application from Recents must not, by itself, terminate its process.
+- If **Keep card in Recents** is enabled, enabling this setting turns the first setting off.
+- Hiding a card must not, by itself, terminate the application's process.
 
-## System actions
+### 3. Protect from Memory Cleaner
 
-| User action | Required behavior |
-|---|---|
-| Swipe an application's card | Block dismissal when **Keep card in Recents** is enabled; otherwise allow the card to be removed without Protection itself terminating the process. |
-| Press the card's X button | Allow closing only when **Allow closing with the card's X button** is enabled. |
-| Use **Close all** | Never close any application registered in Protection, regardless of its X-button setting or other per-app settings. |
-| Open Recents | Applications with **Hide from Recents** enabled must not be displayed. |
-| Dismiss another application's card | Must not affect applications protected by Protection. |
+- **Enabled:** the MTK SystemUI Memory Cleaner must skip tasks belonging to this application.
+- **Disabled:** Memory Cleaner uses its normal behavior for this application.
+- This setting is independent of the two Recents settings.
+- It applies only to the inspected Memory Cleaner operation. It does not disable Android's system memory management or prevent the system from reclaiming resources.
 
-The **Close all** rule is unconditional for every application registered in Protection. It is independent of the **Allow closing with the card's X button** setting.
+All three settings are disabled by default.
 
-## Setting interaction and precedence
+## Agreed behavior
 
-The three settings are independent except for one enforced dependency:
+| Operation | Keep card in Recents | Hide from Recents | Protect from Memory Cleaner |
+|---|---|---|---|
+| Swipe-to-dismiss | Block dismissal | Not applicable; card is hidden | No effect |
+| Card X button | Block dismissal | Not applicable; card is hidden | No effect |
+| Close all | Exclude protected task | Not applicable; card is hidden | No effect |
+| Display in Recents | Keep card visible | Do not display card | No effect |
+| MTK Memory Cleaner | No effect | No effect | Skip this application's task |
 
-1. Enabling **Hide from Recents** automatically turns **Keep card in Recents** off.
-2. **Hide from Recents** takes precedence over card-retention behavior.
-3. **Allow closing with the card's X button** remains unchanged when **Hide from Recents** is toggled.
-4. **Close all** always skips every application registered in Protection.
+Applications not selected in Protection retain normal firmware behavior.
 
-## Behavior matrix
+## Firmware architecture findings
 
-The following matrix applies when **Hide from Recents** is disabled.
+The inspected Recents implementation maintains both a SystemUI task model and a system-provided Recent Tasks list. A card-only UI change is therefore insufficient to guarantee retention.
 
-| Keep card in Recents | Allow closing with X | Swipe | X button | Close all |
-|---|---|---|---|---|
-| Enabled | Disabled | Blocked; card remains | Blocked | Application is skipped |
-| Enabled | Enabled | Blocked; card remains | Allowed | Application is skipped |
-| Disabled | Disabled | Card can be removed | Blocked | Application is skipped |
-| Disabled | Enabled | Card can be removed | Allowed | Application is skipped |
+### Recents data flow
 
-When **Hide from Recents** is enabled:
+The inspected loading path is:
 
-- **Keep card in Recents** is automatically disabled.
-- No card is displayed in Recents.
-- The X-button setting does not override hiding.
-- **Close all** still skips the application.
+1. `RecentsTaskLoadPlan.preloadPlan()` obtains tasks through `ActivityManagerWrapper.getRecentTasks(...)`.
+2. `RecentsTaskLoader` loads task data.
+3. `RecentsActivity.reloadTaskStack()` obtains the resulting `TaskStack`.
+4. `TaskStackView` and `TaskView` represent the tasks in the Recents UI.
+5. `RecentsImpl.TaskStackListenerImpl` receives task-stack change notifications through `ActivityManagerWrapper.registerTaskStackListener()`.
 
-## Application management
+The system Recent Tasks list is the source used when Recents is reloaded. If a task is removed from the system list, retaining an old local card or local `TaskStack` entry alone will not restore it on the next reload.
 
-- The user must be able to select installed applications for Protection.
-- Each selected application must have its own independent settings.
-- Configuration must be associated with the application's package name.
-- Changing one application's settings must not modify another application's configuration.
-- Applications not registered in Protection retain normal system behavior.
+## Inspected firmware code paths
 
-## Runtime behavior requirements
+The following paths are from the JADX source tree:
 
-- Protection must distinguish removing a task from Recents, finishing activities, and terminating an application process.
-- Removing or hiding a Recents card must not cause Protection itself to terminate the application process.
-- The **Close all** operation must exclude every application registered in Protection.
-- The module must support the target ROM's actual Recents implementation, including OEM-specific behavior.
-- Protection must remain isolated from other MT8163 Tools modules.
+`artifacts/MtkSystemUI/jadx/sources/com/android/systemui/`
 
-## Verification requirements
+### Swipe-to-dismiss
 
-Before implementation, inspect the target ROM and establish how its Recents interface handles:
+File: `recents/views/TaskStackViewTouchHandler.java`
 
-- Swipe dismissal.
-- The card's X button.
-- The **Close all** action and its task-selection logic.
-- Hiding or excluding applications from Recents.
-- Task removal APIs, including `removeTask()` and related OEM-specific paths.
+Method: `canChildBeDismissed(View v)`
 
-Do not assume these actions use the same system method. Verify the actual call paths in SystemUI, Launcher, and Android task-management services before selecting an implementation approach.
+The method checks the swipe-animation map and whether the task exists in the current stack. `getChildAtPosition()` also uses this dismissal eligibility check.
 
-## Testing requirements
+**Candidate hook:** intercept the method and return `false` for a task protected by **Keep card in Recents**; preserve the original result for all other tasks.
 
-Protection tests must be independent of other module tests and remain outside the `app/` directory.
+**Additional verification required:** inspect manual-drag handling, including `onBeginManualDrag()`, `onBeginDrag()`, and all paths that interact with `mSwipeHelperAnimations`. The hook must not leave a gesture or animation in an inconsistent state.
 
-Tests must cover:
+### Card X button
 
-- All four combinations in the behavior matrix.
-- Automatic disabling of **Keep card in Recents** when **Hide from Recents** is enabled.
-- Hidden applications not appearing in Recents.
-- **Close all** skipping every application registered in Protection, including applications with X-button closing enabled.
-- Removing a card without Protection itself terminating the application process.
-- Independent settings for multiple applications.
-- Unregistered applications retaining normal behavior.
+Files:
 
-Final behavior must also be verified on the target MT8163 head unit running Android 9.
+- `recents/views/TaskViewHeader.java`
+- `recents/views/TaskView.java`
+
+The header click handler invokes `TaskView.dismissTask()`. That method creates a `DismissTaskViewEvent`, configures a dismissal callback, and dispatches the event through EventBus.
+
+**Candidate hook:** prevent `dismissTask()` from initiating dismissal for a protected task.
+
+**Additional verification required:** enumerate every call site of `dismissTask()`. Do not assume the method is called exclusively by the X button; other callers may require the original behavior.
+
+### Close all
+
+File: `recents/views/TaskStackView.java`
+
+Handler: `onBusEvent(DismissAllTaskViewsEvent event)`
+
+The handler snapshots the tasks from the stack, starts the delete-all animation, and in its completion callback calls `mStack.removeAllTasks(true)`. It then dispatches `DeleteTaskDataEvent` for the snapshotted tasks and records metrics.
+
+File: `recents/views/TaskStackAnimationHelper.java`
+
+The delete-all animation has separate grid and non-grid paths:
+
+- `startTaskGridDeleteTaskAnimation()`
+- `startTaskStackDeleteAllTasksAnimation()`
+
+Both paths eventually invoke `touchHandler.onChildDismissed()` in animation callbacks. The inspected animation helper does not apply Protection filtering.
+
+**Implementation constraint:** do not merely block `TaskStack.removeAllTasks(true)`. The animations may already have removed cards visually, while the model remains unchanged. The method also triggers callbacks that clear task views and ignore-task state.
+
+**Candidate approach:** filter protected and unprotected tasks before the delete-all flow begins, and keep the visible TaskView list, model updates, animation callbacks, and `DeleteTaskDataEvent` dispatches consistent. The exact safe interception point and callback sequence are not yet finalized.
+
+### TaskStack model and callbacks
+
+File: `shared/recents/model/TaskStack.java`
+
+Inspected operations:
+
+- `removeTask(...)` removes a task from the stack lists and invokes `onStackTaskRemoved()`.
+- `removeAllTasks(boolean)` clears the stack lists and may invoke `onStackTasksRemoved()`.
+- `setTasks(List<Task>, boolean)` reconciles the current and incoming task lists and must be examined in full before designing retention across reloads.
+
+File: `recents/views/TaskStackView.java`
+
+The inspected callbacks perform UI and model maintenance:
+
+- `onStackTaskRemoved()` returns the removed card to the ViewPool, updates ignore-task state and layout, and handles the empty-stack state.
+- `onStackTasksRemoved()` returns all task views to the ViewPool, clears ignore-task state, and dispatches `AllTaskViewsDismissedEvent`.
+
+A partial protected stack must not be processed as though the entire stack were removed.
+
+### DeleteTaskDataEvent
+
+File: `RecentsActivity.java`
+
+Handler: `onBusEvent(DeleteTaskDataEvent event)`
+
+The inspected handler performs all of the following:
+
+1. Calls `RecentsTaskLoader.deleteTaskData(event.task, false)`.
+2. Calls `ActivityManagerWrapper.getInstance().removeTask(event.task.key.id)`.
+3. Calls `ActivityManager.forceStopPackage(...)` for the task package.
+
+This event is therefore not a cache-only operation. It can remove the system Recent Task and force-stop the application.
+
+**Protection requirement:** a protected task must not reach this destructive handler as part of a protected Recents dismissal or Close all operation.
+
+**Null-safety requirement:** the inspected code obtains the package through `event.task.key.getComponent().getPackageName()`. The implementation must verify component availability and handle tasks whose component or intent data is absent.
+
+### Task identity
+
+File: `shared/recents/model/Task.java`
+
+`Task.TaskKey` exposes task identity and intent-related fields, including:
+
+- `id`
+- `baseIntent`
+- `sourceComponent`
+- `userId`
+- `windowingMode`
+
+`TaskKey.getPackageName()` first checks the component in `baseIntent`, then falls back to the intent package.
+
+**Recommended configuration identity:** package name together with Android `userId`. Do not use task ID as the persistent application-level key because it identifies a task instance, not an application.
+
+**Null-safety requirement:** handle a null `baseIntent`, null component, and absent package name without crashing or accidentally matching another application.
+
+### System task removal
+
+File: `shared/system/ActivityManagerWrapper.java`
+
+The inspected `removeTask(final int taskId)` calls `ActivityManager.getService().removeTask(taskId)` through `BackgroundExecutor`.
+
+This system operation is distinct from removing a task from the in-memory `TaskStack`. Protection must account for both layers.
+
+### Memory Cleaner
+
+File: `qs/tiles/MemoryCleanerTile.java`
+
+The inspected cleaner iterates its task list and, for each task, performs:
+
+1. `RecentsTaskLoader.deleteTaskData(task, false)`.
+2. `ActivityManagerWrapper.getInstance().removeTask(task.key.id)`.
+3. `ActivityManager.forceStopPackage(...)`.
+
+This is a separate deletion path from the Recents X and Close all flows. Protecting only the Recents UI does not protect tasks from Memory Cleaner.
+
+**Candidate hook:** filter or skip protected tasks in the cleaner's task-processing path before any destructive operation is performed. Preserve the original processing for all unprotected tasks.
+
+**Additional verification required:** inspect the complete method to identify how the cleaner obtains and orders its task list, whether it has other cleanup branches, and whether there are additional cleaner entry points.
+
+## Implementation constraints
+
+- Keep Protection isolated as an MT8163 Tools module.
+- Use the target project's agreed Legacy Xposed API 82.
+- Match tasks using package name and Android user ID, with null-safe extraction.
+- Preserve original firmware behavior for unprotected tasks.
+- Do not confuse removing a Recents task with terminating an application process.
+- Keep the TaskStack model, TaskView animations, callbacks, and system Recent Tasks list consistent.
+- Do not block Android's normal process and memory management.
+- Do not assume that all dismissal paths share one method or event.
+
+## Remaining firmware research
+
+The following work is required before the hook design can be considered complete:
+
+1. Enumerate all call sites of `TaskView.dismissTask()`.
+2. Trace all producers and consumers of `DeleteTaskDataEvent`.
+3. Inspect `TaskStack.setTasks(List<Task>, boolean)` in full and determine how protected tasks behave during reload and reconciliation.
+4. Trace the complete grid and non-grid Close all callback sequence, including task-view filtering and trigger completion.
+5. Inspect the complete Memory Cleaner method and search for other cleanup entry points.
+6. Trace the relevant `TaskStackListener` callbacks and Recents reload behavior after system task changes.
+7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
+8. Validate the behavior on the target MT8163 head unit running Android 9.
 
 ## Current status
 
-The functional requirements and setting interactions are agreed. The target ROM's Recents behavior and implementation approach still require investigation. No implementation has been started.
+### Confirmed from inspected firmware source
+
+- Swipe dismissal eligibility is checked by `TaskStackViewTouchHandler.canChildBeDismissed()`.
+- The card header X action calls `TaskView.dismissTask()`.
+- Close all uses a separate bulk-dismiss path with grid and non-grid animations.
+- `DeleteTaskDataEvent` deletes task data, removes the system task, and force-stops the package.
+- Memory Cleaner independently deletes task data, removes system tasks, and force-stops packages.
+- Recents reloads tasks from the system Recent Tasks list.
+- TaskStack removal callbacks perform important UI cleanup and cannot be bypassed casually.
+
+### Agreed functional behavior
+
+- **Keep card in Recents** protects from Swipe, X, and Close all.
+- **Hide from Recents** hides the card and automatically disables **Keep card in Recents**.
+- **Protect from Memory Cleaner** is an independent, opt-in setting.
+- All settings are disabled by default.
+- Protection must not itself terminate an application's process.
+
+### Not yet completed
+
+- No Protection hooks have been implemented.
+- No final Close all interception design has been approved.
+- The remaining research listed above is still required.
+- Firmware behavior has not yet been validated with the Protection implementation on the target head unit.
