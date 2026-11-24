@@ -1,0 +1,40 @@
+name: HTML Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: html-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  html-preview:
+    name: Generate HTML Preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v7
+
+      - name: Validate preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s preview/index.html
+          grep -q '<title>MT8163 Tools — HTML Preview</title>' preview/index.html
+          grep -q 'id="voltage-range"' preview/index.html
+          grep -q 'id="add-application"' preview/index.html
+          grep -q 'id="backdrop"' preview/index.html
+          sed -n '/<script>/,/<\\/script>/p' preview/index.html | sed '1d;$d' > /tmp/preview.js
+          node --check /tmp/preview.js
+          echo "HTML Preview validated ($(wc -c < preview/index.html) bytes)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload HTML Preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: MT8163Tools_HTML_Preview_${{ github.run_number }}
+          path: preview/index.html
+          if-no-files-found: error
+          retention-days: 14
