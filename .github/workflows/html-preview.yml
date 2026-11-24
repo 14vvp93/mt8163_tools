@@ -29,6 +29,8 @@ jobs:
           grep -q 'id="voltage-range"' preview/index.html
           grep -q 'id="add-application"' preview/index.html
           grep -q 'id="backdrop"' preview/index.html
+          sed -n '/<script>/,/<\/script>/p' preview/index.html | sed '1d;$d' > /tmp/preview.js
+          node --check /tmp/preview.js
           echo "HTML Preview validated ($(wc -c < preview/index.html) bytes)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload HTML Preview
