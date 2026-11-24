@@ -98,10 +98,11 @@ jobs:
           for image in screenshots:
               name = image.stem
               title = name.split("-", 1)[1].replace("-", " ").title() if "-" in name else name
+              image_path = image.relative_to(output).as_posix()
               cards.append(
-                  '<a class="screen" href="screenshots/ui-preview/{0}" target="_blank" rel="noopener">'
-                  '<img src="screenshots/ui-preview/{0}" alt="{1}" loading="lazy">'
-                  '<span>{1}</span></a>'.format(escape(image.name), escape(title))
+                  '<a class="screen" href="{0}" target="_blank" rel="noopener">'
+                  '<img src="{0}" alt="{1}" loading="lazy">'
+                  '<span>{1}</span></a>'.format(escape(image_path), escape(title))
               )
 
           source_commit = escape(os.environ["SOURCE_COMMIT"])
