@@ -580,3 +580,43 @@ After scheduling the grid animations, `TaskStackView.onBusEvent(DismissAllTaskVi
 ### Updated status
 
 The previous note in Section 20 described duplicate grid cleanup as a possible sequence pending runtime confirmation. The callback order and duplicate event dispatch are now **confirmed from source**. Only the effects of repeated destructive operations remain pending device validation.
+
+
+## 28. Selective Close All: stack callback behavior
+
+Sources:
+
+- `shared/recents/model/TaskStack.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/TaskStackViewTouchHandler.java`
+
+**Confirmed** — `TaskStack.removeTask(task, animation, fromDockGesture)` removes one task from both the visible stack list and raw task list, then calls `TaskStackView.onStackTaskRemoved()`.
+
+That callback:
+- returns the matching attached `TaskView` to the view pool;
+- clears ignore-task state for the removed task;
+- updates and relayouts the remaining stack when an animation is supplied;
+- emits `AllTaskViewsDismissedEvent` only when the stack becomes empty and the removal requests dismissal.
+
+**Confirmed** — `TaskStack.removeAllTasks(true)` has different callback semantics. It clears both task lists in one operation and invokes `onStackTasksRemoved()` once. That callback resets focus, returns every attached task view to the pool, clears all ignored tasks, and unconditionally emits `AllTaskViewsDismissedEvent`.
+
+### Candidate selective-removal strategy
+
+For a protected Close All operation, the following source-compatible strategy is a candidate for implementation and device validation:
+
+1. Snapshot the complete task list and derive the unprotected task subset once at the start of the operation.
+2. Build the animation input from only attached `TaskView` instances whose tasks are in that unprotected subset. Protected views must not be passed to the delete animation helper.
+3. Keep the unprotected task snapshot for the final callback; do not call `removeAllTasks(true)`, because it would also remove protected tasks.
+4. In the final callback, process only snapshot tasks that are still present in the stack. Grid-layout per-view callbacks have already removed their tasks through `TaskViewDismissedEvent` and dispatched their individual `DeleteTaskDataEvent`; checking stack membership avoids dispatching cleanup for those tasks a second time.
+5. For each remaining unprotected task, remove it through the single-task `removeTask()` path and dispatch exactly one `DeleteTaskDataEvent`. This also covers unprotected tasks that had no attached `TaskView` and therefore had no individual grid animation callback.
+
+**Important distinction** — the membership check is a candidate deduplication mechanism for the known synchronous EventBus path, not a concurrency guarantee. Validate it against package/task-list refreshes and other asynchronous Recents updates on the target firmware.
+
+### Remaining risks to validate
+
+- Whether per-task removal with `AnimationProps.IMMEDIATE` preserves the visual and accessibility behavior of the original one-shot `removeAllTasks(true)` callback in both layouts.
+- Whether stack callbacks triggered during the final loop can cause re-entrant list changes; iterate over the immutable snapshot, never the live stack list.
+- Whether a Close All operation with every task protected leaves the action button, focus, empty-state UI, and accessibility announcements in a correct state. It must not announce that all tasks were dismissed.
+- Whether a task removed by an unrelated event after the initial snapshot but before the final callback is already fully cleaned up. Do not infer this solely from absence in the stack without tracing the competing removal path.
+
+**Status** — the callback semantics and the difference between single-task and bulk stack removal are confirmed from source. The selective-removal strategy is a design candidate, not yet validated or approved for implementation.
