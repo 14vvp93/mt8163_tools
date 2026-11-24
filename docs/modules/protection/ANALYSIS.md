@@ -2328,3 +2328,26 @@ The workflow was extended to:
 - Do not infer that the manifest-only JAR files are valid framework implementations, and do not silently substitute AOSP source for target-firmware evidence.
 
 **Status** — target artifact paths and archive contents are verified. The GitHub Actions analysis workflow has been prepared but its latest run failed before job startup. No hooks or firmware code were changed.
+
+
+## 62. Framework analysis workflow startup failure
+
+Follow-up on Section 61:
+
+- Workflow commit `01650ab579c5215bdc30a19e94b73b0f59f4d8e1` added a 90-minute job timeout and removed a redundant report separator. The commit was pushed to `public_worker/main`.
+- GitHub created run `45419197129` (run number 13) for that commit, but its conclusion was again `startup_failure`.
+- The run has no jobs, no job steps, and no artifacts. Therefore the failure occurred before the workflow's `analyze` job started; it provides no evidence of a VDEX extractor, JADX, shell, or source-matching failure.
+- The earlier run `45418819123` has the same startup-failure/no-job/no-artifact signature.
+- A request to rerun failed jobs for run `45418819123` was rejected by GitHub with HTTP 403: the run cannot be retried. No workflow-dispatch action is available through the connected GitHub operations in this session.
+
+### Diagnostic boundary
+
+**Confirmed** — the workflow is recognized by GitHub and push events create workflow runs. The workflow source contains one Ubuntu job and the task-lifecycle extraction/reporting steps.
+
+**Not established** — the root cause of `startup_failure`. With no job object or step log, it is not valid to attribute the failure to YAML syntax, shell commands, runner image, permissions, or repository billing/runner settings.
+
+### Next required action
+
+Inspect the run's details in GitHub Actions UI or repository-level Actions settings to obtain the platform startup diagnostic. Once GitHub can create the job, rerun the workflow and inspect the published `artifacts/framework/services/` output. Do not make further speculative workflow changes until the startup cause is known.
+
+**Status** — workflow instrumentation is committed, but target `services.vdex` decompilation remains blocked before job startup. Sections 59–60 remain AOSP Android 9 reference findings, not target-firmware confirmations. No Protection hooks or firmware binaries were modified.
