@@ -128,9 +128,11 @@ jobs:
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell pm clear com.mt8163.tools
 
-            adb shell am instrument -w -r \
+            TEST_OUTPUT="$(adb shell am instrument -w -r \
               -e class com.mt8163.tools.UiPreviewTest \
-              com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner
+              com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner 2>&1)"
+            printf '%s\n' "$TEST_OUTPUT"
+            grep -q 'OK (1 test)' <<< "$TEST_OUTPUT"
 
             mkdir -p artifacts/ui-preview
             adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview artifacts/ui-preview

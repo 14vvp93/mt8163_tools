@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
+import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
@@ -33,7 +34,9 @@ public final class UiPreviewTest {
     public void launchApplication() throws IOException {
         device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        output = new File(target.getExternalFilesDir(null), "ui-preview");
+        File external = target.getExternalFilesDir(null);
+        if (external == null) throw new IOException("External files directory is unavailable");
+        output = new File(external, "ui-preview");
         if (!output.exists() && !output.mkdirs()) {
             throw new IOException("Unable to create screenshot directory");
         }
@@ -54,6 +57,8 @@ public final class UiPreviewTest {
         openModule("Media");
         capture("02-media");
         captureHeaderDisabledAndEnabled("media");
+        captureToggleState("media_restore_background_media", "03-media-background-player");
+        captureToggleState("media_restore_background_bluetooth", "04-media-background-bluetooth");
 
         openModule("Protection");
         captureHeaderDisabledAndEnabled("protection");
@@ -71,7 +76,11 @@ public final class UiPreviewTest {
         capture("08-protection-application-added");
         clickDescription("Application settings");
         capture("09-protection-application-settings");
-        device.pressBack();
+        clickText("Protect from Memory Cleaner");
+        clickText("Hide application card in Recents");
+        clickText("Allow closing the card via X");
+        capture("10-protection-application-settings-enabled");
+        clickText("Cancel");
         clickDescription("Remove application");
         capture("10-protection-remove-confirmation");
         clickText("Cancel");
@@ -100,6 +109,16 @@ public final class UiPreviewTest {
                 device.wait(Until.hasObject(By.textContains("Recent")), UI_TIMEOUT)
                         || device.wait(Until.hasObject(By.textContains("Save")), UI_TIMEOUT));
         capture("24-events-document-picker");
+    }
+
+    private void captureToggleState(String id, String name) throws IOException {
+        UiObject2 toggle = waitFor(By.res(PACKAGE + ":id/" + id));
+        capture(name + "-current");
+        toggle.click();
+        device.waitForIdle();
+        capture(name + "-changed");
+        waitFor(By.res(PACKAGE + ":id/" + id)).click();
+        device.waitForIdle();
     }
 
     private void captureHeaderDisabledAndEnabled(String module) throws IOException {
