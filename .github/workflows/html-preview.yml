@@ -65,11 +65,7 @@ jobs:
             adb install -r source/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell pm clear com.mt8163.tools
 
-            TEST_OUTPUT="$(adb shell am instrument -w -r \
-              -e class com.mt8163.tools.UiPreviewTest \
-              com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner 2>&1)"
-            printf '%s\n' "$TEST_OUTPUT"
-            grep -q 'OK (1 test)' <<< "$TEST_OUTPUT"
+            bash -o pipefail -c 'adb shell am instrument -w -r -e class com.mt8163.tools.UiPreviewTest com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee /tmp/ui-preview-test.log | grep -q "OK (1 test)"'
 
             mkdir -p dist/html-preview/screenshots
             adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview dist/html-preview/screenshots
