@@ -88,7 +88,6 @@ public final class ProtectionSettingsStore {
             JSONObject applications = new JSONObject(
                     preferences.getString(KEY_APPLICATIONS, "{}"));
             applications.remove(ProtectionConfig.key(packageName));
-            applications.remove(packageName + "|0");
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
             publish(app);
