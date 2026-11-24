@@ -2499,3 +2499,94 @@ This differs from trim notification with `true`, which enters the task-activity 
 - The framework may perform additional process lifecycle work outside the inspected `cleanUpRemovedTaskLocked()` branch.
 
 **Status** — target firmware confirms that Recents trimming can finish task activities through SystemServer. No Protection hooks or firmware binaries were modified.
+
+
+## 65. Target Recents trim eligibility and configured thresholds
+
+Source: `com.android.server.am.RecentTasks` in target `services.vdex` CompactDEX disassembly, workflow artifact `44771655098`.
+
+### Global task-count limit
+
+**Confirmed in target firmware** — `RecentTasks` initializes `mGlobalMaxNumTasks` from `ActivityManager.getMaxRecentTasksStatic()`. The value can also be changed through `setGlobalMaxNumTasks(int)`.
+
+At the beginning of `trimInactiveRecentTasks()`, while `mTasks.size() > mGlobalMaxNumTasks`, the method removes the last task in the list and calls `notifyTaskRemoved(task, true)`. It decrements the tracked size and repeats until the list is within the global limit.
+
+This is a separate, unconditional count-limit pass. It does not first call `isActiveRecentTask()`, `isVisibleRecentTask()`, `isInVisibleRange()`, or `isTrimmable()` for each item.
+
+### Active-task eligibility
+
+**Confirmed** — `isActiveRecentTask(task, quietProfileIds)` returns false when the task's `userId` is in the quiet managed-profile set.
+
+It also checks affiliation: when `mAffiliatedTaskId` identifies a distinct affiliated task and that task exists in RecentTasks, the current task is considered inactive if the affiliated task is inactive. Otherwise the method returns true.
+
+Before the second trimming pass, `trimInactiveRecentTasks()` obtains current profile IDs from `UserController.getCurrentProfileIds()`, resolves each `UserInfo`, and marks only managed profiles with quiet mode enabled in `mTmpQuietProfileUserIds`.
+
+### Visible-task eligibility
+
+**Confirmed** — `isVisibleRecentTask(task)` uses the task's activity type and windowing mode, and checks its position in its ActivityStack:
+
+- Tasks that do not pass the activity-type/windowing-mode switch are not treated as visible recent tasks.
+- For the applicable stack case, a task is not considered visible when it is the current top task of that stack.
+- A task that is the Lock Task Controller's root task is not considered visible for trimming.
+
+The bytecode includes explicit activity-type and windowing-mode switch tables. Their exact symbolic enum names are not recoverable from the disassembly alone; do not infer additional supported modes from the numeric switch values without decoding the corresponding framework constants.
+
+### Visible-range and age policy
+
+**Confirmed** — `isInVisibleRange(task, visibleTaskCount)` first checks the task base Intent's `FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS` bit (`0x00800000`). If set, the method returns true for the first visible-count position and false for later positions.
+
+For ordinary tasks:
+
+1. If `mMinNumVisibleTasks >= 0` and the current visible-task ordinal is less than or equal to that minimum, the task is retained in range.
+2. If `mMaxNumVisibleTasks >= 0` and the ordinal is less than or equal to that maximum, it is outside the trim range.
+3. If `mActiveTasksSessionDurationMs > 0`, a task whose `getInactiveDuration()` exceeds that duration is considered in range for trimming.
+4. Otherwise the task is not in range.
+
+The ordinal is advanced only for tasks that pass `isActiveRecentTask()` and `isVisibleRecentTask()`. It is not simply the raw index in `mTasks`.
+
+### Trimmability
+
+**Confirmed** — `isTrimmable(task)` returns true immediately when the task has no ActivityStack.
+
+When a stack exists, the task and the Home stack must be on the same display. The method then compares their stack indices and returns true only when the task's stack is below the Home stack in the display's ordering. A task on another display is not trimmable by this check.
+
+### Second trimming pass
+
+**Confirmed** — after the global count-limit pass, `trimInactiveRecentTasks()`:
+
+1. Builds the quiet managed-profile ID set.
+2. Iterates the remaining `mTasks` list.
+3. Skips inactive tasks.
+4. Skips all further visible-task trimming when `mHasVisibleRecentTasks` is false.
+5. Skips tasks that fail `isVisibleRecentTask()`.
+6. Increments the visible-task ordinal.
+7. Skips tasks that are in the configured visible/age range.
+8. Skips tasks for which `isTrimmable()` is false.
+9. Removes eligible tasks, calls `notifyTaskRemoved(task, true)`, and calls `notifyTaskPersisterLocked(task, true)`.
+
+The loop's list index advances only on skip branches; after a removal, it stays at the same index so the next shifted task is evaluated.
+
+### Configuration values and unresolved numeric thresholds
+
+**Confirmed** — `loadParametersFromResources()` obtains `mMinNumVisibleTasks` and `mMaxNumVisibleTasks` from framework integer resources. On a low-RAM device it reads a distinct pair of resource IDs. Otherwise, it checks system property `ro.recents.grid` and selects a grid-specific pair or the normal pair.
+
+The active-task session duration comes from another framework integer resource interpreted in hours and converted to milliseconds. A non-positive value disables the duration threshold by setting the field to `-1`.
+
+**Not established** — the actual integer resource values selected by this firmware, the resolved value of `ro.recents.grid` on the target head unit, and the device's low-RAM classification. The CompactDEX report identifies the resource IDs and selection logic but does not contain the resolved framework resource table values.
+
+### Protection implications
+
+- The global max-count pass is the strongest framework-level eviction path: it removes the tail until the global task count is satisfied, without consulting the later visible/age eligibility checks.
+- The second pass is policy-driven and depends on quiet-profile state, activity/window mode, stack/display ordering, configured visible-count thresholds, and optional inactivity duration.
+- No fixed number of retained tasks or inactivity duration can be stated until the firmware's framework resource table and runtime properties are inspected.
+- Do not hook these private eligibility methods as a substitute for protecting user-initiated Recents dismissal. They are SystemServer retention policy and their return values affect framework task lifecycle.
+- No additional Android-user/profile feature is introduced into the Protection product scope; quiet-profile handling is recorded only because it participates in the firmware's trim algorithm.
+
+### Evidence limitations
+
+- Findings are decoded from target CompactDEX; JADX did not reconstruct Java source for `services.vdex`.
+- Exact activity/windowing enum mappings and actual resource values remain unresolved.
+- Runtime properties and low-RAM classification have not been read from the target head unit.
+- No Protection hooks or firmware binaries were modified.
+
+**Status** — target firmware's two-pass trimming algorithm and its eligibility gates are source-confirmed at bytecode level. Exact numeric thresholds remain pending resource-table/runtime inspection.
