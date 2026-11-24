@@ -35,7 +35,7 @@
             android:value="true" />
         <meta-data
             android:name="xposedscope"
-            android:value="android" />
+            android:value="android,com.android.systemui" />
 
         <activity
             android:name=".ui.MainActivity"
