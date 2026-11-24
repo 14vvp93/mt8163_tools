@@ -24,6 +24,34 @@ public final class ProtectionSettingsStore {
     private ProtectionSettingsStore() {
     }
 
+    public static ProtectionConfig.ApplicationSettings getApplicationSettings(
+            Context context, String packageName, int userId) {
+        if (context == null || !ProtectionConfig.isValidPackageName(packageName)
+                || userId < 0) {
+            return new ProtectionConfig.ApplicationSettings(false, false, false);
+        }
+
+        try {
+            String json = context.getApplicationContext()
+                    .getSharedPreferences(SETTINGS, Context.MODE_PRIVATE)
+                    .getString(KEY_APPLICATIONS, "{}");
+            JSONObject applications = new JSONObject(json);
+            JSONObject item = applications.optJSONObject(
+                    ProtectionConfig.key(packageName, userId));
+            if (item == null) {
+                return new ProtectionConfig.ApplicationSettings(false, false, false);
+            }
+            return new ProtectionConfig.ApplicationSettings(
+                    item.optBoolean("keep_recents", false),
+                    item.optBoolean("hide_recents", false),
+                    item.optBoolean("protect_cleaner", false));
+        } catch (JSONException | RuntimeException error) {
+            EventLogger.log(context, "Protection", "configurationRead",
+                    "Failed to read application settings: " + error);
+            return new ProtectionConfig.ApplicationSettings(false, false, false);
+        }
+    }
+
     public static boolean setApplicationSettings(Context context, String packageName, int userId,
                                                  boolean keepRecents, boolean hideRecents,
                                                  boolean protectCleaner) {
