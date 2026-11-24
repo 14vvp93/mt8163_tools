@@ -66,7 +66,7 @@ They are not targets in the `android` SystemServer process.
 
 **Implemented** — the receiver validates the sending UID against the installed `com.mt8163.tools` package before accepting configuration-change broadcasts. The sender does not rely on the app-defined signature permissions used by the SystemServer configuration channels, because SystemUI is not assumed to hold those permissions.
 
-**Pending** — build verification and runtime validation on the target head unit. The actual Recents and Memory Cleaner behavior hooks are not implemented.
+**Implemented** — the SystemUI bootstrap installs the Recents and Memory Cleaner hooks described below. Automated build verification and target-device runtime validation remain pending.
 
 ### Protection configuration transport
 
@@ -109,7 +109,7 @@ Source: `recents/views/TaskStackViewTouchHandler.java` and the firmware `SwipeHe
 
 **Confirmed** — `SwipeHelper` asks the Recents callback `canChildBeDismissed(View)` when selecting a swipe candidate and again when deciding whether the completed gesture is a dismissal. The callback also checks normal stack and animation state.
 
-**Candidate** — preserve the original result for ordinary tasks and return false for a protected task. Do not change the separate manual drag-and-drop path.
+**Implemented** — the hook returns `false` only when the task identity is valid and Keep is enabled. All other cases retain the firmware result. The manual drag callback is not hooked.
 
 ### Card X
 
@@ -119,7 +119,7 @@ Sources:
 
 **Confirmed** — the header's dismiss-button branch resolves its parent TaskView and calls `dismissTask()`.
 
-**Candidate** — gate only the dismiss-button branch for protected tasks. Preserve application-info, move-task, and other click behavior.
+**Implemented** — the hook suppresses only the dismiss-button branch for protected tasks. Application-info, move-task, and other click paths remain untouched.
 
 ### Keyboard dismissal
 
@@ -127,7 +127,7 @@ Source: `recents/views/TaskStackView.java`.
 
 **Confirmed** — `DismissFocusedTaskViewEvent` is handled separately. The handler dismisses the focused TaskView and resets focus.
 
-**Candidate** — suppress dismissal for a protected focused task while preserving focus reset and focus-frame cleanup.
+**Implemented** — the hook suppresses the event only for a protected focused task and calls the firmware's `resetFocusedTask(Task)`, preserving focus-frame cleanup.
 
 ### Why a global dismissTask() hook is unsafe
 
@@ -158,26 +158,25 @@ Sources:
 
 ### Safe selective-removal design
 
-The following is a source-derived candidate algorithm, not an implemented hook:
+**Implemented behavior:**
 
-1. At the start of the Close all handler, snapshot the stack and classify tasks by Protection settings and validated package/user identity.
-2. Build a separate list of attached TaskViews for unprotected tasks. Do not mutate the live TaskView collection.
-3. Pass only those unprotected views to the existing delete-all animation. Keep the original EventBus event and trigger lifecycle.
-4. In the post-animation callback, take a **fresh** stack snapshot. Do not reuse the original snapshot for cleanup.
-5. The fresh snapshot excludes Grid tasks already removed by their per-view callbacks. It still includes unbound Grid tasks and non-Grid tasks that remain in the model.
-6. If no protected tasks remain, preserve the firmware's bulk-empty completion behavior and clean up each remaining unprotected task exactly once.
-7. If protected tasks remain, remove only the remaining unprotected tasks with the existing immediate per-task TaskStack removal path, then dispatch one `DeleteTaskDataEvent` per removed task. Do not call `removeAllTasks(true)` while protected tasks remain.
-8. Announce that all items were dismissed only when the resulting stack is actually empty. Preserve focus, layout, accessibility, metrics, and scrim behavior.
+- The hook leaves the firmware's original Close all handler untouched when no Keep-protected task is present.
+- If protected tasks exist, it suppresses the bulk `removeAllTasks(true)` path.
+- It snapshots the stack and calls the existing per-task `dismissTask()` path for each attached unprotected TaskView. This reuses firmware Grid/non-Grid per-task animations and normal dismissal cleanup.
+- Unattached unprotected tasks are removed through `TaskStack.removeTask(task, null, false, false)` and receive one `DeleteTaskDataEvent`.
+- Protected tasks remain in the stack. The bulk all-dismissed announcement is not emitted by the suppressed handler.
+- Focus is reset only when the focused task is being dismissed.
+
+This deliberately uses the firmware's individual dismissal path rather than replacing its bulk animation trigger. It avoids calling `removeAllTasks(true)` while protected tasks remain.
 
 **Pending device validation:**
 - Grid and non-Grid with all tasks protected;
 - mixed protected/unprotected tasks, including unattached TaskViews;
-- empty animation list;
-- animation cancellation or view detachment and trigger completion;
+- per-task animation cancellation or view detachment;
 - focus, layout, accessibility, and scrim when protected cards remain;
-- exactly-once cleanup and force-stop behavior for unprotected tasks.
+- exactly-once cleanup for unprotected tasks.
 
-**Status** — source-level callback ordering and a selective-removal design are documented. Close all has not been implemented or validated on the head unit.
+**Status** — selective Close all handling is implemented in source. Target-device validation remains pending.
 
 ## 7. Hide from Recents — display-only filtering
 
@@ -195,9 +194,9 @@ Sources:
 - Subsequent refreshes pass through `RecentsActivity.reloadTaskStack(boolean, boolean)`, which creates `MultiWindowStateChangedEvent`.
 - The deferred stack animation consumes the incoming task list before calling `TaskStackView.setTasks()`. Filtering only inside `setTasks()` can leave animation calculations based on a different list.
 
-**Candidate filtering boundaries:**
-1. Filter the stack in `reloadStackView()` before passing it to `RecentsView.onReload()`. Use the filtered stack for empty-state and navigation-bar scrim decisions.
-2. Filter the newly loaded stack in `reloadTaskStack(boolean, boolean)` before creating `MultiWindowStateChangedEvent`. All subscribers and deferred animation then receive the same list.
+**Implemented filtering boundaries:**
+1. Filter the stack in `RecentsView.onReload(TaskStack, boolean)` before the view consumes it. The same stack object is then used by the caller's empty-state and navigation-bar scrim decisions.
+2. Filter the stack in the `MultiWindowStateChangedEvent` constructor. Subscribers and deferred animation receive the filtered list.
 
 **Implementation requirements:**
 - Do not mutate a shared load plan.
@@ -207,7 +206,7 @@ Sources:
 - Keep hidden tasks available to Memory Cleaner.
 - When Hide from Recents is disabled, the task should return on the next normal reload.
 
-**Status** — source-level display paths and shared-load-plan coupling are confirmed. The candidate filters are not implemented or runtime-validated.
+**Status** — both display-only filters are implemented. They mutate only the local display stack with `setTasks(filtered, false)`; they do not dispatch cleanup events or modify the shared task-load plan. Runtime validation remains pending.
 
 ## 8. Protect from MTK Memory Cleaner
 
@@ -221,7 +220,7 @@ Source: `qs/tiles/MemoryCleanerTile.java`.
 
 This path does not depend on `DeleteTaskDataEvent`; intercepting that event alone cannot protect tasks from Memory Cleaner.
 
-**Candidate** — apply the Protection predicate in the cleaner's per-task processing path before the first destructive operation. Skip all three operations for protected tasks and preserve the original sequence for all others.
+**Implemented** — the hook scopes a per-thread cleaner state to `clearRecentsTask()`. At `deleteTaskData(task, false)`, it resolves the package/user identity and records whether that task is protected. For protected tasks it suppresses cache deletion, the matching `ActivityManagerWrapper.removeTask(taskId)`, and the matching `ActivityManager.forceStopPackage(packageName)`. Unprotected tasks retain the original sequence.
 
 **Implementation requirements:**
 - Match package name and user ID defensively.
@@ -229,7 +228,7 @@ This path does not depend on `DeleteTaskDataEvent`; intercepting that event alon
 - Do not suppress Android system memory management.
 - Preserve normal cleaner behavior for unprotected tasks.
 
-**Status** — the cleaner's task acquisition and destructive sequence are source-traced. Runtime behavior remains to be tested.
+**Status** — all three destructive operations are guarded in source. Runtime behavior and exact hook availability remain to be tested on the target device.
 
 ## 9. System task removal and framework boundary
 
@@ -262,51 +261,53 @@ Target `services.vdex` and `boot-framework.vdex` were inspected through the repo
 
 All entries below are candidates, not installed hooks.
 
-| Setting / action | Candidate SystemUI method or boundary | Required behavior |
+| Setting / action | Installed SystemUI method or boundary | Implemented behavior |
 |---|---|---|
 | Keep card — swipe | `TaskStackViewTouchHandler.canChildBeDismissed(View)` | Reject swipe dismissal for protected tasks; preserve original checks |
 | Keep card — X | Dismiss-button branch in `TaskViewHeader.onClick(View)` | Suppress only the X action |
-| Keep card — keyboard | `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` | Skip protected dismissal; preserve focus cleanup |
-| Keep card — Close all | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` | Filter animation and post-animation cleanup consistently |
-| Hide — initial display | `RecentsActivity.reloadStackView()` | Filter before visible UI consumes the stack |
-| Hide — refresh | `RecentsActivity.reloadTaskStack(boolean, boolean)` | Filter before event construction |
-| Memory Cleaner | Per-task processing in `MemoryCleanerTile.clearRecentsTask()` | Skip before cache cleanup, task removal, and force-stop |
+| Keep card — keyboard | `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` | Skip protected dismissal; reset focus and focus frame |
+| Keep card — Close all | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` | Use per-task dismissals for attached views; selectively remove unattached tasks |
+| Hide — initial display | `RecentsView.onReload(TaskStack, boolean)` | Filter local display stack before view consumes it |
+| Hide — refresh | `MultiWindowStateChangedEvent(TaskStack)` constructor | Filter before subscribers and deferred animation consume it |
+| Memory Cleaner | `clearRecentsTask()`, `deleteTaskData()`, `removeTask()`, `forceStopPackage()` | Suppress all three destructive operations for protected tasks |
 
 Exact method descriptors and target class-loader resolution must be checked against the firmware build before installing hooks.
 
 ## 11. Implementation readiness and validation
 
-### Implemented infrastructure
+### Implemented source hooks
 
 - SystemUI main-process routing and the `SystemUIApplication.onCreate()` bootstrap hook.
 - One process-wide configuration receiver with sender-UID validation.
 - Configuration model, persistence mirror, and package/user matcher.
+- Keep: swipe, card X, keyboard dismissal, and selective Close all.
+- Hide: initial Recents stack and deferred multi-window refresh stack.
+- Memory Cleaner: cache deletion, task removal, and package force-stop guards.
 - MainApplication startup publication and publication when the Protection module enabled state changes.
 
 ### Ready at source-analysis level
 
 - The three settings have separate firmware paths and boundaries.
 - User dismissal origins are distinguished from package and launch-failure cleanup.
-- Close all has a source-derived selective-removal design for Grid and non-Grid layouts.
-- Hide from Recents has separate display entry points that avoid shared-load-plan side effects.
-- Memory Cleaner has a distinct destructive path and candidate pre-operation filter.
-- The target process is SystemUI; the current project registry does not yet route Protection there.
+- Close all uses the firmware's per-task dismissal path for attached views and selective model cleanup for unattached tasks.
+- Hide from Recents filters only the display stacks, avoiding shared-load-plan side effects.
+- Memory Cleaner guards all three destructive operations in its per-task sequence.
+- The target process is SystemUI and has a separate Xposed routing path.
 - Task identity and null-safety requirements are established.
 
 ### Required before release
 
-1. Build the current branch and verify the SystemUI bootstrap integration.
+1. Complete automated build and module-test verification.
 2. Verify configuration readability through XSharedPreferences on the target LSPosed build.
-3. Implement the actual Recents and Memory Cleaner interception points.
-4. Verify exact target method descriptors and class-loader visibility.
-5. Validate all three settings independently and their agreed mutual exclusion.
-4. Test swipe, X, keyboard dismissal, and Close all in Grid and non-Grid layouts.
+3. Verify each installed hook resolves on the target firmware and logs installation success.
+4. Validate all three settings independently and their agreed mutual exclusion.
+5. Test swipe, X, keyboard dismissal, and Close all in Grid and non-Grid layouts.
 5. Test Memory Cleaner with protected and unprotected tasks.
 6. Test Hide from Recents on initial display and refresh, including restoration after disabling the setting.
 7. Test package changes, SystemUI restart, missing task identity, animation cancellation, and repeated user actions.
 8. Confirm that protected tasks never reach the destructive cleanup sequence through the protected user action.
 
-No Protection hooks have been implemented and no runtime validation has been completed on the target head unit.
+Protection hooks are implemented in source but have not yet been runtime-validated on the target head unit.
 
 ## 12. Primary firmware source files
 
