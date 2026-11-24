@@ -1637,3 +1637,34 @@ This inventory records source-level candidates only. It is not an implementation
 3. Verify task package/user extraction for every candidate hook against null and unresolved-component cases.
 4. Confirm Legacy Xposed API 82 method-hook compatibility and class-loader visibility for the selected SystemUI classes.
 5. Validate package replacement, hidden-task restoration, animation behavior, and cleanup on the target MT8163 device.
+
+## 44. SwipeHelper dismissal eligibility and drag lifecycle
+
+Sources:
+
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/SwipeHelper.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/TaskStackViewTouchHandler.java`
+
+### Swipe admission
+
+**Confirmed** — `SwipeHelper.onInterceptTouchEvent()` obtains the candidate view through `Callback.getChildAtPosition()`. The Recents implementation returns a TaskView only when `canChildBeDismissed(view)` returns true.
+
+**Confirmed** — after obtaining a candidate, SwipeHelper stores the result of `canChildBeDismissed()` in its per-gesture dismissal flag. During movement, a non-dismissable view is limited to a bounded resistance translation. On release, `isDismissGesture()` checks `canChildBeDismissed()` again before deciding whether to dismiss.
+
+**Confirmed** — the Recents callback `TaskStackViewTouchHandler.canChildBeDismissed(View)` is therefore consulted at admission and again during gesture completion. Returning false for a protected task prevents it from being selected as a swipe-dismiss candidate through the normal touch path.
+
+### Side effects and drag distinction
+
+**Confirmed** — `TaskStackViewTouchHandler.onBeginDrag(View)` performs state changes for an accepted swipe: disables TaskView touch, changes clipping, adds the task to the ignored-task set, snapshots the task list and transforms, and recalculates stack layout.
+
+**Confirmed** — the separate `onBeginManualDrag(TaskView)` entry point sets the active TaskView and swipe-animation map, then calls `onBeginDrag()`. This is a manual drag path used by Recents drag-and-drop behavior; it is not the same as swipe-dismiss admission.
+
+**Implementation constraint** — use `canChildBeDismissed(View)` as the swipe-dismiss eligibility check, not `onBeginDrag()` or a broad touch-handler cancellation. Do not block manual drag-and-drop solely because Keep card in Recents is enabled unless a separate product requirement explicitly says that dragging is forbidden.
+
+### Dismissal completion
+
+**Confirmed** — after SwipeHelper accepts a dismiss gesture and its dismiss animation completes, it invokes `Callback.onChildDismissed(View)`. The Recents implementation restores clipping and touch, dispatches `TaskViewDismissedEvent`, updates swipe-specific focus/layout state, and records the dismissal metric.
+
+**Implementation constraint** — do not rely on blocking `onChildDismissed()` as the primary protection boundary. By that point the dismiss animation has already been accepted and completed. Prevent protected tasks from entering the dismissal gesture through the eligibility callback.
+
+**Status** — the swipe admission boundary is supported by both the Recents callback and its SwipeHelper caller. Runtime gesture validation remains required, especially for touch cancellation, manual drag-and-drop, and Grid layout.
