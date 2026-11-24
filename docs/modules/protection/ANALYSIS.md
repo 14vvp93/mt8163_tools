@@ -934,3 +934,78 @@ There is no `DeleteTaskDataEvent` dispatch in this method. The cleaner therefore
 
 **Pending runtime validation** — verify on the target Android 9 firmware how `removeTask()` and `forceStopPackage()` behave for protected tasks, multiple tasks from one package, work/profile users, unresolved components, and a task list that changes during the cleaner loop. Static source inspection cannot establish the system-service outcome or timing of these operations.
 
+## 34. Full audit of TaskStack mutation and system task-removal call sites
+
+Sources audited:
+
+- `shared/recents/model/TaskStack.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/RecentsView.java`
+- `recents/views/TaskStackAnimationHelper.java`
+- `recents/RecentsActivity.java`
+- `recents/RecentsImpl.java`
+- `shared/system/ActivityManagerWrapper.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+- `qs/tiles/MemoryCleanerTile.java`
+- `keyguard/WorkLockActivityController.java`
+- Corresponding APKTool smali call sites were cross-checked where present.
+
+### `TaskStack.removeTask()` call sites
+
+| Call site | Trigger / purpose | Model mutation | System task removal / force-stop |
+|---|---|---|---|
+| `TaskStackView.onBusEvent(TaskViewDismissedEvent)` | Swipe or X dismissal | Removes one task from the active stack | Dispatches `DeleteTaskDataEvent`; `RecentsActivity` handler deletes loader data, asynchronously calls `ActivityManager.removeTask()`, then calls `forceStopPackage()` |
+| `TaskStackView.onBusEvent(PackagesChangedEvent)`, no attached `TaskView` branch | Package/component is no longer resolvable | Removes one task with `AnimationProps.IMMEDIATE` | No `DeleteTaskDataEvent` in this branch |
+| `RecentsView.lambda$onBusEvent$1(DragEndEvent)` | Successful drag of a task into docked/split-screen mode, after app transition animation starts | Removes the task from the Recents model | No `DeleteTaskDataEvent` and no explicit system `removeTask()`; the task has been launched into the docked mode |
+| `TaskStack.removeTask()` overload | Internal model API | Removes from visible stack list and raw task list; calls `onStackTaskRemoved()` only when the task is in the stack-task list | No direct system service call |
+
+**Confirmed** — the three application-level call sites above have different semantics. Only the ordinary `TaskViewDismissedEvent` path dispatches the destructive `DeleteTaskDataEvent` cleanup. The package-change no-view branch is a model-only removal in the inspected handler. The dock transition is a model removal after a successful launch, not a request to destroy the task.
+
+### `TaskStack.removeAllTasks()` call sites
+
+| Call site | Argument | Purpose | Side effects |
+|---|---:|---|---|
+| `TaskStackView` Close All post-animation callback | `true` | Clears the active Recents stack | Calls `onStackTasksRemoved()`; the callback then dispatches one `DeleteTaskDataEvent` for each task in the saved snapshot |
+| `RecentsImpl.updateHeaderBarLayout()` | `false` | Clears the temporary dummy stack before measuring a replacement stack | No stack callback; does not dispatch cleanup events or remove system tasks |
+
+**Confirmed** — only the first call site is the user-facing bulk task dismissal path. The second operates on `mDummyStackView`, used for header-bar layout measurement, and must not be confused with clearing the user's Recent Tasks.
+
+### `TaskStack.setTasks()` call sites and behavior
+
+| Call site | Notification flag | Purpose |
+|---|---:|---|
+| `RecentsTaskLoadPlan.preloadPlan()` | `false` | Builds a new stack from the system Recent Tasks list |
+| `RecentsView.updateStack()` → `TaskStackView.setTasks()` | `true` requested; effective only when layout is initialized | Replaces the active Recents stack during normal stack updates |
+| `TaskStackAnimationHelper.startNewStackScrollAnimation()` → `TaskStackView.setTasks()` | `false` | Replaces the active stack as part of deferred stack animation |
+| `RecentsImpl.updateHeaderBarLayout()` → dummy `TaskStackView.setTasks()` | `false` | Supplies tasks to the temporary layout-measurement stack |
+| `RecentsImpl.startRecentsActivity()` → dummy `TaskStackView.setTasks()` | `false` | Clears the temporary dummy stack before starting Recents |
+
+**Confirmed** — `TaskStack.setTasks()` always replaces both internal task lists with the incoming list. With notifications enabled and a callback registered, it calculates removed and added tasks, reuses existing Task objects for matching `TaskKey` values, calls removal/addition callbacks, and finally calls `onStackTasksUpdated()`.
+
+**Confirmed** — when notifications are disabled, omitted tasks are not passed through `onStackTaskRemoved()`; they simply disappear from the replaced model lists. This is the deferred-animation behavior already described in Section 30 and the initial-load behavior in Section 29.
+
+**Confirmed** — `TaskStackView.setTasks()` additionally gates the notification flag on `mLayoutAlgorithm.isInitialized()`. A caller passing `true` does not guarantee removal callbacks if the layout is not initialized.
+
+**Important distinction** — neither `removeTask()`, `removeAllTasks()`, nor `setTasks()` intrinsically calls ActivityManager or force-stops a package. System destruction is performed by separate paths, notably the `DeleteTaskDataEvent` consumer and Memory Cleaner.
+
+### Additional direct system `removeTask(taskId)` call site
+
+**Confirmed** — `WorkLockActivityController.startWorkChallengeInTask(taskId,userId)` obtains task description and attempts to launch the work-profile credential challenge as a task overlay. If `startActivityAsUser()` returns an unsuccessful result, it directly calls `IActivityManager.removeTask(taskId)`. This is a failure-cleanup path for the work challenge, not a Recents gesture or Close All path. It does not call the Recents EventBus cleanup handler or `forceStopPackage()` in the inspected method.
+
+The other direct system task-removal route is `ActivityManagerWrapper.removeTask(taskId)`, which submits `ActivityManager.getService().removeTask(taskId)` to its background executor. Its known callers include the `DeleteTaskDataEvent` handler and Memory Cleaner. The method's asynchronous nature means its return to the caller is not confirmation that the system removed the task.
+
+### Audit conclusions for Protection
+
+1. Intercepting only `TaskStack.removeTask()` is insufficient: Memory Cleaner and WorkLock can remove system tasks without using it.
+2. Intercepting only `ActivityManagerWrapper.removeTask()` is insufficient: WorkLock calls `IActivityManager.removeTask()` directly.
+3. Intercepting `DeleteTaskDataEvent` is insufficient: Memory Cleaner performs loader-cache deletion and system cleanup directly; WorkLock has its own failure cleanup.
+4. Intercepting `TaskStack.setTasks()` or model removal callbacks does not prevent system task destruction. These are model synchronization paths and can also omit tasks without callbacks.
+5. Docking a task is a model removal but must not be treated as destructive dismissal; the task is being launched into split-screen/docked mode.
+6. Package-change removal without an attached view currently has no explicit loader-data/system-task cleanup in the inspected handler. Do not assume that every model removal has the same cleanup semantics.
+7. `WorkLockActivityController` is a distinct system workflow. Whether Protection should preserve a work-profile task when its credential challenge cannot launch is a policy decision requiring explicit scope confirmation; it should not be silently blocked.
+
+### Research status
+
+**Source audit completed** — all indexed JADX-source call sites for `TaskStack.removeTask()`, `removeAllTasks()`, and `setTasks()` were classified, with smali cross-checks for the corresponding compiled methods. Direct system `removeTask(taskId)` paths outside TaskStack were also identified.
+
+**Pending** — audit all producers and consumers of `DeleteTaskDataEvent` and trace the task-stack/package/user callbacks that can invalidate a task independently of Recents UI. Device validation is still required for timing and actual system-service outcomes.
