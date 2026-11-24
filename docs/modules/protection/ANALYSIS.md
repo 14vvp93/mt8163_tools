@@ -1959,3 +1959,67 @@ Reference: official LSPosed Module Scope documentation.
 6. Test restart/reload behavior after SystemUI process death and LSPosed scope changes.
 
 **Status** — the API-level integration path and process boundary are source-verified. No source code or manifest changes were made; no Protection hooks have been installed or runtime-tested.
+
+## 55. Package-change cleanup: attached versus unattached TaskViews
+
+Sources:
+
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/RecentsActivity.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/RecentsTaskLoader.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/TaskStack.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/TaskStackView.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/TaskView.java`
+
+### Package-change dispatch
+
+**Confirmed** — the three RecentsActivity PackageMonitor callbacks (`onPackageRemoved()`, `onPackageChanged()`, and `onPackageModified()`) call the same `onPackageChanged(packageName, getChangingUserId())` method.
+
+That method:
+
+1. Calls `RecentsTaskLoader.onPackageChanged(packageName)`.
+2. Sends `PackagesChangedEvent(packageName, userId)`.
+
+**Confirmed** — the loader invalidates every cached ActivityInfo entry whose component package matches `packageName`. The cache invalidation itself is package-wide; the subsequent TaskStack component scan applies the event's `userId`.
+
+### Component-removal decision
+
+**Confirmed** — `TaskStack.computeComponentsRemoved(packageName, userId)` scans task keys and ignores tasks belonging to a different user ID. For matching package components, it calls `PackageManagerWrapper.getActivityInfo(component, userId)`:
+
+- non-null ActivityInfo: the component is treated as existing;
+- null ActivityInfo: the component is returned as removed.
+
+**Confirmed** — `TaskStackView.onBusEvent(PackagesChangedEvent)` processes tasks whose component is in that removed-component set. Its cleanup then branches on whether a TaskView is currently attached.
+
+### Attached TaskView path
+
+When `getChildViewForTask(task)` returns a TaskView:
+
+1. TaskStackView calls `TaskView.dismissTask()`.
+2. TaskView dispatches `DismissTaskViewEvent` and registers a post-animation callback.
+3. The callback dispatches `TaskViewDismissedEvent`.
+4. TaskStackView removes the task from its in-memory stack and sends `DeleteTaskDataEvent`.
+5. RecentsActivity handles that event by clearing loader data, requesting system task removal, and force-stopping the task package.
+
+**Confirmed** — this path reaches the destructive Recents cleanup handler.
+
+### Unattached TaskView path
+
+When `getChildViewForTask(task)` returns null, TaskStackView directly calls:
+
+```java
+mStack.removeTask(task, AnimationProps.IMMEDIATE, false);
+```
+
+**Confirmed** — this branch removes the task from the in-memory Recents stack. It does not call `TaskView.dismissTask()` and does not dispatch `DeleteTaskDataEvent` in this handler. Consequently, this branch does not itself invoke RecentsActivity's `ActivityManagerWrapper.removeTask()` or `forceStopPackage()` sequence.
+
+### Protection implications
+
+- Package/component lifecycle cleanup is distinct from user-initiated Keep card in Recents behavior. Do not globally suppress `TaskView.dismissTask()` or `PackagesChangedEvent` for protected packages.
+- The same package-change event can produce different cleanup side effects depending on whether the task currently has an attached TaskView.
+- Removing a task from the in-memory Recents stack is not proof that the system Recent Task was removed.
+- Do not use this package-cleanup path as the implementation boundary for Hide from Recents or Keep card in Recents.
+- Preserve genuine package/component removal behavior; Protection must not fabricate ActivityInfo or override PackageManager results.
+
+**Pending** — validate the attached/unattached behavior on the target head unit, including package uninstall, component disable/removal, and package modification. The source does not establish that an ActivityInfo lookup can be transiently null during every package-change event, so no temporary-absence recovery rule is inferred here.
+
+**Status** — the source-level branch and its distinct downstream side effects are confirmed. No hooks or firmware code were changed.
