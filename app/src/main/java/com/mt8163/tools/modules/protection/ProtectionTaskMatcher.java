@@ -10,24 +10,23 @@ public final class ProtectionTaskMatcher {
         configuration = config == null ? ProtectionConfig.empty() : config;
     }
 
-    public static boolean shouldKeep(String packageName, int userId) {
-        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName, userId);
+    public static boolean shouldKeep(String packageName) {
+        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName);
         return settings != null && settings.shouldKeepRecents();
     }
 
-    public static boolean shouldHide(String packageName, int userId) {
-        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName, userId);
+    public static boolean shouldHide(String packageName) {
+        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName);
         return settings != null && settings.shouldHideRecents();
     }
 
-    public static boolean shouldProtectCleaner(String packageName, int userId) {
-        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName, userId);
+    public static boolean shouldProtectCleaner(String packageName) {
+        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName);
         return settings != null && settings.shouldProtectCleaner();
     }
 
-    private static ProtectionConfig.ApplicationSettings settingsFor(String packageName,
-                                                                     int userId) {
-        if (packageName == null || packageName.isEmpty() || userId < 0) return null;
-        return configuration.getApplicationSettings(packageName, userId);
+    private static ProtectionConfig.ApplicationSettings settingsFor(String packageName) {
+        if (!ProtectionConfig.isValidPackageName(packageName)) return null;
+        return configuration.getApplicationSettings(packageName);
     }
 }
