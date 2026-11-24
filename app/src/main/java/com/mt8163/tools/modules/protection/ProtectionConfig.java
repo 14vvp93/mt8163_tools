@@ -32,19 +32,10 @@ public final class ProtectionConfig {
             Iterator<String> keys = root.keys();
 
             while (keys.hasNext()) {
-                String key = keys.next();
-                int separator = key.indexOf('|');
-                String packageName = key;
-
-                if (separator >= 0) {
-                    if (separator == 0 || separator == key.length() - 1
-                            || !"0".equals(key.substring(separator + 1))) continue;
-                    packageName = key.substring(0, separator);
-                    if (root.has(packageName)) continue;
-                }
-
+                String packageName = keys.next();
                 if (!isValidPackageName(packageName)) continue;
-                JSONObject item = root.optJSONObject(key);
+
+                JSONObject item = root.optJSONObject(packageName);
                 if (item == null) continue;
 
                 applications.put(packageName, new ApplicationSettings(
