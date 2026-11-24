@@ -9,11 +9,14 @@ import com.mt8163.tools.core.EventLogger;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 public final class ProtectionSettingsStore {
     public static final String ACTION_CONFIG_CHANGED =
             "com.mt8163.tools.action.PROTECTION_CONFIG_CHANGED";
 
-    private static final String APP_PACKAGE = "com.mt8163.tools";
     private static final String TARGET_PACKAGE = "com.android.systemui";
     private static final String MODULE_SETTINGS = "mt8163_tools";
     private static final String SETTINGS = "protection_settings";
@@ -22,6 +25,30 @@ public final class ProtectionSettingsStore {
     private static final String KEY_APPLICATIONS = "applications";
 
     private ProtectionSettingsStore() {
+    }
+
+    public static List<String> getConfiguredPackageNames(Context context) {
+        List<String> result = new ArrayList<>();
+        if (context == null) return result;
+
+        try {
+            String json = context.getApplicationContext()
+                    .getSharedPreferences(SETTINGS, Context.MODE_PRIVATE)
+                    .getString(KEY_APPLICATIONS, "{}");
+            JSONObject applications = new JSONObject(json);
+            Iterator<String> keys = applications.keys();
+            while (keys.hasNext()) {
+                String packageName = keys.next();
+                if (ProtectionConfig.isValidPackageName(packageName)
+                        && applications.optJSONObject(packageName) != null) {
+                    result.add(packageName);
+                }
+            }
+        } catch (JSONException | RuntimeException error) {
+            EventLogger.log(context, "Protection", "configurationRead",
+                    "Failed to read configured applications: " + error);
+        }
+        return result;
     }
 
     public static ProtectionConfig.ApplicationSettings getApplicationSettings(
@@ -40,7 +67,7 @@ public final class ProtectionSettingsStore {
                 return new ProtectionConfig.ApplicationSettings(false, false, false, false);
             }
             return new ProtectionConfig.ApplicationSettings(
-                    item.optBoolean("keep_recents", false),
+                    true,
                     item.optBoolean("hide_recents", false),
                     item.optBoolean("protect_cleaner", false),
                     item.optBoolean("allow_close_via_x", false));
@@ -58,12 +85,12 @@ public final class ProtectionSettingsStore {
 
         Context app = context.getApplicationContext();
         SharedPreferences preferences = app.getSharedPreferences(SETTINGS, Context.MODE_PRIVATE);
-        String current = preferences.getString(KEY_APPLICATIONS, "{}");
 
         try {
-            JSONObject applications = new JSONObject(current);
+            JSONObject applications = new JSONObject(
+                    preferences.getString(KEY_APPLICATIONS, "{}"));
             JSONObject settings = new JSONObject();
-            settings.put("keep_recents", keepRecents && !hideRecents);
+            settings.put("keep_recents", true);
             settings.put("hide_recents", hideRecents);
             settings.put("protect_cleaner", protectCleaner);
             settings.put("allow_close_via_x", allowCloseViaX);

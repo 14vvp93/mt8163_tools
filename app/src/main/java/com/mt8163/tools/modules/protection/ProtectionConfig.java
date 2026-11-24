@@ -39,7 +39,7 @@ public final class ProtectionConfig {
                 if (item == null) continue;
 
                 applications.put(packageName, new ApplicationSettings(
-                        item.optBoolean("keep_recents", false),
+                        true,
                         item.optBoolean("hide_recents", false),
                         item.optBoolean("protect_cleaner", false),
                         item.optBoolean("allow_close_via_x", false)));
@@ -78,7 +78,7 @@ public final class ProtectionConfig {
         public ApplicationSettings(boolean keepRecents, boolean hideRecents,
                                    boolean protectCleaner, boolean allowCloseViaX) {
             this.hideRecents = hideRecents;
-            this.keepRecents = keepRecents && !hideRecents;
+            this.keepRecents = keepRecents;
             this.protectCleaner = protectCleaner;
             this.allowCloseViaX = allowCloseViaX;
         }

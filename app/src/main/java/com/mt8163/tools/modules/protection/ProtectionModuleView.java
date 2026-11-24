@@ -1,18 +1,30 @@
 package com.mt8163.tools.modules.protection;
 
-import android.content.Context;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,71 +33,452 @@ import com.mt8163.tools.R;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public final class ProtectionModuleView {
-    private final Context context;
+    private static final int RED = Color.rgb(255, 0, 0);
+    private static final int PRIMARY = Color.rgb(241, 242, 244);
+    private static final int SECONDARY = Color.rgb(174, 178, 186);
+    private static final int MUTED = Color.rgb(133, 138, 148);
+    private static final int PANEL = Color.rgb(27, 29, 34);
+    private static final int LINE = Color.rgb(52, 58, 64);
+    private static final int MAX_PICKER_RESULTS = 10;
+
+    private final Activity activity;
     private final PackageManager packageManager;
     private final LinearLayout applicationsContainer;
-    private final TextView resultsView;
-    private final EditText searchView;
-    private final List<AppEntry> applications = new ArrayList<>();
 
-    public ProtectionModuleView(View root, Context context) {
-        this.context = context.getApplicationContext();
-        packageManager = this.context.getPackageManager();
+    public ProtectionModuleView(View root, Activity activity) {
+        this.activity = activity;
+        packageManager = activity.getPackageManager();
         applicationsContainer = root.findViewById(R.id.protection_applications);
-        resultsView = root.findViewById(R.id.protection_results);
-        searchView = root.findViewById(R.id.protection_search);
+        Button addButton = root.findViewById(R.id.protection_add_application);
+        addButton.setOnClickListener(view -> showApplicationPicker());
+        renderProtectedApplications();
+    }
 
-        loadApplications();
-        searchView.addTextChangedListener(new TextWatcher() {
+    private void renderProtectedApplications() {
+        applicationsContainer.removeAllViews();
+        List<AppEntry> configured = new ArrayList<>();
+
+        for (String packageName : ProtectionSettingsStore.getConfiguredPackageNames(activity)) {
+            try {
+                ApplicationInfo info = packageManager.getApplicationInfo(packageName, 0);
+                configured.add(new AppEntry(info, getApplicationLabel(info)));
+            } catch (PackageManager.NameNotFoundException ignored) {
+            } catch (RuntimeException ignored) {
+            }
+        }
+
+        sortApplications(configured);
+        for (AppEntry app : configured) {
+            applicationsContainer.addView(createProtectedApplicationCard(app));
+        }
+
+        if (configured.isEmpty()) {
+            TextView empty = createText("No applications added yet", 14, MUTED);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(14), 0, dp(8));
+            applicationsContainer.addView(empty);
+        }
+    }
+
+    private View createProtectedApplicationCard(AppEntry app) {
+        ProtectionConfig.ApplicationSettings settings =
+                ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
+
+        LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(8), dp(10));
+        card.setMinimumHeight(dp(66));
+        card.setBackgroundResource(R.drawable.module_card_background);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.bottomMargin = dp(8);
+        card.setLayoutParams(cardParams);
+
+        ImageView appIcon = new ImageView(activity);
+        appIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        try {
+            appIcon.setImageDrawable(packageManager.getApplicationIcon(app.info));
+        } catch (RuntimeException error) {
+            appIcon.setImageResource(android.R.drawable.sym_def_app_icon);
+        }
+        card.addView(appIcon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView name = createText(app.label, 16, PRIMARY);
+        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        nameParams.leftMargin = dp(12);
+        nameParams.rightMargin = dp(8);
+        card.addView(name, nameParams);
+
+        LinearLayout indicators = new LinearLayout(activity);
+        indicators.setGravity(Gravity.CENTER);
+        indicators.setOrientation(LinearLayout.HORIZONTAL);
+        card.addView(indicators, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)));
+
+        addIndicator(indicators, android.R.drawable.ic_lock_lock,
+                settings.shouldProtectCleaner(), "Protected from Memory Cleaner");
+        addIndicator(indicators, android.R.drawable.ic_menu_view,
+                settings.shouldHideRecents(), "Hide application card in Recents");
+        addIndicator(indicators, android.R.drawable.ic_menu_close_clear_cancel,
+                settings.shouldAllowCloseViaX(), "Allow closing the card via X");
+
+        View separator = new View(activity);
+        separator.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams separatorParams = new LinearLayout.LayoutParams(dp(1), dp(28));
+        separatorParams.leftMargin = dp(8);
+        separatorParams.rightMargin = dp(6);
+        card.addView(separator, separatorParams);
+
+        card.addView(createActionButton(android.R.drawable.ic_menu_manage,
+                "Application settings", () -> showApplicationSettings(app)));
+
+        card.addView(createActionButton(android.R.drawable.ic_menu_delete,
+                "Remove application", () -> confirmRemoveApplication(app)));
+
+        return card;
+    }
+
+    private void addIndicator(LinearLayout parent, int icon, boolean enabled, String description) {
+        ImageView indicator = new ImageView(activity);
+        indicator.setImageResource(icon);
+        indicator.setImageTintList(ColorStateList.valueOf(enabled ? RED : MUTED));
+        indicator.setContentDescription(description);
+        indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(20), dp(20));
+        params.leftMargin = dp(5);
+        params.rightMargin = dp(5);
+        parent.addView(indicator, params);
+    }
+
+    private View createActionButton(int icon, String description, Runnable action) {
+        FrameLayout button = new FrameLayout(activity);
+        button.setBackgroundResource(android.R.drawable.list_selector_background);
+        button.setContentDescription(description);
+        button.setFocusable(true);
+        button.setClickable(true);
+        button.setOnClickListener(view -> action.run());
+
+        ImageView image = new ImageView(activity);
+        image.setImageResource(icon);
+        image.setImageTintList(ColorStateList.valueOf(SECONDARY));
+        image.setScaleType(ImageView.ScaleType.CENTER);
+        FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(
+                dp(22), dp(22), Gravity.CENTER);
+        button.addView(image, imageParams);
+
+        return button;
+    }
+
+    private void showApplicationSettings(AppEntry app) {
+        ProtectionConfig.ApplicationSettings current =
+                ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
+
+        LinearLayout options = new LinearLayout(activity);
+        options.setOrientation(LinearLayout.VERTICAL);
+        options.setPadding(dp(4), dp(4), dp(4), dp(4));
+
+        CheckBox cleaner = createSettingOption(
+                "Protect from Memory Cleaner", current.shouldProtectCleaner());
+        CheckBox hide = createSettingOption(
+                "Hide application card in Recents", current.shouldHideRecents());
+        CheckBox allowClose = createSettingOption(
+                "Allow closing the card via X", current.shouldAllowCloseViaX());
+
+        options.addView(cleaner);
+        options.addView(hide);
+        options.addView(allowClose);
+
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle(app.label)
+                .setView(options)
+                .setPositiveButton("Save", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(view -> {
+                    boolean saved = ProtectionSettingsStore.setApplicationSettings(
+                            activity, app.info.packageName, true, hide.isChecked(),
+                            cleaner.isChecked(), allowClose.isChecked());
+                    if (!saved) {
+                        showToast("Unable to save Protection settings");
+                        return;
+                    }
+                    dialog.dismiss();
+                    renderProtectedApplications();
+                }));
+        dialog.show();
+    }
+
+    private CheckBox createSettingOption(String title, boolean checked) {
+        CheckBox option = new CheckBox(activity);
+        option.setText(title);
+        option.setTextColor(PRIMARY);
+        option.setTextSize(15);
+        option.setMinHeight(dp(52));
+        option.setPadding(dp(4), dp(4), dp(4), dp(4));
+        option.setButtonTintList(ColorStateList.valueOf(RED));
+        option.setChecked(checked);
+        return option;
+    }
+
+    private void confirmRemoveApplication(AppEntry app) {
+        new AlertDialog.Builder(activity)
+                .setTitle("Remove application?")
+                .setMessage("Remove " + app.label + " from the Protection list?")
+                .setPositiveButton("Remove", (dialog, which) -> {
+                    if (ProtectionSettingsStore.removeApplicationSettings(
+                            activity, app.info.packageName)) {
+                        renderProtectedApplications();
+                    } else {
+                        showToast("Unable to remove application");
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showApplicationPicker() {
+        List<AppEntry> installed = loadInstalledApplications();
+        Dialog dialog = new Dialog(activity);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(20), dp(16), dp(20), dp(16));
+        root.setBackground(createPanelBackground());
+
+        LinearLayout titleRow = new LinearLayout(activity);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        TextView title = createText("Add application", 19, PRIMARY);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView close = createText("×", 28, SECONDARY);
+        close.setGravity(Gravity.CENTER);
+        close.setBackgroundResource(android.R.drawable.list_selector_background);
+        close.setContentDescription("Close");
+        titleRow.addView(close, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        close.setOnClickListener(view -> dialog.dismiss());
+        root.addView(titleRow);
+
+        EditText search = new EditText(activity);
+        search.setSingleLine(true);
+        search.setTextSize(15);
+        search.setTextColor(PRIMARY);
+        search.setHintTextColor(MUTED);
+        search.setHint("Search applications");
+        search.setPadding(dp(14), 0, dp(14), 0);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        search.setBackground(createSearchBackground(false));
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        searchParams.topMargin = dp(12);
+        root.addView(search, searchParams);
+
+        CheckBox systemApps = createSettingOption("Display system applications", false);
+        LinearLayout.LayoutParams systemParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        systemParams.topMargin = dp(2);
+        root.addView(systemApps, systemParams);
+
+        TextView results = createText("", 12, MUTED);
+        LinearLayout.LayoutParams resultsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        resultsParams.topMargin = dp(2);
+        resultsParams.bottomMargin = dp(6);
+        root.addView(results, resultsParams);
+
+        ScrollView scroll = new ScrollView(activity);
+        scroll.setFillViewport(false);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
+        root.addView(scroll, scrollParams);
+
+        LinearLayout list = new LinearLayout(activity);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(list);
+
+        Runnable renderPicker = () -> renderPickerResults(
+                installed, search.getText().toString(), systemApps.isChecked(),
+                list, results, dialog);
+        search.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {
             }
 
             @Override
             public void onTextChanged(CharSequence text, int start, int before, int count) {
-                render(text == null ? "" : text.toString());
+                renderPicker.run();
             }
 
             @Override
             public void afterTextChanged(Editable editable) {
             }
         });
-        render("");
+        search.setOnFocusChangeListener((view, focused) ->
+                search.setBackground(createSearchBackground(focused)));
+        systemApps.setOnCheckedChangeListener((button, checked) -> renderPicker.run());
+
+        dialog.setContentView(root);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            int maxWidth = activity.getResources().getDisplayMetrics().widthPixels - dp(48);
+            int maxHeight = activity.getResources().getDisplayMetrics().heightPixels - dp(48);
+            window.setLayout(Math.min(dp(640), maxWidth), Math.min(dp(430), maxHeight));
+        }
+        renderPicker.run();
     }
 
-    private void loadApplications() {
+    private void renderPickerResults(List<AppEntry> installed, String query,
+                                     boolean showSystem, LinearLayout list, TextView results,
+                                     Dialog dialog) {
+        list.removeAllViews();
+        String filter = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        Set<String> configured = new HashSet<>(
+                ProtectionSettingsStore.getConfiguredPackageNames(activity));
+        int matches = 0;
+        int shown = 0;
+
+        for (AppEntry app : installed) {
+            if (configured.contains(app.info.packageName)) continue;
+            if (!showSystem && isSystemApplication(app.info)) continue;
+
+            String label = app.label.toLowerCase(Locale.ROOT);
+            String packageName = app.info.packageName.toLowerCase(Locale.ROOT);
+            if (!filter.isEmpty() && !label.contains(filter) && !packageName.contains(filter)) {
+                continue;
+            }
+
+            matches++;
+            if (shown >= MAX_PICKER_RESULTS) continue;
+            list.addView(createPickerRow(app, dialog));
+            shown++;
+        }
+
+        results.setText(matches > MAX_PICKER_RESULTS
+                ? "Showing " + shown + " of " + matches + " matching applications"
+                : matches + " matching applications");
+
+        if (shown == 0) {
+            TextView empty = createText(filter.isEmpty()
+                    ? "No available applications found"
+                    : "No applications match your search", 14, MUTED);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(0, dp(24), 0, dp(24));
+            list.addView(empty);
+        }
+    }
+
+    private View createPickerRow(AppEntry app, Dialog dialog) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(8), dp(10), dp(8));
+        row.setMinimumHeight(dp(60));
+        row.setBackgroundResource(android.R.drawable.list_selector_background);
+        row.setClickable(true);
+        row.setFocusable(true);
+
+        ImageView icon = new ImageView(activity);
+        try {
+            icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
+        } catch (RuntimeException error) {
+            icon.setImageResource(android.R.drawable.sym_def_app_icon);
+        }
+        row.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+
+        LinearLayout text = new LinearLayout(activity);
+        text.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        textParams.leftMargin = dp(12);
+        textParams.rightMargin = dp(8);
+        row.addView(text, textParams);
+
+        TextView label = createText(app.label, 15, PRIMARY);
+        label.setSingleLine(true);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        text.addView(label);
+
+        TextView packageName = createText(app.info.packageName, 11, MUTED);
+        packageName.setSingleLine(true);
+        packageName.setEllipsize(TextUtils.TruncateAt.END);
+        text.addView(packageName);
+
+        ImageView add = new ImageView(activity);
+        add.setImageResource(android.R.drawable.ic_input_add);
+        add.setImageTintList(ColorStateList.valueOf(SECONDARY));
+        row.addView(add, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        row.setOnClickListener(view -> {
+            boolean saved = ProtectionSettingsStore.setApplicationSettings(
+                    activity, app.info.packageName, true, false, false, false);
+            if (!saved) {
+                showToast("Unable to add application");
+                return;
+            }
+            dialog.dismiss();
+            renderProtectedApplications();
+        });
+        return row;
+    }
+
+    private List<AppEntry> loadInstalledApplications() {
+        List<AppEntry> result = new ArrayList<>();
         try {
             List<ApplicationInfo> installed =
                     packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
             for (ApplicationInfo info : installed) {
                 if (info == null || info.packageName == null
-                        || context.getPackageName().equals(info.packageName)
-                        || (info.flags & ApplicationInfo.FLAG_INSTALLED) == 0) {
+                        || activity.getPackageName().equals(info.packageName)
+                        || packageManager.getLaunchIntentForPackage(info.packageName) == null) {
                     continue;
                 }
-
-                if (packageManager.getLaunchIntentForPackage(info.packageName) == null) {
-                    continue;
-                }
-
-                String label;
-                try {
-                    label = packageManager.getApplicationLabel(info).toString();
-                } catch (RuntimeException error) {
-                    label = info.packageName;
-                }
-
-                applications.add(new AppEntry(info, label));
+                result.add(new AppEntry(info, getApplicationLabel(info)));
             }
         } catch (RuntimeException error) {
-            Toast.makeText(context, "Unable to load installed applications",
-                    Toast.LENGTH_LONG).show();
+            showToast("Unable to load installed applications");
         }
+        sortApplications(result);
+        return result;
+    }
 
+    private String getApplicationLabel(ApplicationInfo info) {
+        try {
+            CharSequence label = packageManager.getApplicationLabel(info);
+            return label == null ? info.packageName : label.toString();
+        } catch (RuntimeException error) {
+            return info.packageName;
+        }
+    }
+
+    private boolean isSystemApplication(ApplicationInfo info) {
+        return (info.flags & (ApplicationInfo.FLAG_SYSTEM
+                | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
+    }
+
+    private void sortApplications(List<AppEntry> applications) {
         Collator collator = Collator.getInstance(Locale.getDefault());
         Collections.sort(applications, (left, right) -> {
             int result = collator.compare(left.label, right.label);
@@ -94,170 +487,36 @@ public final class ProtectionModuleView {
         });
     }
 
-    private void render(String query) {
-        String filter = query.trim().toLowerCase(Locale.ROOT);
-        applicationsContainer.removeAllViews();
-        int shown = 0;
-
-        for (AppEntry app : applications) {
-            if (!filter.isEmpty()
-                    && !app.label.toLowerCase(Locale.ROOT).contains(filter)
-                    && !app.info.packageName.toLowerCase(Locale.ROOT).contains(filter)) {
-                continue;
-            }
-
-            applicationsContainer.addView(createApplicationCard(app));
-            shown++;
-        }
-
-        resultsView.setText(shown + " of " + applications.size() + " applications");
-        if (shown == 0) {
-            TextView empty = new TextView(context);
-            empty.setText(filter.isEmpty()
-                    ? "No launchable applications found"
-                    : "No applications match your search");
-            empty.setTextColor(Color.parseColor("#858A94"));
-            empty.setTextSize(15);
-            empty.setPadding(dp(4), dp(18), dp(4), dp(18));
-            applicationsContainer.addView(empty);
-        }
+    private TextView createText(String value, int size, int color) {
+        TextView text = new TextView(activity);
+        text.setText(value);
+        text.setTextSize(size);
+        text.setTextColor(color);
+        return text;
     }
 
-    private View createApplicationCard(AppEntry app) {
-        LinearLayout card = new LinearLayout(context);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(12));
-        card.setBackgroundResource(R.drawable.module_card_background);
-
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.bottomMargin = dp(10);
-        card.setLayoutParams(cardParams);
-
-        LinearLayout heading = new LinearLayout(context);
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        heading.setOrientation(LinearLayout.HORIZONTAL);
-
-        ImageView icon = new ImageView(context);
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
-        iconParams.rightMargin = dp(14);
-        try {
-            icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
-        } catch (RuntimeException ignored) {
-            icon.setImageResource(android.R.drawable.sym_def_app_icon);
-        }
-        heading.addView(icon, iconParams);
-
-        LinearLayout names = new LinearLayout(context);
-        names.setOrientation(LinearLayout.VERTICAL);
-        names.setLayoutParams(new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        TextView label = new TextView(context);
-        label.setText(app.label);
-        label.setTextColor(Color.parseColor("#F1F2F4"));
-        label.setTextSize(16);
-        label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        names.addView(label);
-
-        TextView packageName = new TextView(context);
-        packageName.setText(app.info.packageName);
-        packageName.setTextColor(Color.parseColor("#858A94"));
-        packageName.setTextSize(12);
-        packageName.setSingleLine(true);
-        packageName.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        names.addView(packageName);
-        heading.addView(names);
-        card.addView(heading);
-
-        ProtectionConfig.ApplicationSettings saved =
-                ProtectionSettingsStore.getApplicationSettings(
-                        context, app.info.packageName);
-
-        CheckBox keep = createOption("Keep", saved.shouldKeepRecents());
-        CheckBox hide = createOption("Hide", saved.shouldHideRecents());
-        CheckBox cleaner = createOption("Memory Cleaner", saved.shouldProtectCleaner());
-        CheckBox allowCloseViaX = createOption(
-                "Allow close via X", saved.shouldAllowCloseViaX());
-
-        LinearLayout options = new LinearLayout(context);
-        options.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams optionsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        optionsParams.topMargin = dp(8);
-        card.addView(options, optionsParams);
-
-        LinearLayout firstRow = new LinearLayout(context);
-        firstRow.setGravity(Gravity.CENTER_VERTICAL);
-        firstRow.setOrientation(LinearLayout.HORIZONTAL);
-        options.addView(firstRow);
-        addOption(firstRow, keep);
-        addOption(firstRow, hide);
-
-        LinearLayout secondRow = new LinearLayout(context);
-        secondRow.setGravity(Gravity.CENTER_VERTICAL);
-        secondRow.setOrientation(LinearLayout.HORIZONTAL);
-        options.addView(secondRow);
-        addOption(secondRow, cleaner);
-        addOption(secondRow, allowCloseViaX);
-
-        boolean[] updating = {false};
-        keep.setOnCheckedChangeListener((button, checked) -> {
-            if (updating[0]) return;
-            updating[0] = true;
-            if (checked) hide.setChecked(false);
-            updating[0] = false;
-            save(app, keep, hide, cleaner, allowCloseViaX);
-        });
-
-        hide.setOnCheckedChangeListener((button, checked) -> {
-            if (updating[0]) return;
-            updating[0] = true;
-            if (checked) keep.setChecked(false);
-            updating[0] = false;
-            save(app, keep, hide, cleaner, allowCloseViaX);
-        });
-
-        cleaner.setOnCheckedChangeListener((button, checked) ->
-                save(app, keep, hide, cleaner, allowCloseViaX));
-
-        allowCloseViaX.setOnCheckedChangeListener((button, checked) ->
-                save(app, keep, hide, cleaner, allowCloseViaX));
-
-        return card;
+    private GradientDrawable createPanelBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(PANEL);
+        background.setCornerRadius(dp(6));
+        background.setStroke(dp(1), LINE);
+        return background;
     }
 
-    private CheckBox createOption(String title, boolean checked) {
-        CheckBox option = new CheckBox(context);
-        option.setText(title);
-        option.setTextColor(Color.parseColor("#AEB2BA"));
-        option.setTextSize(13);
-        option.setMinHeight(dp(48));
-        option.setGravity(Gravity.CENTER_VERTICAL);
-        option.setChecked(checked);
-        return option;
-    }
-
-    private void addOption(LinearLayout parent, CheckBox option) {
-        parent.addView(option, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-    }
-
-    private void save(AppEntry app, CheckBox keep, CheckBox hide, CheckBox cleaner,
-                      CheckBox allowCloseViaX) {
-        boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                context, app.info.packageName,
-                keep.isChecked(), hide.isChecked(), cleaner.isChecked(),
-                allowCloseViaX.isChecked());
-        if (!saved) {
-            Toast.makeText(context, "Unable to save Protection settings",
-                    Toast.LENGTH_SHORT).show();
-            render(searchView.getText().toString());
-        }
+    private GradientDrawable createSearchBackground(boolean focused) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(21, 23, 26));
+        background.setCornerRadius(dp(6));
+        background.setStroke(dp(focused ? 2 : 1), focused ? RED : LINE);
+        return background;
     }
 
     private int dp(int value) {
-        return Math.round(value * context.getResources().getDisplayMetrics().density);
+        return Math.round(value * activity.getResources().getDisplayMetrics().density);
+    }
+
+    private void showToast(String message) {
+        Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
     }
 
     private static final class AppEntry {
