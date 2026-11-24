@@ -727,3 +727,71 @@ Thus package-change removal is not equivalent to Close All or an ordinary user s
 - Decide which system-level removals must override Protection (uninstall, user/profile removal, invalid component) before designing retention rules.
 
 **Status** — both the deferred stack replacement and package-change removal branches are confirmed from source. Runtime race behavior and the retention policy for genuinely invalid tasks remain unresolved.
+
+
+## 31. DismissTask call-site audit and Close All event fan-out
+
+Sources:
+
+- `recents/views/TaskView.java`
+- `recents/views/TaskViewHeader.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/RecentsView.java`
+- `recents/views/TaskStackAnimationHelper.java`
+- `recents/events/EventBus.java`
+- `recents/misc/ReferenceCountedTrigger.java`
+- `recents/RecentsActivity.java`
+
+### TaskView.dismissTask() call sites
+
+**Confirmed** — the source search found these call sites:
+
+1. `TaskViewHeader.onClick()` invokes it for the card X button.
+2. `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` invokes it for the currently focused task when a focused-dismiss event is received.
+3. `TaskStackView.onBusEvent(PackagesChangedEvent)` invokes it when the task's component is no longer present in the package's resolved component set and the task has an attached `TaskView`.
+4. `RecentsView.lambda$startTaskActivity$2()` invokes it when launching a task fails and a `TaskView` is available.
+
+**Implementation constraint** — intercepting `TaskView.dismissTask()` and unconditionally cancelling it for protected packages would also block package-change cleanup and failed-launch cleanup. The X-button path is only one caller. The focused-dismiss event is another caller whose initiating UI/input path still needs tracing.
+
+### DeleteTaskDataEvent producers and consumer
+
+**Confirmed** — the two producer paths in the inspected source are:
+
+- `TaskStackView.onBusEvent(TaskViewDismissedEvent)`: removes the task from the in-memory stack, then sends one `DeleteTaskDataEvent`.
+- `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)`: after the animation trigger completes, removes all tasks from the stack and sends one `DeleteTaskDataEvent` for every task in its pre-animation snapshot.
+
+**Confirmed** — `RecentsActivity.onBusEvent(DeleteTaskDataEvent)` is the destructive consumer. It clears loader task data, requests system task removal, and force-stops the task package.
+
+The MTK Memory Cleaner remains a separate direct cleanup path and does not use this event.
+
+### Close All animation and trigger sequence
+
+**Confirmed** — `TaskStackAnimationHelper.startDeleteAllTasksAnimation()` selects two different implementations:
+
+- Grid layout: invokes `startTaskGridDeleteTaskAnimation()` for each supplied `TaskView`. Each grid animation registers a last-decrement callback that calls `TaskStackViewTouchHandler.onChildDismissed()`.
+- Non-grid stack layout: invokes `startTaskStackDeleteAllTasksAnimation()`. This animates each supplied view off-screen, restores its clipping state at animation end, and does not call `onChildDismissed()`.
+
+**Confirmed** — `DismissAllTaskViewsEvent` is an `EventBus.AnimatedEvent`. EventBus increments its trigger before dispatch and decrements it after synchronous event handlers return. The grid animation helper registers its per-view last-decrement callbacks before `TaskStackView` registers the bulk post-animation callback.
+
+**Confirmed call sequence in grid layout** — when the final animation decrement and the EventBus post-dispatch decrement bring the trigger to zero, `ReferenceCountedTrigger.flushLastDecrementRunnables()` runs the registered callbacks in insertion order. The per-view callbacks call `onChildDismissed()`; that sends `TaskViewDismissedEvent` synchronously. `TaskStackView.onBusEvent(TaskViewDismissedEvent)` then removes the individual task and sends its own `DeleteTaskDataEvent`. After those callbacks, the bulk callback runs, calls `removeAllTasks(true)`, and sends `DeleteTaskDataEvent` again for every task in the original snapshot.
+
+**Finding / risk** — the inspected grid Close All path therefore schedules both per-task dismissal cleanup and a second bulk cleanup for the same pre-animation tasks. This can dispatch duplicate `DeleteTaskDataEvent` instances and repeat the consumer's cache deletion, system task removal request, and package force-stop request. The exact runtime impact of repeated system operations is not established, but the duplicate event dispatch is directly implied by the source callback order.
+
+**Confirmed non-grid distinction** — the non-grid animation path does not register the per-view `onChildDismissed()` callbacks. Its inspected Close All path reaches the bulk callback, which removes the stack and sends one event per snapshotted task.
+
+### Protection implications
+
+- Do not use `TaskView.dismissTask()` as a blanket Protection gate without distinguishing its caller and reason.
+- Do not assume grid and non-grid Close All have equivalent callback sequences.
+- A future Close All filter must keep the task snapshot and animated `TaskView` collection consistent. Filtering only the final `removeAllTasks()` call is too late because the views have already been animated.
+- The grid path needs special handling to avoid both deleting protected tasks and emitting duplicate cleanup for unprotected tasks.
+- The event fan-out and trigger ordering must be preserved or deliberately replaced when designing a filtered Close All flow.
+
+### Remaining research
+
+1. Trace the producer and input/UI path for `DismissFocusedTaskViewEvent`.
+2. Determine whether the grid Close All duplicate event sequence is an intentional firmware behavior or an implementation defect; validate on-device before deciding whether Protection should compensate for it.
+3. Trace all entry points that can initiate `DismissAllTaskViewsEvent`, including stack action button and keyboard/accessibility paths.
+4. Inspect the full package-monitor lifecycle to distinguish uninstall/component removal from transient package-update resolution gaps.
+
+**Status** — all four `dismissTask()` call sites, both `DeleteTaskDataEvent` producer paths, the destructive consumer, and the grid/non-grid Close All callback distinction are confirmed from source. Runtime validation and the focused-dismiss event origin remain pending.
