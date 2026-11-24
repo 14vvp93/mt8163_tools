@@ -129,8 +129,7 @@ public final class ProtectionModuleView {
 
         addIndicator(indicators, android.R.drawable.ic_lock_lock,
                 settings.shouldProtectCleaner(), "Protected from Memory Cleaner");
-        addIndicator(indicators, android.R.drawable.ic_menu_view,
-                settings.shouldHideRecents(), "Hide application card in Recents");
+        addHiddenIndicator(indicators, settings.shouldHideRecents());
         addIndicator(indicators, android.R.drawable.ic_menu_close_clear_cancel,
                 settings.shouldAllowCloseViaX(), "Allow closing the card via X");
 
@@ -148,6 +147,30 @@ public final class ProtectionModuleView {
                 "Remove application", () -> confirmRemoveApplication(app)));
 
         return card;
+    }
+
+    private void addHiddenIndicator(LinearLayout parent, boolean enabled) {
+        int tint = enabled ? RED : MUTED;
+        FrameLayout indicator = new FrameLayout(activity);
+        indicator.setContentDescription("Hide application card in Recents");
+
+        ImageView eye = new ImageView(activity);
+        eye.setImageResource(android.R.drawable.ic_menu_view);
+        eye.setImageTintList(ColorStateList.valueOf(tint));
+        eye.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        indicator.addView(eye, new FrameLayout.LayoutParams(
+                dp(20), dp(20), Gravity.CENTER));
+
+        View slash = new View(activity);
+        slash.setBackgroundColor(tint);
+        slash.setRotation(45f);
+        indicator.addView(slash, new FrameLayout.LayoutParams(
+                dp(2), dp(26), Gravity.CENTER));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
+        params.leftMargin = dp(5);
+        params.rightMargin = dp(5);
+        parent.addView(indicator, params);
     }
 
     private void addIndicator(LinearLayout parent, int icon, boolean enabled, String description) {
