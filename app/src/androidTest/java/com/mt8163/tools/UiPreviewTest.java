@@ -67,7 +67,7 @@ public final class UiPreviewTest {
         capture("06-protection-picker-system-apps");
         UiObject2 search = waitFor(By.clazz("android.widget.EditText"));
         search.click();
-        search.setText("Settings");
+        search.setText("com.android.settings");
         assertNotNull("Settings application was not found",
                 device.wait(Until.findObject(By.text("Settings")), UI_TIMEOUT));
         capture("07-protection-picker-search");
