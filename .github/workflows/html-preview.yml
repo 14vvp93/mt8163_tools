@@ -85,6 +85,7 @@ jobs:
           from datetime import datetime, timezone
           from html import escape
           from pathlib import Path
+          import base64
           import os
 
           output = Path("dist/html-preview")
@@ -99,11 +100,12 @@ jobs:
               name = image.stem
               label = name[3:] if len(name) > 3 and name[:2].isdigit() and name[2] == "-" else name
               title = label.replace("-", " ").title()
-              image_path = image.relative_to(output).as_posix()
+              image_data = base64.b64encode(image.read_bytes()).decode("ascii")
+              image_uri = "data:image/png;base64," + image_data
               cards.append(
                   '<a class="screen" href="{0}" target="_blank" rel="noopener">'
                   '<img src="{0}" alt="{1}" loading="lazy">'
-                  '<span>{1}</span></a>'.format(escape(image_path), escape(title))
+                  '<span>{1}</span></a>'.format(image_uri, escape(title))
               )
 
           source_commit = escape(os.environ["SOURCE_COMMIT"])
@@ -154,12 +156,12 @@ jobs:
           grep -q 'Source: development' dist/html-preview/index.html
           SCREEN_COUNT="$(find dist/html-preview/screenshots -type f -name '*.png' | wc -l)"
           test "$SCREEN_COUNT" -gt 0
-          echo "Generated preview with $SCREEN_COUNT Android screenshots from development." >> "$GITHUB_STEP_SUMMARY"
+          echo "Generated self-contained HTML preview with $SCREEN_COUNT Android screenshots from development." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload generated HTML preview
         uses: actions/upload-artifact@v7
         with:
           name: MT8163Tools_HTML_Preview_${{ github.run_number }}
-          path: dist/html-preview/
+          path: dist/html-preview/index.html
           if-no-files-found: error
           retention-days: 14
