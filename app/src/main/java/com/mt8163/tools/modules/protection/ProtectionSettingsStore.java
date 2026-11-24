@@ -36,7 +36,6 @@ public final class ProtectionSettingsStore {
                     .getString(KEY_APPLICATIONS, "{}");
             JSONObject applications = new JSONObject(json);
             JSONObject item = applications.optJSONObject(ProtectionConfig.key(packageName));
-            if (item == null) item = applications.optJSONObject(packageName + "|0");
             if (item == null) {
                 return new ProtectionConfig.ApplicationSettings(false, false, false);
             }
@@ -67,7 +66,6 @@ public final class ProtectionSettingsStore {
             settings.put("hide_recents", hideRecents);
             settings.put("protect_cleaner", protectCleaner);
             applications.put(ProtectionConfig.key(packageName), settings);
-            applications.remove(packageName + "|0");
 
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
