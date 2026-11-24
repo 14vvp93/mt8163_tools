@@ -235,7 +235,7 @@ public final class ProtectionModuleView {
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(view -> {
                     boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                            activity, app.info.packageName, true, hide.isChecked(),
+                            activity, app.info.packageName, hide.isChecked(),
                             cleaner.isChecked(), allowClose.isChecked());
                     if (!saved) {
                         showToast("Unable to save Protection settings");

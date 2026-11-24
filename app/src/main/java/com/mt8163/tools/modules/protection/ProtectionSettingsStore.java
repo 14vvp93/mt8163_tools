@@ -73,7 +73,7 @@ public final class ProtectionSettingsStore {
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(context, "Protection", "configurationRead",
                     "Failed to read application settings: " + error);
-            return new ProtectionConfig.ApplicationSettings(false, false, false, false);
+            return new ProtectionConfig.ApplicationSettings(false, false, false);
         }
     }
 
