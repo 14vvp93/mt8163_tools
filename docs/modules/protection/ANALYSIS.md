@@ -1526,3 +1526,114 @@ The two entry points cover the inspected initial display and subsequent Activity
 - When a hidden setting is disabled, the task must reappear on the next normal stack reload without requiring application relaunch.
 
 **Status** — shared-load-plan coupling and visible UI refresh paths are confirmed. The two Activity methods are candidate hook boundaries, not approved implementation. Validate call-site coverage and UI behavior on the target device before coding.
+
+## 40. RecentsActivity reload entry-point coverage
+
+Source: `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/RecentsActivity.java`.
+
+### Initial Recents display
+
+**Confirmed** — `reloadStackView()` is a private, no-argument method. The inspected call-site audit in the matching smali file found one invocation: `RecentsActivity.onStart()`.
+
+The method consumes the optional preloaded `RecentsTaskLoadPlan`, loads task data, obtains its `TaskStack`, and passes that stack to `RecentsView.onReload(stack, mIsVisible)`. It then uses the same stack's task count to update the navigation-bar scrim.
+
+**Candidate** — apply Hide from Recents filtering to the newly obtained stack before `RecentsView.onReload()`. The filtered stack must also be used for the navigation-bar scrim task-count decision. Do not modify the load plan itself.
+
+### Subsequent stack refresh
+
+**Confirmed** — `reloadTaskStack(boolean isInMultiWindowMode, boolean sendConfigChangedEvent)` is private and has the descriptor `(ZZ)V`. It creates a fresh load plan, preloads and loads tasks, obtains a new stack, optionally sends `ConfigurationChangedEvent`, and then sends `MultiWindowStateChangedEvent(isInMultiWindowMode, showDeferredAnimation, stack)`.
+
+The matching smali call-site audit found two callers:
+
+- `RecentsActivity.onMultiWindowModeChanged(...)`;
+- `RecentsActivity.onBusEvent(ActivityUnpinnedEvent)`, when Recents is visible.
+
+**Confirmed** — the inspected producer search found no other construction site for `MultiWindowStateChangedEvent` in the decompiled SystemUI source. Its subscribers include `RecentsView`, `TaskStackView`, and `SystemBarScrimViews`. The first two consume the event's stack; TaskStackView may pass it to deferred animation before reconciliation.
+
+**Candidate** — filter the stack inside `reloadTaskStack(ZZ)V` after loading and before constructing the event. This ensures all stack-consuming UI subscribers receive the same filtered stack. Keep the original `inMultiWindow` and animation flags unchanged.
+
+### Coverage boundary
+
+The two methods cover the inspected initial display and subsequent Activity refresh paths. This is source-level call-site coverage for this RecentsActivity implementation, not proof that no vendor-specific alternate Recents UI exists elsewhere in the firmware.
+
+## 41. Keep card in Recents: dismissal-origin audit
+
+Sources:
+
+- `recents/views/TaskStackViewTouchHandler.java`
+- `recents/views/TaskViewHeader.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/TaskView.java`
+- `recents/views/RecentsView.java`
+
+### User dismissal origins and candidate boundaries
+
+**Confirmed** — swipe eligibility is evaluated by `TaskStackViewTouchHandler.canChildBeDismissed(View)`. It obtains the task from the TaskView and rejects views already in the swipe-animation map or tasks no longer present in the stack.
+
+**Candidate** — preserve the original return value for ordinary tasks and return `false` for a task protected by Keep card in Recents. This is the narrow swipe eligibility boundary; do not alter drag-and-drop task handling without a separate audit.
+
+**Confirmed** — the card X action is handled by `TaskViewHeader.onClick(View)`. When the clicked view is `mDismissButton`, it resolves the parent TaskView, calls `dismissTask()`, and records the dismissal-source metric.
+
+**Candidate** — gate only the X-button branch for protected tasks. Preserve the other click branches, including application-info and move-task behavior.
+
+**Confirmed** — keyboard dismissal enters through `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)`. The handler obtains the focused TaskView, calls `dismissTask()` when that view exists, and then resets focus.
+
+**Candidate** — suppress only the protected task's dismissal while preserving the focus-reset and focus-frame cleanup behavior. A replacement or carefully coordinated interception of this handler must retain the reset sequence.
+
+### Why TaskView.dismissTask() is not a global boundary
+
+**Confirmed** — the method is called from more than user-initiated dismissal:
+
+- `TaskViewHeader.onClick()`: card X action;
+- `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)`: focused-task dismissal;
+- `TaskStackView.onBusEvent(PackagesChangedEvent)`: package/component cleanup when a TaskView is attached;
+- `RecentsView` launch-failure cleanup: a failed task launch with an attached TaskView.
+
+Therefore, globally suppressing `TaskView.dismissTask()` for protected packages would also block firmware cleanup paths. The event `DismissTaskViewEvent` itself does not encode the dismissal origin, so filtering only its consumer cannot reliably distinguish user dismissal from system cleanup.
+
+### Close All remains a separate coordinated operation
+
+**Confirmed** — `RecentsViewTouchHandler.handleTouchEvent(MotionEvent)` sends `DismissAllTaskViewsEvent` when the stack action button is pressed and the release/cancel event is within its bounds. The existing common consumer remains `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)`.
+
+**Implementation constraint** — do not treat the action-button producer as the filtering boundary: the event is also consumed by other UI components for scrim behavior, and the task model, animation callbacks, and deletion events are coordinated in TaskStackView. Preserve the event dispatch and filter the complete TaskStackView operation as specified in Sections 35 and 37.
+
+## 42. Candidate hook surface inventory
+
+This inventory records source-level candidates only. It is not an implementation approval.
+
+| Protection setting | Candidate method | Required behavior | Critical constraint |
+|---|---|---|---|
+| Keep card in Recents — swipe | `TaskStackViewTouchHandler.canChildBeDismissed(View)` | Reject swipe dismissal for protected task | Preserve original eligibility checks and normal drag behavior |
+| Keep card in Recents — X | `TaskViewHeader.onClick(View)` | Suppress only protected task's dismiss-button branch | Preserve other click actions and normal metrics for unprotected tasks |
+| Keep card in Recents — keyboard | `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` | Skip protected task dismissal | Preserve focus-frame and focused-task reset behavior |
+| Keep card in Recents — Close All | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` | Animate/remove/clean only unprotected tasks | Coordinate Grid callbacks, non-Grid callbacks, model mutation, and exactly-once cleanup |
+| Hide from Recents — initial display | `RecentsActivity.reloadStackView()` | Filter stack before UI receives it | Use filtered count for scrim; do not mutate shared load plan |
+| Hide from Recents — refresh | `RecentsActivity.reloadTaskStack(boolean, boolean)` | Filter before event construction | All subscribers and deferred animation must receive the same filtered stack |
+| Protect from Memory Cleaner | `MemoryCleanerTile.clearRecentsTask()` | Skip all destructive operations for protected package tasks | Predicate must run before loader cleanup, task removal, and force-stop |
+
+### Common identity and safety requirements
+
+- Resolve package identity and Android user ID from the task defensively.
+- Do not classify a task as protected using a guessed package name when identity is incomplete.
+- Preserve original firmware behavior for unprotected tasks.
+- Keep Hide from Recents separate from Memory Cleaner task acquisition.
+- Keep card retention separate from package lifecycle cleanup and failed-launch cleanup.
+- No candidate above has been hooked or runtime-tested.
+
+## 43. Research status after reload and dismissal-origin audit
+
+### Newly confirmed
+
+- `reloadStackView()` is called from `RecentsActivity.onStart()` in the inspected build.
+- `reloadTaskStack(ZZ)V` has two callers: multi-window mode change and visible Recents handling of `ActivityUnpinnedEvent`.
+- `RecentsActivity.reloadTaskStack()` is the only inspected producer of `MultiWindowStateChangedEvent`.
+- `TaskView.dismissTask()` is shared by user dismissal and non-user cleanup paths; it is unsafe as a global Keep-card interception point.
+- Swipe, X-button, keyboard dismissal, and Close All have distinct source-level boundaries.
+
+### Remaining work
+
+1. Prove a complete Close All algorithm that handles Grid and non-Grid layouts, including tasks without attached TaskViews, with exactly-once cleanup.
+2. Inspect the complete manual-drag and swipe lifecycle before finalizing the swipe hook's side-effect guarantees.
+3. Verify task package/user extraction for every candidate hook against null and unresolved-component cases.
+4. Confirm Legacy Xposed API 82 method-hook compatibility and class-loader visibility for the selected SystemUI classes.
+5. Validate package replacement, hidden-task restoration, animation behavior, and cleanup on the target MT8163 device.
