@@ -177,6 +177,8 @@ public final class ProtectionModuleView {
         CheckBox keep = createOption("Keep", saved.shouldKeepRecents());
         CheckBox hide = createOption("Hide", saved.shouldHideRecents());
         CheckBox cleaner = createOption("Memory Cleaner", saved.shouldProtectCleaner());
+        CheckBox allowCloseViaX = createOption(
+                "Allow close via X", saved.shouldAllowCloseViaX());
 
         LinearLayout options = new LinearLayout(context);
         options.setGravity(Gravity.CENTER_VERTICAL);
@@ -189,6 +191,7 @@ public final class ProtectionModuleView {
         addOption(options, keep);
         addOption(options, hide);
         addOption(options, cleaner);
+        addOption(options, allowCloseViaX);
 
         boolean[] updating = {false};
         keep.setOnCheckedChangeListener((button, checked) -> {
@@ -196,7 +199,7 @@ public final class ProtectionModuleView {
             updating[0] = true;
             if (checked) hide.setChecked(false);
             updating[0] = false;
-            save(app, keep, hide, cleaner);
+            save(app, keep, hide, cleaner, allowCloseViaX);
         });
 
         hide.setOnCheckedChangeListener((button, checked) -> {
@@ -204,11 +207,14 @@ public final class ProtectionModuleView {
             updating[0] = true;
             if (checked) keep.setChecked(false);
             updating[0] = false;
-            save(app, keep, hide, cleaner);
+            save(app, keep, hide, cleaner, allowCloseViaX);
         });
 
         cleaner.setOnCheckedChangeListener((button, checked) ->
-                save(app, keep, hide, cleaner));
+                save(app, keep, hide, cleaner, allowCloseViaX));
+
+        allowCloseViaX.setOnCheckedChangeListener((button, checked) ->
+                save(app, keep, hide, cleaner, allowCloseViaX));
 
         return card;
     }
@@ -229,10 +235,12 @@ public final class ProtectionModuleView {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
     }
 
-    private void save(AppEntry app, CheckBox keep, CheckBox hide, CheckBox cleaner) {
+    private void save(AppEntry app, CheckBox keep, CheckBox hide, CheckBox cleaner,
+                      CheckBox allowCloseViaX) {
         boolean saved = ProtectionSettingsStore.setApplicationSettings(
                 context, app.info.packageName,
-                keep.isChecked(), hide.isChecked(), cleaner.isChecked());
+                keep.isChecked(), hide.isChecked(), cleaner.isChecked(),
+                allowCloseViaX.isChecked());
         if (!saved) {
             Toast.makeText(context, "Unable to save Protection settings",
                     Toast.LENGTH_SHORT).show();
@@ -247,6 +255,7 @@ public final class ProtectionModuleView {
     private static final class AppEntry {
         final ApplicationInfo info;
         final String label;
+
         AppEntry(ApplicationInfo info, String label) {
             this.info = info;
             this.label = label;
