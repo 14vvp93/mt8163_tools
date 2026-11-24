@@ -289,3 +289,100 @@ Source: `qs/tiles/MemoryCleanerTile.java`
 7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
 8. Validate the behavior on the target MT8163 head unit running Android 9.
 
+## 15. TaskStack reconciliation and Recents reload
+
+Sources:
+
+- `shared/recents/model/TaskStack.java`
+- `recents/RecentsActivity.java`
+- `recents/RecentsImpl.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/RecentsView.java`
+
+### TaskStack.setTasks()
+
+**Confirmed** — `TaskStack.setTasks(List<Task>, boolean)` builds maps of the current and incoming raw task lists using `TaskKey`.
+
+When notifications are enabled and callbacks are registered, it:
+
+1. Identifies current tasks missing from the incoming list.
+2. Identifies incoming tasks not present in the current list.
+3. Reuses existing task objects for matching keys and updates them with `copyFrom()`.
+4. Replaces the filtered stack list and raw task list with the incoming tasks.
+5. Calls `onStackTaskRemoved()` for each removed task.
+6. Calls `onStackTaskAdded()` for each added task.
+7. Calls `onStackTasksUpdated()`.
+
+**Confirmed** — the internal lists are replaced with the incoming list before the removal and addition callbacks are dispatched.
+
+**Implementation constraint** — preserving a protected task only in the old in-memory stack is not sufficient. A subsequent `setTasks()` reconciliation replaces that stack from the incoming list. Any retention policy must be applied to the incoming stack before reconciliation, or through a carefully validated equivalent that preserves ordering, task identity, and callbacks.
+
+**Important distinction** — `TaskStack.setTasks()` itself does not dispatch `DeleteTaskDataEvent` or call ActivityManager task removal. Its removal callbacks update the Recents UI/model representation. Do not equate a task disappearing during reconciliation with the destructive dismissal path.
+
+### RecentsActivity reload path
+
+**Confirmed** — `RecentsActivity.reloadTaskStack()`:
+
+1. Creates a new `RecentsTaskLoadPlan`.
+2. Calls `RecentsTaskLoader.preloadTasks()`.
+3. Calls `RecentsTaskLoader.loadTasks()`.
+4. Obtains the newly built `TaskStack`.
+5. Sends `MultiWindowStateChangedEvent` with that stack.
+
+The `TaskStackView` handles this event. In multi-window mode, or when deferred animation is not required, it calls `setTasks(event.stack, true)`. Otherwise it starts the new-stack scroll animation using the event stack.
+
+**Confirmed** — `RecentsView.updateStack(stack, true)` also forwards the incoming stack to `TaskStackView.setTasks(stack, true)`. The normal Recents reload path therefore reaches the reconciliation behavior described above.
+
+**Confirmed** — `RecentsActivity.onBusEvent(ActivityUnpinnedEvent)` reloads the task stack when Recents is visible. This is one explicit reload trigger; it is not the only path that can supply a new stack.
+
+### TaskStackListener behavior
+
+Source: `recents/RecentsImpl.java`
+
+**Confirmed** — `RecentsImpl.TaskStackListenerImpl` is registered with `ActivityManagerWrapper.registerTaskStackListener()`.
+
+Its `onTaskStackChangedBackground()` callback, when the overview proxy is disabled, the current-user check passes, and the svelte level is zero, preloads a fresh task plan and loads task data with cache-oriented options:
+
+- `onlyLoadForCache = true`
+- `onlyLoadPausedActivities = true`
+- `loadThumbnails = true`
+
+It updates the background layout/visibility calculation and loads task data. This callback does not directly call `TaskStack.setTasks()` on the visible Recents stack in the inspected implementation.
+
+The listener base class also defines callbacks for task creation, removal, and moving a task to the front. The inspected `RecentsImpl.TaskStackListenerImpl` does not override those callbacks in the retrieved source range; the base implementations are empty.
+
+**Implementation constraint** — do not assume every system task-stack notification directly reconciles the visible Recents model. Separate background cache refresh from the explicit RecentsActivity reload and UI update paths.
+
+## 16. Updated implementation implications
+
+- Apply **Hide from Recents** to the task list produced by the load plan, without deleting the underlying system Recent Task.
+- Apply **Keep card in Recents** consistently to incoming task lists before they are reconciled with the current visible stack.
+- Do not retain stale task objects solely to keep a card visible; use the newly loaded task data and preserve the incoming task order.
+- If filtering changes the incoming list, ensure the empty-state UI, task-view callbacks, and stack action-button state are updated from the filtered result.
+- Do not block all `onStackTaskRemoved()` callbacks: ordinary system-driven disappearance and legitimate unprotected dismissal must continue to work.
+- Distinguish model reconciliation from explicit dismissal. Only the latter's destructive cleanup path should be blocked for protected tasks.
+- Re-check package name and user ID on each incoming task; task IDs are transient task-instance identifiers.
+- Validate both the normal Recents reload path and background task-stack refresh behavior on the target firmware.
+
+## 17. Newly confirmed findings
+
+- `TaskStack.setTasks()` replaces its raw and filtered task lists with the incoming list and then dispatches model/UI callbacks.
+- Matching tasks are reused by `TaskKey` and updated with `copyFrom()`.
+- `RecentsActivity.reloadTaskStack()` creates a fresh load plan and sends the new stack through `MultiWindowStateChangedEvent`.
+- `TaskStackView` applies the incoming stack through `setTasks()` on the immediate update path.
+- `RecentsView.updateStack()` also forwards incoming stacks to `TaskStackView.setTasks()`.
+- `ActivityUnpinnedEvent` triggers a reload while Recents is visible.
+- `RecentsImpl.TaskStackListenerImpl.onTaskStackChangedBackground()` refreshes background task data/cache and layout calculations; it does not directly reconcile the visible Recents stack in the inspected implementation.
+- The base task-stack listener defines task-created, task-removed, and task-moved callbacks, but the inspected Recents implementation does not override them in the retrieved source.
+
+## 18. Remaining research
+
+1. Enumerate all call sites of `TaskView.dismissTask()`.
+2. Trace all producers and consumers of `DeleteTaskDataEvent`.
+3. Trace the complete grid and non-grid Close all callback sequence, including task-view filtering and trigger completion.
+4. Inspect all callers and entry points of MTK Memory Cleaner.
+5. Trace every explicit Recents reload trigger and every producer of `MultiWindowStateChangedEvent`.
+6. Inspect the complete task-stack listener registration/dispatch implementation to confirm which callbacks are delivered and on which thread.
+7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
+8. Validate the behavior on the target MT8163 head unit running Android 9.
+
