@@ -79,6 +79,8 @@ public final class UiPreviewTest {
         clickText("Hide application card in Recents");
         clickText("Allow closing the card via X");
         capture("10-protection-application-settings-enabled");
+        capture("10-protection-cancel-dialog");
+        device.dumpWindowHierarchy(new File(output, "10-protection-cancel-dialog.xml"));
         clickText("Cancel");
         clickDescription("Remove application");
         capture("11-protection-remove-confirmation");
