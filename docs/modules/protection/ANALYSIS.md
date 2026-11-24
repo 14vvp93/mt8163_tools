@@ -620,3 +620,46 @@ For a protected Close All operation, the following source-compatible strategy is
 - Whether a task removed by an unrelated event after the initial snapshot but before the final callback is already fully cleaned up. Do not infer this solely from absence in the stack without tracing the competing removal path.
 
 **Status** — the callback semantics and the difference between single-task and bulk stack removal are confirmed from source. The selective-removal strategy is a design candidate, not yet validated or approved for implementation.
+
+
+## 29. Recent Tasks refresh and TaskStack.setTasks()
+
+Sources:
+
+- `recents/RecentsActivity.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/RecentsView.java`
+- `shared/recents/model/RecentsTaskLoadPlan.java`
+- `shared/recents/model/TaskStack.java`
+
+**Confirmed refresh flow** — `RecentsActivity.reloadTaskStack()` creates a new `RecentsTaskLoadPlan`, preloads and loads the current system task list, then dispatches `MultiWindowStateChangedEvent` with the newly built `TaskStack`.
+
+**Confirmed update path** — `TaskStackView.onBusEvent(MultiWindowStateChangedEvent)` calls `setTasks(event.stack, true)` when entering multi-window mode or when deferred animation is not requested. The regular `RecentsView.updateStack(stack, true)` path also calls `TaskStackView.setTasks(stack, true)`.
+
+**Confirmed TaskStack.setTasks() behavior**:
+
+1. It creates maps of the current raw task list and incoming task list, keyed by `Task.TaskKey`.
+2. Current tasks missing from the incoming list are collected as removed tasks only when callbacks are enabled.
+3. Incoming tasks reuse the existing `Task` object when their key matches; `copyFrom()` refreshes its data.
+4. Both internal task lists are replaced with the incoming list.
+5. Each removed task triggers `TaskStackView.onStackTaskRemoved(..., AnimationProps.IMMEDIATE, false, true)`.
+6. Added tasks trigger `onStackTaskAdded()`, followed by one `onStackTasksUpdated()`.
+
+**Confirmed distinction** — this refresh-removal path does not dispatch `DeleteTaskDataEvent` and does not itself call `removeTask()` or `forceStopPackage()`. It removes the missing task from the in-memory Recents stack and returns its attached view to the pool. This is a model synchronization path, not the same operation as user dismissal.
+
+### Protection implications
+
+- A protected task can disappear from the visible Recents model if it is absent from the newly loaded system task list; protecting only the Swipe and Close All event handlers does not cover this path.
+- Filtering only the rendered `TaskView` list is insufficient. The incoming `TaskStack` is authoritative input to `setTasks()`, and both its task identity and ordering must be considered.
+- A future protection design must distinguish a genuinely removed system task from a task omitted by a refresh. Blindly merging every protected task back into the incoming list risks resurrecting stale or invalid tasks.
+- The appropriate decision point is before the refreshed stack is applied, where the current stack, incoming stack, and protection state can be compared. The policy for retaining an omitted protected task still requires explicit validation.
+- Matching must use the full `Task.TaskKey` identity rather than package name alone; multiple tasks may belong to the same package.
+
+### Open questions
+
+- Does the system task loader omit tasks because they are no longer valid, because of user/profile filtering, or due to a transient race?
+- Can the protection policy safely retain a protected task that the system task manager no longer reports?
+- Does a deferred `startNewStackScrollAnimation()` path eventually apply the incoming stack through another callback, and at what point relative to its animation trigger?
+- Which package/task callbacks can race with a refresh and legitimately remove a protected task?
+
+**Status** — refresh dispatch, stack diffing, object reuse, and callback behavior are confirmed from source. The policy for retaining protected tasks across refreshes is unresolved and must not be implemented by unconditional list merging.
