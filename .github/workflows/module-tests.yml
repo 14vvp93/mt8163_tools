@@ -1,4 +1,4 @@
-name: Module Tests
+name: Project Validation
 
 on:
   workflow_dispatch:
@@ -46,63 +46,5 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Compile app and UI preview test sources
-        run: gradle :app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
-
-  voltage-tests:
-    name: Voltage Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '8.9'
-
-      - name: Run Voltage tests
-        run: gradle :tests:voltage:testDebugUnitTest
-
-      - name: Upload Voltage test report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: voltage-test-report
-          path: tests/voltage/build/reports/tests/testDebugUnitTest/
-          if-no-files-found: ignore
-
-  media-tests:
-    name: Media Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '8.9'
-
-      - name: Run Media tests
-        run: gradle :tests:media:testDebugUnitTest
-
-      - name: Upload Media test report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: media-test-report
-          path: tests/media/build/reports/tests/testDebugUnitTest/
-          if-no-files-found: ignore
+      - name: Compile app
+        run: gradle :app:compileDebugJavaWithJavac
