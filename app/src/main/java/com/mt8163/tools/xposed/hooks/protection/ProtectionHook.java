@@ -115,7 +115,11 @@ public final class ProtectionHook implements PackageHook {
                                 Object taskView = findParentTaskView((View) param.thisObject);
                                 Object task = taskView == null ? null
                                         : call(taskView, "getTask");
-                                if (isProtected(task, ProtectionType.KEEP)) {
+                                TaskIdentity identity = resolveTask(task);
+                                if (identity != null
+                                        && ProtectionTaskMatcher.shouldKeep(identity.packageName)
+                                        && !ProtectionTaskMatcher.shouldAllowCloseViaX(
+                                        identity.packageName)) {
                                     param.setResult(null);
                                 }
                             }
@@ -307,6 +311,23 @@ public final class ProtectionHook implements PackageHook {
             } else {
                 removeTaskData(stack, task, loader);
             }
+        }
+
+        closeRecentsWindow(loader);
+    }
+
+    private static void closeRecentsWindow(ClassLoader loader) {
+        try {
+            Class<?> eventClass = XposedHelpers.findClass(
+                    "com.android.systemui.recents.events.ui.AllTaskViewsDismissedEvent",
+                    loader);
+            Object event = XposedHelpers.newInstance(eventClass);
+            Class<?> busClass = XposedHelpers.findClass(
+                    "com.android.systemui.recents.events.EventBus", loader);
+            Object bus = XposedHelpers.callStaticMethod(busClass, "getDefault");
+            XposedHelpers.callMethod(bus, "send", event);
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Protection Recents close failed: " + error);
         }
     }
 
