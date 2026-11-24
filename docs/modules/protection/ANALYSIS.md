@@ -663,3 +663,67 @@ Sources:
 - Which package/task callbacks can race with a refresh and legitimately remove a protected task?
 
 **Status** — refresh dispatch, stack diffing, object reuse, and callback behavior are confirmed from source. The policy for retaining protected tasks across refreshes is unresolved and must not be implemented by unconditional list merging.
+
+
+## 30. Deferred stack animation and package-change removal
+
+Sources:
+
+- `recents/views/TaskStackAnimationHelper.java`
+- `recents/views/TaskStackView.java`
+- `recents/RecentsActivity.java`
+- `shared/recents/model/TaskStack.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+
+### Deferred stack replacement
+
+**Confirmed:** for the animated (non-multi-window, non-empty) `MultiWindowStateChangedEvent` path, `TaskStackView` posts a runnable that calls `TaskStackAnimationHelper.startNewStackScrollAnimation()`.
+
+That method:
+
+1. Reads the incoming stack's task list and captures current task transforms.
+2. Calls `TaskStackView.setTasks(newStack, false)`.
+3. Recalculates layout, binds visible task views, and animates the new stack into its initial position.
+
+The `false` argument is significant: `TaskStack.setTasks()` replaces both internal task lists, but disables the added/removed task callbacks and the final `onStackTasksUpdated()` callback. Therefore tasks absent from this refreshed stack can disappear from the model without passing through `onStackTaskRemoved()`.
+
+This is a second refresh behavior in addition to the callback-enabled path documented in Section 29. A protection mechanism that relies only on `onStackTaskRemoved()` will miss this deferred replacement path.
+
+### Package-change path
+
+**Confirmed event flow:**
+
+1. `RecentsActivity.onPackageChanged(packageName, userId)` invalidates cached activity information in `RecentsTaskLoader`.
+2. It dispatches `PackagesChangedEvent`.
+3. `TaskStackView.onBusEvent(PackagesChangedEvent)` calls `TaskStack.computeComponentsRemoved(packageName, userId)`.
+4. The method checks components belonging to that package and user. Components whose `ActivityInfo` can no longer be resolved are classified as removed.
+5. Every stack task whose component is in that removed-component set is removed:
+   - If an attached `TaskView` exists, `dismissTask()` starts the normal dismissal flow.
+   - If no attached view exists, `TaskStack.removeTask(..., AnimationProps.IMMEDIATE, false)` removes it directly.
+
+The loader's `onPackageChanged()` only invalidates cached `ActivityInfo` entries for the package; it does not itself remove tasks.
+
+### Cleanup distinction
+
+- Attached-view branch: `dismissTask()` proceeds through the dismissal event path, which ultimately dispatches `DeleteTaskDataEvent`.
+- No-view branch: direct `TaskStack.removeTask()` invokes the stack callback but does not dispatch `DeleteTaskDataEvent` in this handler.
+- Neither branch calls `forceStopPackage()` from this package-change handler.
+
+Thus package-change removal is not equivalent to Close All or an ordinary user swipe, and the two branches have different cleanup-event behavior.
+
+### Protection implications
+
+- The deferred refresh path can replace the stack while explicitly suppressing removal callbacks. Hooking only `onStackTaskRemoved()` is insufficient.
+- Package-change removal is a separate path that can dismiss a task because its component is no longer resolvable. A protected-card policy must not blindly block this: after uninstall or component removal, retaining the card may produce a stale entry.
+- The no-attached-view branch proves that not every task removal is represented by a `TaskViewDismissedEvent` or followed by `DeleteTaskDataEvent`.
+- Any future interception must account for package name **and user ID**, and compare component identity; package-only matching is too broad.
+- Whether a package update temporarily makes `ActivityInfo` unresolved, and whether this produces transient false removals on this firmware, is not established by static source inspection.
+
+### Remaining validation
+
+- Trace the exact package-monitor callbacks for package update, replacement, removal, and component changes on the target Android 9 build.
+- Confirm whether the no-view direct removal is followed by cleanup elsewhere.
+- Test whether the deferred animation path can run while a protected task is omitted from the incoming system task list.
+- Decide which system-level removals must override Protection (uninstall, user/profile removal, invalid component) before designing retention rules.
+
+**Status** — both the deferred stack replacement and package-change removal branches are confirmed from source. Runtime race behavior and the retention policy for genuinely invalid tasks remain unresolved.
