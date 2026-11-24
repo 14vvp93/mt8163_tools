@@ -12,7 +12,7 @@ The module lists installed applications that have a launcher activity. Each entr
 
 The search field filters the list by application label or package name. Search is performed locally against the loaded application list.
 
-Settings are stored per application and Android user ID. Applications without a launcher activity are not shown in this UI.
+Settings are stored by application package name. The target head unit uses one Android user. Applications without a launcher activity are not shown in this UI.
 
 ## Per-application settings
 
@@ -56,7 +56,7 @@ Applications not selected in Protection retain normal firmware behavior.
 ## Functional constraints
 
 - Keep the three settings independent, except for the automatic mutual exclusion between **Keep card in Recents** and **Hide from Recents**.
-- Match application settings by package name and Android user ID, not by transient task ID.
+- Match application settings by package name only, not by transient task ID.
 - Protecting or hiding a Recents card must not itself terminate the application's process.
 - Do not interfere with Android's normal process lifecycle or system memory management.
 - Preserve normal firmware behavior for applications that are not protected.
