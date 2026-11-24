@@ -64,7 +64,7 @@ They are not targets in the `android` SystemServer process.
 
 **Implemented** — `ProtectionHook` hooks the target firmware's `SystemUIApplication.onCreate()` and registers one process-wide configuration receiver after Application initialization. The receiver is independent of RecentsActivity and MemoryCleanerTile.
 
-**Implemented** — the receiver validates the sending UID against the installed `com.mt8163.tools` package before accepting configuration-change broadcasts. The sender does not rely on the app-defined signature permissions used by the SystemServer configuration channels, because SystemUI is not assumed to hold those permissions.
+**Implemented** — the SystemUI receiver is registered with the signature-level `UPDATE_PROTECTION_CONFIG` broadcast permission. The MT8163 Tools sender must hold this permission; SystemUI does not need to request it because the permission is checked against the sender.
 
 **Implemented** — the SystemUI bootstrap installs the Recents and Memory Cleaner hooks described below. Automated build verification and target-device runtime validation remain pending.
 
@@ -74,7 +74,7 @@ They are not targets in the `android` SystemServer process.
 - `ProtectionSettingsStore` mirrors the global module state and per-application settings to `protection_hook_config`.
 - Application settings are keyed by package name and Android user ID.
 - Configuration changes are sent explicitly to `com.android.systemui`.
-- The SystemUI receiver validates the sender UID and reloads the configuration.
+- The SystemUI receiver requires the signature-level sender permission and reloads the configuration.
 - `ProtectionTaskMatcher` publishes immutable configuration snapshots through a volatile reference. Its three predicates share the same package/user identity key.
 - Keep and Hide are normalized as mutually exclusive; Hide takes precedence if both values are supplied.
 
