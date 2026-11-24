@@ -2143,3 +2143,59 @@ For every task evaluation:
 **Boundary note** — `sourceComponent` is a separate TaskKey field populated from the task's source/real component in RecentsTaskLoadPlan. It is not interchangeable with `baseIntent.getComponent()` without a verified policy decision. The task's top activity is also a separate field.
 
 **Status** — TaskKey equality, Task reuse, identity accessors, and null-dereference sites are source-confirmed. The proposed null-safe Protection predicate is a design requirement, not implemented code. Runtime validation with malformed or package-only task intents remains outstanding.
+
+
+## 58. Task component provenance and task-ID semantics
+
+Sources:
+
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/RecentsTaskLoadPlan.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/Task.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/IconLoader.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/system/ActivityManagerWrapper.java`
+
+### Component provenance
+
+**Confirmed** — while converting each `ActivityManager.RecentTaskInfo`, `RecentsTaskLoadPlan` derives `TaskKey.sourceComponent` as:
+
+1. `RecentTaskInfo.origActivity`, when non-null;
+2. otherwise `RecentTaskInfo.realActivity`.
+
+The same conversion stores `RecentTaskInfo.baseIntent` in `TaskKey.baseIntent` and `RecentTaskInfo.topActivity` in `Task.topActivity`. These are three distinct sources of component information; they must not be treated as interchangeable.
+
+**Confirmed** — `Task.getTopComponent()` prefers the Task's `topActivity`; only when that is null does it return `key.baseIntent.getComponent()`. It does not consult `key.sourceComponent`.
+
+**Confirmed** — duplicate suppression in `preloadPlan()` compares `task.getTopComponent()` with the newly derived `sourceComponent`. The comparison is not a package-level comparison and does not establish that either component is the canonical application identity.
+
+**Confirmed** — activity resolution in `IconLoader.getAndUpdateActivityInfo()` calls `taskKey.getComponent()`, which reads only `baseIntent.getComponent()`. It does not fall back to `sourceComponent`. A task can therefore carry a non-null source component while ActivityInfo resolution still receives a null component when the base Intent has no explicit component.
+
+### Nullability and loader assumptions
+
+**Confirmed** — the inspected loader contains direct dereferences that assume framework task fields are populated:
+
+- `TaskKey.getComponent()` dereferences `baseIntent`;
+- duplicate suppression calls `task.getTopComponent().equals(sourceComponent)`, so a null top component can cause a NullPointerException;
+- dock-task checks and logging dereference `RecentTaskInfo.realActivity` even though `sourceComponent` may have been derived from `origActivity`;
+- the conversion reads `configuration.windowConfiguration` without a null guard.
+
+These are firmware loader assumptions, not safe fallback rules for Protection. Do not copy them into the Protection predicate.
+
+### Task ID and cache semantics
+
+**Confirmed** — Recents constructs `TaskKey.id` from `RecentTaskInfo.persistentId`. The same ID is passed to task-specific operations such as thumbnail retrieval, start-from-recents, and system task removal. In this inspected SystemUI code, the ID is therefore an identifier for addressing a task instance, not an application identifier.
+
+**Confirmed** — the Recents key used for reconciliation and task-keyed caches combines `id`, `windowingMode`, and `userId`; component fields and last-active time are excluded. A task object can be reused for an equal key and then receive a new key through `copyFrom()`, as recorded in Section 57.
+
+**Not established**** — the inspected SystemUI sources do not show the ActivityTaskManager task-ID allocation/recycling policy. They do not prove when a removed persistent task ID may be reused, nor do they prove a global uniqueness lifetime. Do not claim that task IDs are never reused or rely on that assumption for Protection.
+
+### Protection requirements
+
+- Use a validated package identity and the task's current `userId` for the application-level Protection rule.
+- Prefer the explicit component in `baseIntent` when present; treat `sourceComponent` and `topActivity` as separate evidence requiring an explicit product policy before fallback.
+- Do not substitute task title, label, `topActivity`, `sourceComponent`, or task ID for a missing package identity.
+- Re-evaluate identity from the current TaskKey after stack reconciliation; do not retain decisions against a Task object or task ID.
+- Treat malformed or incomplete component data as unresolved. Do not add a broad fallback that could protect a different application.
+
+**Pending** — inspect the framework's ActivityTaskManager/TaskRecord implementation to establish persistent task-ID allocation and reuse behavior; verify actual malformed/null task records on the target head unit. The current source audit confirms SystemUI's use of `persistentId`, but not the framework's ID recycling contract.
+
+**Status** — component provenance, the distinct `topActivity`/base-intent/source-component access paths, loader null assumptions, and task-key cache semantics are source-confirmed. Framework task-ID reuse policy remains unverified. No hooks or firmware code were changed.
