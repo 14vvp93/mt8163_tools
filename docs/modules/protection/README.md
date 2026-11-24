@@ -55,4 +55,4 @@ Applications not selected in Protection retain normal firmware behavior.
 
 ## Technical implementation status
 
-Protection behavior is specified, but implementation is not complete. Firmware reverse-engineering findings, candidate hook points, and outstanding verification tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
+Protection behavior is specified. The SystemUI process bootstrap, configuration transport, and task matcher are implemented; the Recents and Memory Cleaner interception points are not yet implemented. Firmware findings and outstanding verification tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
