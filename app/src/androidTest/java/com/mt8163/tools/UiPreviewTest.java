@@ -81,10 +81,10 @@ public final class UiPreviewTest {
         capture("10-protection-application-settings-enabled");
         capture("10-protection-cancel-dialog");
         device.dumpWindowHierarchy(new File(output, "10-protection-cancel-dialog.xml"));
-        clickText("Cancel");
+        clickDialogNegativeButton();
         clickDescription("Remove application");
         capture("11-protection-remove-confirmation");
-        clickText("Cancel");
+        clickDialogNegativeButton();
         capture("12-protection-list");
 
         openModule("Voltage");
@@ -151,6 +151,12 @@ public final class UiPreviewTest {
         device.waitForIdle();
     }
 
+    private void clickDialogNegativeButton() {
+        UiObject2 button = waitFor(By.res("android:id/button2"));
+        button.click();
+        device.waitForIdle();
+    }
+
     private void clickDescription(String description) {
         UiObject2 object = waitFor(By.desc(description));
         object.click();
@@ -165,6 +171,10 @@ public final class UiPreviewTest {
 
     private UiObject2 waitFor(BySelector selector) {
         UiObject2 object = device.wait(Until.findObject(selector), UI_TIMEOUT);
+        if (object == null) {
+            device.takeScreenshot(new File(output, "failure.png"));
+            device.dumpWindowHierarchy(new File(output, "failure.xml"));
+        }
         assertNotNull("UI element not found: " + selector, object);
         return object;
     }
