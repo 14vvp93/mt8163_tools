@@ -19,11 +19,13 @@ Evidence labels:
 
 ## 2. Protection behavior boundaries
 
-Protection has three independent per-application settings:
+Protection has three configurable per-application settings:
 
-1. **Keep card in Recents** — prevent user-initiated dismissal through swipe, card X, keyboard dismissal, and Close all.
-2. **Hide from Recents** — omit the card from the visible Recents UI without deleting the system task.
-3. **Protect from Memory Cleaner** — skip the application's task before the MTK cleaner performs destructive operations.
+1. **Protect from Memory Cleaner** — skip the application's task before the MTK cleaner performs destructive operations.
+2. **Hide application card in Recents** — omit the card from the visible Recents UI without deleting the system task.
+3. **Allow closing card via X** — permit the X-button dismissal exception.
+
+Keep is implicit: an application entry in the Protection list is itself the Keep state. There is no separate Keep boolean or persisted key. While listed and while the module is enabled, the task is protected from swipe dismissal, keyboard dismissal, and Close all. The X button is blocked unless **Allow closing card via X** is enabled. Hide and Memory Cleaner protection are independent settings.
 
 Persistent application matching uses the validated package name. The target head unit has one Android user. A task ID identifies a temporary task instance and must never be used as the persistent application key.
 
@@ -76,7 +78,8 @@ They are not targets in the `android` SystemServer process.
 - Configuration changes are sent explicitly to `com.android.systemui`.
 - The SystemUI receiver requires the signature-level sender permission and reloads the configuration.
 - `ProtectionTaskMatcher` publishes immutable configuration snapshots through a volatile reference. Its three predicates share the same package-name key.
-- Keep and Hide are normalized as mutually exclusive; Hide takes precedence if both values are supplied.
+- Keep is derived from the presence of an application settings entry; it is not a persisted field.
+- Hide is a separate display-filter setting and does not remove the application entry or disable implicit Keep.
 
 **Pending:** confirm cross-process preference readability with the target LSPosed build and verify configuration updates after SystemUI restart and app process restart.
 
@@ -119,7 +122,7 @@ Sources:
 
 **Confirmed** — the header's dismiss-button branch resolves its parent TaskView and calls `dismissTask()`.
 
-**Implemented** — the hook suppresses only the dismiss-button branch for protected tasks. Application-info, move-task, and other click paths remain untouched.
+**Implemented** — the hook suppresses only the dismiss-button branch when the application is listed and **Allow closing card via X** is disabled. When that option is enabled, the original X-button behavior is retained. Application-info, move-task, and other click paths remain untouched.
 
 ### Keyboard dismissal
 
@@ -309,7 +312,38 @@ Exact method descriptors and target class-loader resolution must be checked agai
 
 Protection hooks are implemented in source but have not yet been runtime-validated on the target head unit.
 
-## 12. Primary firmware source files
+
+## 12. Current persisted settings format
+
+The current per-application JSON object contains exactly these boolean fields:
+
+| Key | Meaning |
+|---|---|
+| `hide_recents` | Hide the application's card from visible Recents |
+| `protect_cleaner` | Exclude the application's task from MTK Memory Cleaner cleanup |
+| `allow_close_via_x` | Allow the X button to dismiss the card |
+
+The application package name is the JSON object key. The existence of that entry defines implicit Keep; there is no `keep_recents` field.
+
+**Implemented:** `ProtectionConfig` reads all three fields as required booleans. The parser does not supply defaults for missing fields. The settings writer emits the three current fields and no Keep field. `ProtectionTaskMatcher.shouldKeep()` returns true when a valid package has an application settings entry and the module configuration is enabled.
+
+**Compatibility policy:** the previous `keep_recents` setting has been removed from the model, matcher, and writer. The implementation does not maintain a legacy Keep representation or migration path. Existing JSON entries must contain all three current boolean fields to be accepted by the current parser.
+
+**Validation note:** malformed JSON or a missing/wrongly typed required field causes the current parser's JSON exception path to clear the parsed application map. Verify persisted data against the current schema before target-device testing.
+
+## 13. Latest implementation change
+
+Commit `2827d4333191c73c6fcfd56f96fb403094a61aa4` removed the legacy Keep setting compatibility:
+
+- Removed the Keep field and Keep constructor parameter from `ProtectionConfig.ApplicationSettings`.
+- Removed the separate Keep accessor.
+- Removed the `keep_recents` JSON write.
+- Changed Keep matching to application-entry membership.
+- Updated settings writer call sites to the three-setting model.
+
+The source change is committed on `development`. CI/build and target-device runtime validation must be checked independently; a source commit alone does not establish successful execution.
+
+## 14. Primary firmware source files
 
 The following decompiled SystemUI files are the primary references for the findings above:
 

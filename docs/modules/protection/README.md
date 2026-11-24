@@ -2,65 +2,67 @@
 
 ## Purpose
 
-Protection controls how selected applications are represented and retained in the Android 9 Recents interface. It provides independent controls for Recents card dismissal, Recents visibility, and the MTK SystemUI Memory Cleaner.
+Protection manages selected applications in the Android 9 Recents interface and the MTK SystemUI Memory Cleaner.
 
 Target platform: Android 9 (API 28), MT8163 head unit.
 
 ## Application selection
 
-The module lists installed applications that have a launcher activity. Each entry displays the application icon, label, and package name.
+The application picker lists installed applications with a launcher activity.
 
-The search field filters the list by application label or package name. Search is performed locally against the loaded application list.
+- Search filters applications by label or package name.
+- System applications are excluded by default and can be included with **Display system applications**.
+- The picker displays up to 10 matching results.
+- Selecting an application adds it to the Protection list.
 
-Settings are stored by application package name. The target head unit uses one Android user. Applications without a launcher activity are not shown in this UI.
+The application list is the Keep mechanism: while an application is listed and the module is enabled, its Recents task is protected from swipe dismissal, keyboard dismissal, and **Close all**. There is no separate Keep switch or persisted Keep property.
 
 ## Per-application settings
 
-Each selected application has three settings.
+Each listed application has three configurable settings:
 
-### 1. Keep card in Recents
+### Protect from Memory Cleaner
 
-- **Enabled:** protect the application's Recents task from Swipe-to-dismiss, the card's X button, and **Close all**.
-- **Disabled:** these Recents dismissal actions use the firmware's normal behavior.
-- The setting protects the Recents task/card. It must not prevent Android from managing the application's process or lifecycle.
+- **Enabled:** the MTK SystemUI Memory Cleaner skips the application's task and its associated destructive cleanup operations.
+- **Disabled:** Memory Cleaner uses its normal behavior.
+- This setting does not disable Android's global memory management.
 
-### 2. Hide from Recents
+### Hide application card in Recents
 
-- **Enabled:** the application's task must not be displayed in Recents.
-- **Disabled:** the application may be displayed according to the normal Recents behavior.
-- Enabling this setting automatically disables **Keep card in Recents**.
-- If **Keep card in Recents** is enabled, enabling this setting turns the first setting off.
-- Hiding a card must not, by itself, terminate the application's process.
+- **Enabled:** the application's card is filtered out of the visible Recents stack.
+- **Disabled:** the card is displayed according to normal firmware behavior.
+- Hiding is display-only: it does not remove the system task or terminate the application process.
 
-### 3. Protect from Memory Cleaner
+### Allow closing card via X
 
-- **Enabled:** the MTK SystemUI Memory Cleaner must skip tasks belonging to this application.
-- **Disabled:** Memory Cleaner uses its normal behavior for this application.
-- This setting is independent of the two Recents settings.
-- It applies only to the inspected Memory Cleaner operation. It does not disable Android's system memory management or prevent the system from reclaiming resources.
+- **Enabled:** the Recents card's X button can dismiss this application's task.
+- **Disabled:** the X action is blocked while the application remains listed in Protection.
+- This option does not enable swipe, keyboard, or **Close all** dismissal.
 
-All three settings are disabled by default.
+All three configurable settings are disabled by default. Adding an application itself enables the implicit Keep behavior; Keep is not stored as a separate setting.
 
-## Agreed behavior
+## Behavior
 
-| Operation | Keep card in Recents | Hide from Recents | Protect from Memory Cleaner |
-|---|---|---|---|
-| Swipe-to-dismiss | Block dismissal | Not applicable; card is hidden | No effect |
-| Card X button | Block dismissal | Not applicable; card is hidden | No effect |
-| Close all | Exclude protected task | Not applicable; card is hidden | No effect |
-| Display in Recents | Keep card visible | Do not display card | No effect |
-| MTK Memory Cleaner | No effect | No effect | Skip this application's task |
+| Operation | Application listed in Protection | Relevant setting |
+|---|---|---|
+| Swipe-to-dismiss | Blocked | Implicit Keep |
+| Keyboard dismissal | Blocked | Implicit Keep |
+| Close all | Task is retained; Recents closes to Home | Implicit Keep |
+| Card X button | Blocked by default; allowed when enabled | Allow closing card via X |
+| Display in Recents | Card is filtered when enabled | Hide application card in Recents |
+| MTK Memory Cleaner | Task cleanup is skipped when enabled | Protect from Memory Cleaner |
 
-Applications not selected in Protection retain normal firmware behavior.
+Applications not listed in Protection retain normal firmware behavior.
 
 ## Functional constraints
 
-- Keep the three settings independent, except for the automatic mutual exclusion between **Keep card in Recents** and **Hide from Recents**.
-- Match application settings by package name only, not by transient task ID.
-- Protecting or hiding a Recents card must not itself terminate the application's process.
-- Do not interfere with Android's normal process lifecycle or system memory management.
-- Preserve normal firmware behavior for applications that are not protected.
+- Keep is defined by application membership in the Protection list; there is no Keep boolean or JSON key.
+- The X-button exception is independent of Memory Cleaner protection and Recents visibility.
+- Match tasks using a validated package name, not a transient task ID.
+- Hiding or retaining a Recents card must not itself terminate the application process.
+- Preserve normal firmware cleanup and lifecycle behavior for unprotected tasks.
+- The module's global enabled state gates Protection behavior.
 
 ## Technical implementation status
 
-The application list, local search, per-application controls, persistent settings, SystemUI configuration transport, task matcher, Recents protections, display-only filtering, and MTK Memory Cleaner exclusions are implemented in the source tree. Build verification and target-device runtime validation are still required. Firmware findings and outstanding validation tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
+The application picker, local search, per-application controls, persistent settings, SystemUI configuration transport, task matcher, Recents dismissal handling, display-only filtering, and MTK Memory Cleaner exclusions are implemented in source. Automated build verification and target-device runtime validation remain required. Firmware findings and outstanding validation tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
