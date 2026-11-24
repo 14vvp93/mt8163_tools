@@ -11,8 +11,7 @@ public final class ProtectionTaskMatcher {
     }
 
     public static boolean shouldKeep(String packageName) {
-        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName);
-        return settings != null && settings.shouldKeepRecents();
+        return settingsFor(packageName) != null;
     }
 
     public static boolean shouldHide(String packageName) {

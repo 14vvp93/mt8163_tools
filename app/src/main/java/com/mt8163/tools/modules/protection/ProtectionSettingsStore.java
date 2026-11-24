@@ -54,7 +54,7 @@ public final class ProtectionSettingsStore {
     public static ProtectionConfig.ApplicationSettings getApplicationSettings(
             Context context, String packageName) {
         if (context == null || !ProtectionConfig.isValidPackageName(packageName)) {
-            return new ProtectionConfig.ApplicationSettings(false, false, false, false);
+            return new ProtectionConfig.ApplicationSettings(false, false, false);
         }
 
         try {
@@ -64,13 +64,12 @@ public final class ProtectionSettingsStore {
             JSONObject applications = new JSONObject(json);
             JSONObject item = applications.optJSONObject(ProtectionConfig.key(packageName));
             if (item == null) {
-                return new ProtectionConfig.ApplicationSettings(false, false, false, false);
+                return new ProtectionConfig.ApplicationSettings(false, false, false);
             }
             return new ProtectionConfig.ApplicationSettings(
-                    true,
-                    item.optBoolean("hide_recents", false),
-                    item.optBoolean("protect_cleaner", false),
-                    item.optBoolean("allow_close_via_x", false));
+                    item.getBoolean("hide_recents"),
+                    item.getBoolean("protect_cleaner"),
+                    item.getBoolean("allow_close_via_x"));
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(context, "Protection", "configurationRead",
                     "Failed to read application settings: " + error);
@@ -79,8 +78,8 @@ public final class ProtectionSettingsStore {
     }
 
     public static boolean setApplicationSettings(Context context, String packageName,
-                                                 boolean keepRecents, boolean hideRecents,
-                                                 boolean protectCleaner, boolean allowCloseViaX) {
+                                                 boolean hideRecents, boolean protectCleaner,
+                                                 boolean allowCloseViaX) {
         if (context == null || !ProtectionConfig.isValidPackageName(packageName)) return false;
 
         Context app = context.getApplicationContext();
@@ -90,7 +89,6 @@ public final class ProtectionSettingsStore {
             JSONObject applications = new JSONObject(
                     preferences.getString(KEY_APPLICATIONS, "{}"));
             JSONObject settings = new JSONObject();
-            settings.put("keep_recents", true);
             settings.put("hide_recents", hideRecents);
             settings.put("protect_cleaner", protectCleaner);
             settings.put("allow_close_via_x", allowCloseViaX);

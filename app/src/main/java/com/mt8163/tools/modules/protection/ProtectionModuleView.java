@@ -458,7 +458,7 @@ public final class ProtectionModuleView {
 
         row.setOnClickListener(view -> {
             boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                    activity, app.info.packageName, true, false, false, false);
+                    activity, app.info.packageName, false, false, false);
             if (!saved) {
                 showToast("Unable to add application");
                 return;
