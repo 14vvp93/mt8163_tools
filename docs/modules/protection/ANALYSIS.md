@@ -1668,3 +1668,95 @@ Sources:
 **Implementation constraint** — do not rely on blocking `onChildDismissed()` as the primary protection boundary. By that point the dismiss animation has already been accepted and completed. Prevent protected tasks from entering the dismissal gesture through the eligibility callback.
 
 **Status** — the swipe admission boundary is supported by both the Recents callback and its SwipeHelper caller. Runtime gesture validation remains required, especially for touch cancellation, manual drag-and-drop, and Grid layout.
+
+## 45. Close All: verified Grid and non-Grid callback ordering
+
+Sources:
+
+- `recents/views/TaskStackView.java`
+- `recents/views/TaskStackAnimationHelper.java`
+- `shared/recents/model/TaskStack.java`
+- `recents/misc/ReferenceCountedTrigger.java`
+- `recents/events/EventBus.java`
+- `recents/views/RecentsView.java`
+
+### Trigger ordering
+
+**Confirmed** — `DismissAllTaskViewsEvent` is an `EventBus.AnimatedEvent`. EventBus increments its trigger before dispatch and decrements it after dispatch. The TaskStackView handler registers the bulk callback after starting the delete animations.
+
+**Confirmed** — each Grid delete animation increments the same trigger and registers its `onChildDismissed(TaskView)` runnable before the handler registers the bulk callback. When the final animation decrements the trigger to zero, `ReferenceCountedTrigger.flushLastDecrementRunnables()` executes callbacks in insertion order.
+
+Consequently, all Grid per-TaskView callbacks run synchronously before the Close All bulk callback. Each callback sends `TaskViewDismissedEvent`; TaskStackView handles it synchronously, removes that task from `TaskStack`, and sends one `DeleteTaskDataEvent`.
+
+### Grid path
+
+**Confirmed** — `startDeleteAllTasksAnimation()` iterates the TaskViews passed to it and starts one Grid animation per view. Each animation's last-decrement runnable calls `TaskStackViewTouchHandler.onChildDismissed()`.
+
+**Confirmed** — the subsequent bulk callback still operates on the original full Task list snapshot. It calls `TaskStack.removeAllTasks(true)` and dispatches `DeleteTaskDataEvent` for every task in that original snapshot.
+
+**Confirmed** — therefore, for every task represented by an animated attached Grid TaskView, the normal Grid callback has already dispatched a DeleteTaskDataEvent before the bulk callback dispatches another one. Tasks without an attached TaskView are not removed by the animation callbacks and receive only the bulk DeleteTaskDataEvent.
+
+### non-Grid path
+
+**Confirmed** — `startTaskStackDeleteAllTasksAnimation()` only animates attached TaskViews and restores their clipping on animation end. It does not register `onChildDismissed()` callbacks.
+
+The bulk callback is therefore the only task-model removal and DeleteTaskDataEvent pass in this path.
+
+### TaskStack callback semantics
+
+**Confirmed** — `TaskStack.removeTask(task, animation, fromDockGesture, dismissRecentsIfAllRemoved)` removes one task and invokes `onStackTaskRemoved()` only when the task is in the filtered stack list. The callback receives the supplied animation and final-removal flag.
+
+**Confirmed** — `TaskStack.removeAllTasks(true)` clears the complete filtered stack list and raw task list, then invokes one `onStackTasksRemoved()` callback. TaskStackView's implementation resets focus, returns attached TaskViews to the pool, clears ignored tasks, and dispatches `AllTaskViewsDismissedEvent`.
+
+**Confirmed** — TaskStackView's `onStackTaskRemoved()` returns the matching attached TaskView to the pool and removes the task from the ignored-task set. When an animation is supplied, it also updates the layout algorithm and relayouts TaskViews. If the stack becomes empty, the `dismissRecentsIfAllRemoved` argument determines whether it dispatches `AllTaskViewsDismissedEvent` or `ShowEmptyViewEvent`.
+
+## 46. Close All: safe filtering and exactly-once cleanup design
+
+This is a source-derived candidate algorithm, not an implemented or runtime-tested hook.
+
+### Required snapshots
+
+At entry to `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)`:
+
+1. Snapshot the current stack task list.
+2. Classify the snapshot into protected and unprotected tasks using the Protection setting and the task's package/user identity.
+3. Build a separate copy of attached TaskViews whose tasks are unprotected.
+4. Never mutate the live list returned by `getTaskViews()`.
+
+### Animation phase
+
+- Pass only unprotected attached TaskViews to `startDeleteAllTasksAnimation()`.
+- Keep the original `DismissAllTaskViewsEvent` dispatch and shared `ReferenceCountedTrigger`; do not bypass EventBus or manually flush/decrement the trigger.
+- Grid callbacks then remove and clean each animated unprotected task through the existing `TaskViewDismissedEvent` path.
+- Protected TaskViews receive no dismissal animation and no `TaskViewDismissedEvent`.
+- non-Grid remains animation-only; its tasks stay in the stack until the post-animation callback.
+
+### Post-animation cleanup phase
+
+When the post-animation callback runs, take a fresh snapshot of the current stack and select only tasks that are still present and unprotected. This is the key to avoiding duplicate DeleteTaskDataEvent dispatch in Grid mode:
+
+- Grid tasks already removed by their per-TaskView callbacks are absent from the fresh stack snapshot; do not dispatch DeleteTaskDataEvent for them again.
+- Grid tasks without attached TaskViews remain in the stack and are included in this remaining-task pass.
+- In non-Grid mode, no per-view removal occurred, so all remaining unprotected tasks are included.
+- Protected tasks are excluded from both model removal and data cleanup.
+
+If no protected tasks remain in the stack, the original bulk semantics can be retained for the remaining tasks: call `removeAllTasks(true)`, then dispatch DeleteTaskDataEvent once for each task in the fresh remaining-unprotected snapshot. This also preserves the existing `onStackTasksRemoved()` / `AllTaskViewsDismissedEvent` completion path, including the case where Grid animation callbacks have already emptied the stack.
+
+If protected tasks remain, do not call `removeAllTasks(true)`: it would delete protected cards. Remove each remaining unprotected task with `removeTask(task, AnimationProps.IMMEDIATE, false, false)`, then dispatch one DeleteTaskDataEvent for that task. The explicit `false` final-removal flag prevents the per-task callback from reporting that all Recents tasks were dismissed while protected cards remain. The immediate animation prop makes TaskStackView's existing per-task callback recalculate and relayout the remaining cards.
+
+### Accessibility and metrics
+
+- Do not announce that *all* Recents items were dismissed while protected cards remain.
+- Preserve the existing all-dismissed accessibility/event path when the resulting stack is empty.
+- Preserve the Close All metric once per user action, not once per task.
+- Preserve the scrim subscriber's handling of the original DismissAllTaskViewsEvent.
+
+### Remaining validation
+
+1. Verify `AnimationProps.IMMEDIATE` and per-task removal do not produce visual flicker or unwanted focus changes when several unbound tasks are removed in sequence.
+2. Verify Grid callbacks complete before the post-animation callback on the target firmware, including cancelled/detached animations.
+3. Verify an empty unprotected subset still completes the trigger and leaves protected cards untouched.
+4. Verify user/task identity is stable between the initial and post-animation snapshots.
+5. Runtime-test task cleanup, system task removal, force-stop, accessibility announcements, and repeated Close All actions on the MT8163 head unit.
+
+**Conclusion** — filtering only the animation list is unsafe. The operation must filter both the animation TaskViews and the post-animation model/data cleanup. The fresh post-animation stack snapshot provides the source-level basis for exactly-once cleanup in Grid and non-Grid layouts.
