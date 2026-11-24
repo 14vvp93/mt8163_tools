@@ -6,6 +6,14 @@ Protection controls how selected applications are represented and retained in th
 
 Target platform: Android 9 (API 28), MT8163 head unit.
 
+## Application selection
+
+The module lists installed applications that have a launcher activity. Each entry displays the application icon, label, and package name.
+
+The search field filters the list by application label or package name. Search is performed locally against the loaded application list.
+
+Settings are stored per application and Android user ID. Applications without a launcher activity are not shown in this UI.
+
 ## Per-application settings
 
 Each selected application has three settings.
@@ -55,4 +63,4 @@ Applications not selected in Protection retain normal firmware behavior.
 
 ## Technical implementation status
 
-The SystemUI bootstrap, configuration transport, task matcher, Recents protections, display-only filtering, and MTK Memory Cleaner exclusions are implemented in the source tree. Build verification and target-device runtime validation are still required. Firmware findings and outstanding validation tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
+The application list, local search, per-application controls, persistent settings, SystemUI configuration transport, task matcher, Recents protections, display-only filtering, and MTK Memory Cleaner exclusions are implemented in the source tree. Build verification and target-device runtime validation are still required. Firmware findings and outstanding validation tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
