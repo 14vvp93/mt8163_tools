@@ -55,4 +55,4 @@ Applications not selected in Protection retain normal firmware behavior.
 
 ## Technical implementation status
 
-Protection behavior is specified. The SystemUI process bootstrap, configuration transport, and task matcher are implemented; the Recents and Memory Cleaner interception points are not yet implemented. Firmware findings and outstanding verification tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
+The SystemUI bootstrap, configuration transport, task matcher, Recents protections, display-only filtering, and MTK Memory Cleaner exclusions are implemented in the source tree. Build verification and target-device runtime validation are still required. Firmware findings and outstanding validation tasks are maintained separately in [ANALYSIS.md](ANALYSIS.md).
