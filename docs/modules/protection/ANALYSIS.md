@@ -1468,3 +1468,61 @@ The Memory Cleaner loop does not dispatch the Recents `DeleteTaskDataEvent`; it 
 **Important scope boundary** — `forceStopPackage(packageName)` is package-wide, while task removal uses a task ID. When a package is protected, skipping its task iteration also prevents this loop from force-stopping that package. This does not protect the package from force-stop operations initiated by other system or vendor paths.
 
 **Status** — invocation delay, task acquisition, and all three destructive operations are confirmed. The proposed per-task filter is a design boundary only; no hook has been implemented or tested.
+
+
+## 39. Hide from Recents: task-load pipeline and display-only boundary
+
+Sources:
+
+- `shared/recents/model/RecentsTaskLoadPlan.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+- `recents/RecentsActivity.java`
+- `recents/views/RecentsView.java`
+- `recents/views/TaskStackView.java`
+- `qs/tiles/MemoryCleanerTile.java`
+
+### Shared task-load plan
+
+**Confirmed** — `RecentsTaskLoadPlan.preloadPlan()` obtains the recent task list, resolves ActivityInfo, removes duplicate top components, applies the firmware resource list `recents_task_hidden_list`, and builds a `TaskStack`.
+
+**Confirmed** — this load-plan path is not exclusive to the visible Recents UI. It is also used by:
+
+- `MemoryCleanerTile.clearRecentsTask()`;
+- RecentsActivity stack reload;
+- RecentsImpl preloading and task-switching paths.
+
+**Design conclusion** — adding the user-configured Hide from Recents predicate directly to `RecentsTaskLoadPlan.preloadPlan()` would also hide those tasks from the Memory Cleaner input and other non-display consumers. That would couple two settings that README requires to remain independent. Do not implement Hide from Recents as a global load-plan filter.
+
+### Visible Recents entry points
+
+**Confirmed** — the initial visible stack is passed from `RecentsActivity.reloadStackView()` to `RecentsView.onReload(stack, ...)`. `RecentsView.onReload()` updates the empty-state UI and passes the stack to `TaskStackView.setTasks()`.
+
+**Confirmed** — a later stack refresh is built by `RecentsActivity.reloadTaskStack()` and dispatched as `MultiWindowStateChangedEvent`. Its consumers include:
+
+- `RecentsView.onBusEvent()`, which updates empty-state visibility from the event stack;
+- `TaskStackView.onBusEvent()`, which either calls `setTasks()` directly or starts the deferred stack animation.
+
+**Confirmed** — the deferred animation path in `TaskStackAnimationHelper.startNewStackScrollAnimation()` reads the incoming stack's task list for layout calculations and then calls `TaskStackView.setTasks()`. Filtering only inside `TaskStackView.setTasks()` would leave the animation helper working with the unfiltered list and could produce index/layout inconsistencies.
+
+### Candidate display-only filtering boundary
+
+The filter must be applied to the stack before the UI consumes it, while leaving the source load plan and its other consumers unchanged.
+
+Candidate entry points:
+
+1. `RecentsActivity.reloadStackView()`: filter the stack before passing it to `RecentsView.onReload()`. This keeps the task-card list, empty-state decision, and initial layout based on the same filtered stack.
+2. `RecentsActivity.reloadTaskStack()`: filter the newly loaded stack before constructing/dispatching `MultiWindowStateChangedEvent`. This keeps both RecentsView and TaskStackView, including deferred animation, on the same filtered stack.
+
+The two entry points cover the inspected initial display and subsequent ActivityUnpinned/multi-window refresh paths. A final implementation must still audit every call site of these methods and every producer of `MultiWindowStateChangedEvent` in the exact target SystemUI build.
+
+### Filtering invariants
+
+- Filter by the agreed package identity, not task ID.
+- Preserve original task order for all remaining tasks.
+- Do not mutate the source load plan if another consumer may still use it.
+- Ensure RecentsView empty-state/scrim decisions and TaskStackView layout receive the same filtered stack.
+- Keep hidden tasks available to Memory Cleaner and non-display RecentsImpl operations.
+- Hiding a card must not dispatch `DeleteTaskDataEvent`, call `removeTask()`, call `forceStopPackage()`, or otherwise mutate the system task list.
+- When a hidden setting is disabled, the task must reappear on the next normal stack reload without requiring application relaunch.
+
+**Status** — shared-load-plan coupling and visible UI refresh paths are confirmed. The two Activity methods are candidate hook boundaries, not approved implementation. Validate call-site coverage and UI behavior on the target device before coding.
