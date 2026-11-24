@@ -130,9 +130,7 @@ jobs:
             adb shell pm clear com.mt8163.tools
             adb logcat -c
 
-            adb shell am instrument -w -r -e class com.mt8163.tools.UiPreviewTest com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner > artifacts/ui-preview/instrumentation.log 2>&1; adb logcat -d -v threadtime > artifacts/ui-preview/logcat.log; adb shell dumpsys activity activities > artifacts/ui-preview/activities.txt; adb shell uiautomator dump /sdcard/ui-preview-window.xml > /dev/null 2>&1; adb pull /sdcard/ui-preview-window.xml artifacts/ui-preview/window.xml > /dev/null 2>&1 || true; cat artifacts/ui-preview/instrumentation.log; grep -q "OK (1 test)" artifacts/ui-preview/instrumentation.log
-
-            adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview artifacts/ui-preview
+            adb shell am instrument -w -r -e class com.mt8163.tools.UiPreviewTest com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner > artifacts/ui-preview/instrumentation.log 2>&1; adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview artifacts/ui-preview > /dev/null 2>&1 || true; adb logcat -d -v threadtime > artifacts/ui-preview/logcat.log; adb shell dumpsys activity activities > artifacts/ui-preview/activities.txt; cat artifacts/ui-preview/instrumentation.log; grep -q "OK (1 test)" artifacts/ui-preview/instrumentation.log
 
             printf 'Android API: 28\nResolution: 1280x720\nDensity: 160 dpi\nSource branch: development\nSource commit: %s\nPreview mode: %s\nCapture method: AndroidX UIAutomator instrumentation\n' "$GITHUB_SHA" "${{ inputs.mode }}" > artifacts/ui-preview/preview-info.txt
 
