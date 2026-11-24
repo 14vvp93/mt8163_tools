@@ -1230,3 +1230,143 @@ No inspected call site uses these helpers to kill an arbitrary protected applica
 - For the current scope, prioritize the Recents dismissal/Close All event path and the Memory Cleaner loop. Keep unrelated system and vendor lifecycle operations intact.
 
 **Research status** — direct task-removal and process-termination APIs in the inspected JADX trees are classified. Runtime validation remains necessary for CarStatusService wake-lock cleanup, work-profile challenge failure, and vendor process termination behavior on the target Android 9 head unit.
+
+
+## 33. PackageMonitor lifecycle and package-change cleanup
+
+Sources:
+
+- `recents/RecentsActivity.java`
+- `recents/views/TaskStackView.java`
+- `shared/recents/model/TaskStack.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+
+### PackageMonitor registration and callbacks
+
+**Confirmed** — `RecentsActivity.onCreate()` registers its `PackageMonitor` with:
+
+- the Activity context;
+- `Looper.getMainLooper()`;
+- `UserHandle.ALL`;
+- `externalStorage = true`.
+
+**Confirmed** — `RecentsActivity.onDestroy()` unregisters the monitor.
+
+The firmware overrides three callbacks:
+
+- `onPackageRemoved(packageName, uid)`;
+- `onPackageChanged(packageName, uid, components)`;
+- `onPackageModified(packageName)`.
+
+All three call `RecentsActivity.onPackageChanged(packageName, getChangingUserId())`. The `onPackageChanged` callback returns `true`.
+
+**Confirmed** — no explicit `onPackageAdded()` or `onPackageUpdateFinished()` override was found in this `RecentsActivity` monitor. Do not infer that update completion is separately handled by this class. The PackageMonitor superclass may still perform its own broadcast/state bookkeeping; that behavior was not established from this class's overrides.
+
+### Package-change processing
+
+**Confirmed** — `RecentsActivity.onPackageChanged(packageName, userId)` performs two operations in order:
+
+1. `RecentsTaskLoader.onPackageChanged(packageName)` removes matching package entries from the ActivityInfo cache.
+2. It sends `PackagesChangedEvent(packageName, userId)` through EventBus.
+
+**Confirmed** — `TaskStackView.onBusEvent(PackagesChangedEvent)` calls `TaskStack.computeComponentsRemoved(packageName, userId)`, then iterates the current stack from the end.
+
+**Confirmed** — `TaskStack.computeComponentsRemoved()` considers only task keys whose `userId` equals the event user ID and whose component package matches the changed package. For each distinct component, it queries `PackageManagerWrapper.getActivityInfo(component, userId)`:
+
+- non-null ActivityInfo: component remains available;
+- null ActivityInfo: component is classified as removed.
+
+**Confirmed** — for each classified component, TaskStackView behaves differently depending on view attachment:
+
+- attached TaskView: calls `TaskView.dismissTask()`, which enters the normal dismissal/data-deletion event path;
+- no attached TaskView: removes the task from the in-memory stack immediately with `AnimationProps.IMMEDIATE`, without this branch sending `DeleteTaskDataEvent`.
+
+**Finding / risk** — package modification and package removal callbacks share the same cleanup path. There is no explicit replacement/update guard in the inspected callback overrides. If PackageManager temporarily cannot resolve an activity during package replacement, `computeComponentsRemoved()` can classify that component as removed. The exact callback timing and whether this transient condition occurs on the target firmware require runtime validation.
+
+### Protection implications
+
+- Package identity must remain package name plus user ID, as already specified in README; transient task IDs are unsuitable for persisted settings.
+- A genuinely uninstalled package must not be kept as a permanent orphaned Recents card merely because its former package name remains in Protection settings.
+- A package update must not cause a protected card to be discarded solely because ActivityInfo is temporarily unavailable during replacement. Validate the PackageMonitor replacement state and callback order before selecting a guard.
+- The monitor's callback does not itself delete tasks; the destructive decision occurs later in `TaskStack.computeComponentsRemoved()` and its TaskStackView consumer.
+- The ActivityInfo cache invalidation is package-wide in `RecentsTaskLoader`; it does not receive the user ID. Do not mistake that cache operation for the per-user task-removal decision, which is performed separately by TaskStack.
+
+**Status** — registration scope, callback overrides, cache invalidation, per-user component lookup, and attached/detached TaskView branches are confirmed from source. Replacement timing and on-device behavior remain unverified.
+
+## 34. Protection retention conditions and lifecycle boundary
+
+This section interprets the agreed functional contract in `README.md` against the inspected firmware paths.
+
+### What Keep card in Recents protects
+
+**Confirmed from the project specification** — Keep card in Recents protects the Recents task/card against user dismissal through swipe, card X, and Close All. It does not promise to keep the application process alive or to override Android task/package lifecycle.
+
+**Confirmed from source** — package-change cleanup is a separate path from user dismissal. It tests whether the task's component is still resolvable for the task's user.
+
+### Retention conditions
+
+A protected card is eligible to remain in Recents only while its task/component remains a valid system task and the package/component is still installed and resolvable for that user.
+
+Protection must not convert these cases into permanent retained cards:
+
+- package uninstall;
+- component removal where the task's component no longer exists;
+- system task removal performed by Android outside the Recents user-dismissal path.
+
+A package update is not equivalent to uninstall. During replacement, retain the task if the package/component is restored and resolvable after the update; do not make a destructive decision from a transient lookup failure without validating replacement state.
+
+**Important distinction** — the source's `computeComponentsRemoved()` checks component resolvability, not whether the package name is present in the Protection settings. Protection must be applied as an additional policy condition; it must not falsify PackageManager results or block genuine package lifecycle cleanup.
+
+### Settings independence
+
+- Keep card in Recents gates user-initiated Recents card dismissal.
+- Hide from Recents controls visibility and is mutually exclusive with Keep card in Recents per README.
+- Protect from Memory Cleaner gates only the task loop in MTK Memory Cleaner.
+- None of these settings is a process-liveness guarantee.
+
+**Status** — policy boundary is aligned with README and source cleanup behavior. Exact runtime handling of package replacement and external task removal still requires device testing.
+
+## 35. Close All filtering: safe interception boundary
+
+Source:
+
+- `recents/views/TaskStackView.java`
+- `recents/views/TaskStackAnimationHelper.java`
+- `recents/views/RecentsViewTouchHandler.java`
+- `recents/events/ui/DismissAllTaskViewsEvent.java`
+
+### Existing handler sequence
+
+**Confirmed** — `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` performs the following:
+
+1. Copies every task from `mStack.getTasks()` into a local snapshot.
+2. Calls `startDeleteAllTasksAnimation(getTaskViews(), useGridLayout(), trigger)` with every current TaskView.
+3. Registers a post-animation callback.
+4. The callback announces that all items were dismissed, calls `mStack.removeAllTasks(true)`, sends one `DeleteTaskDataEvent` for every task in the original snapshot, and logs the Close All metric.
+
+The task snapshot, animation view list, final stack mutation, and deletion events are therefore coupled but independently materialized.
+
+### Why a shallow filter is unsafe
+
+- Filtering only the animation list leaves the final `removeAllTasks(true)` call able to remove protected tasks from the model.
+- Filtering only the final stack mutation is too late: protected TaskViews have already been sent through the delete-all animation.
+- Filtering only the bulk `DeleteTaskDataEvent` loop is also too late: the model has already been cleared, and the Grid animation path can independently dispatch per-task dismissal events.
+- Filtering only `onChildDismissed()` does not protect the stack from the bulk `removeAllTasks(true)` callback.
+- The Grid and non-Grid animation paths have different callback behavior; a shared assumption about per-view dismissal callbacks is invalid.
+
+### Safe design requirements
+
+A correct Close All implementation must make one consistent unprotected-task set and use it for all destructive stages:
+
+1. Select unprotected tasks by package name plus user ID.
+2. Select only the corresponding TaskViews for the delete animation.
+3. Preserve protected tasks in the TaskStack model.
+4. Ensure protected tasks never enter either the per-task dismissal path or the bulk data-deletion path.
+5. Ensure every unprotected task is cleaned up exactly once, including the Grid layout's per-view callbacks.
+6. Preserve EventBus trigger completion, animation completion, accessibility behavior, and the existing handling of non-protected tasks.
+
+**Candidate interception boundary** — `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` is the earliest common consumer where the complete task stack and TaskViews are both available. It is the best place to coordinate the filtered operation, but a hook that merely edits one local list is insufficient. The operation must replace or coordinate the full handler sequence, including its post-animation callback and Grid per-view completion behavior.
+
+**Not yet approved as implementation** — the exact hook method and callback replacement strategy still require a proof that Grid and non-Grid paths each produce exactly one cleanup per unprotected task and zero cleanup for protected tasks. Keep implementation deferred.
+
+**Status** — source-level interception boundary and required invariants are identified. No runtime hook has been implemented or tested.
