@@ -20,6 +20,7 @@ import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.events.EventsModuleView;
 import com.mt8163.tools.modules.media.MediaModuleView;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
+import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
 import com.mt8163.tools.modules.voltage.VoltageModuleView;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
 
@@ -116,6 +117,10 @@ public final class MainActivity extends Activity {
 
             if ("media".equals(module.getId())) {
                 MediaSettingsStore.publish(this);
+            }
+
+            if ("protection".equals(module.getId())) {
+                ProtectionSettingsStore.publish(this);
             }
 
             adapter.notifyDataSetChanged();
