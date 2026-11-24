@@ -1760,3 +1760,99 @@ If protected tasks remain, do not call `removeAllTasks(true)`: it would delete p
 5. Runtime-test task cleanup, system task removal, force-stop, accessibility announcements, and repeated Close All actions on the MT8163 head unit.
 
 **Conclusion** — filtering only the animation list is unsafe. The operation must filter both the animation TaskViews and the post-animation model/data cleanup. The fresh post-animation stack snapshot provides the source-level basis for exactly-once cleanup in Grid and non-Grid layouts.
+
+## 47. Immediate layout reconciliation after partial Close All
+
+Sources:
+
+- `shared/recents/utilities/AnimationProps.java`
+- `recents/views/TaskView.java`
+- `recents/views/TaskStackView.java`
+- `shared/recents/model/TaskStack.java`
+
+**Confirmed** — `AnimationProps.IMMEDIATE` is constructed with a zero-millisecond duration and a linear interpolator. `isImmediate()` returns true when every configured property duration is zero.
+
+**Confirmed** — `TaskStackView.updateTaskViewToTransform()` delegates to `TaskView.updateViewPropertiesToTaskTransform()`. For an immediate animation, TaskView applies the target transform directly, does not create/start an AnimatorSet, and invokes a supplied animation listener synchronously.
+
+**Confirmed** — `TaskStack.removeTask(task, AnimationProps.IMMEDIATE, false, false)` removes one task from the stack and invokes `TaskStackView.onStackTaskRemoved()`. That callback returns the removed TaskView to the pool, removes the task from the ignored-task set, recalculates the layout algorithm, and relayouts remaining TaskViews with the supplied immediate animation.
+
+**Conclusion** — the proposed per-task removal path has a firmware-native synchronous layout mechanism. It does not require a custom animation or a new timer. Runtime validation is still required for focus behavior and repeated relayout cost when multiple off-screen/unbound tasks remain.
+
+## 48. Close All trigger completion and edge-case behavior
+
+Sources:
+
+- `recents/events/EventBus.java`
+- `recents/misc/ReferenceCountedTrigger.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/RecentsView.java`
+
+### Empty animation list
+
+**Confirmed** — EventBus calls `AnimatedEvent.onPreDispatch()` before invoking subscribers and `onPostDispatch()` after synchronous dispatch. These methods increment and decrement the event's trigger.
+
+**Confirmed** — TaskStackView registers its post-animation callback even when the filtered TaskView animation list is empty. With no animation increments, EventBus's post-dispatch decrement reaches zero and flushes the callback synchronously.
+
+**Implication** — an all-protected stack or a stack with no attached unprotected TaskViews does not leave the Close All event waiting for an animation that will never start. The post-animation branch must still be safe to execute immediately.
+
+### Refined post-animation cases
+
+The fresh stack snapshot must be partitioned again using the same protection policy:
+
+1. **No tasks remain:** preserve the firmware's empty-stack completion behavior, including `removeAllTasks(true)` if required to dispatch `onStackTasksRemoved()` and `AllTaskViewsDismissedEvent`. Avoid sending duplicate DeleteTaskDataEvent for tasks already removed by Grid callbacks.
+2. **Only protected tasks remain:** do not mutate the stack, do not dispatch DeleteTaskDataEvent, and do not announce that all Recents items were dismissed. The original Close All action metric may still be recorded once for the user action.
+3. **Protected and unprotected tasks remain:** remove only remaining unprotected tasks individually with `removeTask(task, AnimationProps.IMMEDIATE, false, false)`, then dispatch one DeleteTaskDataEvent per such task. Protected cards remain in the stack.
+4. **No protected tasks remain, but unprotected tasks remain:** retain the bulk `removeAllTasks(true)` completion path and dispatch DeleteTaskDataEvent once for each task in the fresh snapshot.
+
+### Trigger and animation cancellation
+
+**Confirmed** — the Grid delete animator decrements the shared trigger from its `onAnimationEnd()` listener. The reference-counted trigger flushes callbacks only when its count reaches zero. Its generic `decrement()` method does not deduplicate repeated calls; the Grid animator listener itself has no local `hasEnded` guard.
+
+**Validation required** — verify on the target build that each Grid animator produces exactly one end callback under normal completion, cancellation, and view detachment. Do not manually decrement or flush the shared trigger from a hook; that can cause premature post-animation cleanup or a negative trigger count.
+
+### Accessibility and scrim
+
+**Confirmed** — the existing TaskStackView bulk callback always announces `accessibility_recents_all_items_dismissed`. That announcement is incorrect when protected cards remain and must be conditional on the resulting stack actually being empty.
+
+**Confirmed** — `RecentsView.onBusEvent(DismissAllTaskViewsEvent)` independently fades the background scrim when there is no docked task. This subscriber still receives the original event even if TaskStackView filters protected tasks.
+
+**Validation required** — inspect the resulting scrim and protected-card presentation when every task is protected or when protected cards remain. Do not suppress the original event solely to alter TaskStackView behavior; the event also drives the independent RecentsView scrim subscriber.
+
+## 49. Task identity fields available to Protection predicates
+
+Source: `shared/recents/model/Task.java`.
+
+**Confirmed** — `Task.TaskKey` exposes:
+
+- `userId`: the Android user ID associated with the task;
+- `baseIntent`: the task's base Intent;
+- `getPackageName()`: returns the base Intent component's package when a component exists, otherwise the Intent package.
+
+**Null-safety constraint** — `TaskKey.getPackageName()` dereferences `baseIntent` without checking it for null. A Protection predicate must validate the task, key, and baseIntent before calling it. It must also handle a null component and an empty/unavailable package name without treating the task as protected by a guessed identity.
+
+**Conclusion** — package identity and user ID are available from the task key. Whether the Protection preference is package-global or user-scoped remains a product-policy decision; do not infer that from the task key alone.
+
+## 50. Close All algorithm status after edge-case audit
+
+### Source-level behavior now established
+
+- Grid attached unprotected tasks are removed by their animation callbacks before the post-animation callback.
+- non-Grid bulk animations do not remove tasks individually; the post-animation callback owns their model/data cleanup.
+- Unattached unprotected tasks remain in the stack after Grid animation and must be included in the fresh post-animation snapshot.
+- The fresh snapshot avoids duplicate DeleteTaskDataEvent dispatch for Grid tasks already removed through TaskViewDismissedEvent.
+- Partial removal can use the existing zero-duration TaskStack/TaskView layout path.
+- Empty animation lists still execute the post-animation callback through the AnimatedEvent trigger lifecycle.
+- The post-animation callback must distinguish an empty stack, protected-only remainder, and mixed protected/unprotected remainder.
+- Package/user identity can be read from TaskKey, but all nullable fields must be checked before resolving package identity.
+
+### Remaining device validation
+
+1. Grid and non-Grid with all tasks protected.
+2. Grid with a mix of protected/unprotected attached TaskViews and unbound tasks.
+3. non-Grid with a mix of protected/unprotected tasks.
+4. Grid animation cancellation and view detachment; verify exactly-once trigger decrement.
+5. Accessibility announcements and scrim when protected cards remain.
+6. Focus stability, TaskView pooling, and relayout after sequential immediate removals.
+7. Confirm whether preference matching is package-global or user-scoped.
+
+**Status** — the Close All algorithm is now specified at source level for the identified layouts and edge cases. It is not implemented and has not been runtime-tested on the target head unit.
