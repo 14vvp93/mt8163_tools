@@ -227,7 +227,7 @@ public final class ProtectionHook implements PackageHook {
                                 TaskIdentity identity = resolveTask(param.args[0]);
                                 state.protectCurrentTask = identity != null
                                         && ProtectionTaskMatcher.shouldProtectCleaner(
-                                        identity.packageName, identity.userId);
+                                        identity.packageName);
                                 state.taskId = identity == null ? -1 : identity.taskId;
                                 state.packageName = identity == null
                                         ? null : identity.packageName;
@@ -369,13 +369,13 @@ public final class ProtectionHook implements PackageHook {
         switch (type) {
             case KEEP:
                 return ProtectionTaskMatcher.shouldKeep(
-                        identity.packageName, identity.userId);
+                        identity.packageName);
             case HIDE:
                 return ProtectionTaskMatcher.shouldHide(
-                        identity.packageName, identity.userId);
+                        identity.packageName);
             case CLEANER:
                 return ProtectionTaskMatcher.shouldProtectCleaner(
-                        identity.packageName, identity.userId);
+                        identity.packageName);
             default:
                 return false;
         }
@@ -403,10 +403,8 @@ public final class ProtectionHook implements PackageHook {
         if (!ProtectionConfig.isValidPackageName(packageName)) return null;
 
         try {
-            int userId = XposedHelpers.getIntField(key, "userId");
             int taskId = XposedHelpers.getIntField(key, "id");
-            if (userId < 0) return null;
-            return new TaskIdentity(packageName, userId, taskId);
+            return new TaskIdentity(packageName, taskId);
         } catch (Throwable ignored) {
             return null;
         }
@@ -501,12 +499,10 @@ public final class ProtectionHook implements PackageHook {
 
     private static final class TaskIdentity {
         final String packageName;
-        final int userId;
         final int taskId;
 
-        TaskIdentity(String packageName, int userId, int taskId) {
+        TaskIdentity(String packageName, int taskId) {
             this.packageName = packageName;
-            this.userId = userId;
             this.taskId = taskId;
         }
     }
