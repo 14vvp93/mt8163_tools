@@ -1166,3 +1166,67 @@ Sources:
 **Scope distinction** — `killBackgroundProcesses()` targets background process cleanup and does not directly remove a Recent Task or dispatch `DeleteTaskDataEvent`. Do not classify it as a Recents card-deletion path without runtime evidence.
 
 **Research status** — helper definitions are recorded. Their runtime callers and actual effect on protected applications remain unverified.
+
+## 38. Direct process termination audit outside Recents
+
+Sources:
+
+- `artifacts/CarServises/jadx/boot-carservices_classes/sources/android/carstatus/CarStatusService.java`
+- `artifacts/CarServises/jadx/boot-carservices_classes/sources/android/utilities/Util.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/keyguard/WorkLockActivityController.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/system/ActivityManagerWrapper.java`
+- `artifacts/AutoBtClient/jadx/sources/com/hcn/common/app/HProcessUtils.java`
+- `artifacts/BluetoothService/jadx/sources/com/hcn/common/app/HProcessUtils.java`
+- `artifacts/AutoBtClient/jadx/sources/com/hcn/common/app/HAppUtils.java`
+- `artifacts/BluetoothService/jadx/sources/com/hcn/bluetooth/CrashHandler.java`
+- `artifacts/AutoBtClient/jadx/sources/com/autochips/bluetooth/CrashHandler.java`
+- `artifacts/MtkSystemUI/jadx/sources/com/android/systemui/SysuiRestartReceiver.java`
+
+### Direct process kill in CarStatusService
+
+**Confirmed** — `CarStatusService.checkWakeLock(clean)` parses the PowerManager wake-lock list. When `clean == true`, entries containing a PID are handled as follows:
+
+1. If the PID differs from `Process.myPid()`, the service calls `Process.killProcess(pid)` directly.
+2. If the PID is the CarStatusService process itself, it calls `findAndkillbyUid()` instead.
+3. Entries without a parsed PID are also passed to `findAndkillbyUid()`.
+
+**Confirmed** — `findAndkillbyUid()` extracts a WorkSource UID greater than 10000, resolves its package name, and calls the CarServices `Util.forceStopPackage(packageName)` helper.
+
+**Confirmed** — the check is entered from the ACC-off Handler path after the wake-lock check counter advances beyond 15; another check is scheduled 5 seconds later while ACC remains off. The same method also checks the configured suspend timeout and may request a reboot through `sys.powerctl`.
+
+**Scope implication** — this vendor power-management cleanup can terminate a process by PID without calling `forceStopPackage()` or removing a Recent Task. It is independent of Recents gestures and may affect any process represented by a wake-lock entry when cleanup is enabled. The exact target-device process selection and timing require runtime validation.
+
+### Other Process.killProcess() matches
+
+**Confirmed** — the remaining inspected matches are self-termination paths:
+
+- `AutoBtClient` and `BluetoothService` `HAppUtils.relaunchApp(true)` launch the same application's launcher activity, then kill the current process and exit.
+- Their crash handlers kill their own process before exiting.
+- SystemUI `SysuiRestartReceiver` kills the SystemUI process itself after handling its restart broadcast.
+
+No inspected call site uses these helpers to kill an arbitrary protected application's PID.
+
+### Consolidated API search results
+
+| API / operation | Confirmed source paths | Meaning for Protection |
+|---|---|---|
+| `IActivityManager.removeTask(taskId)` | `ActivityManagerWrapper.removeTask()`; `WorkLockActivityController.startWorkChallengeInTask()` | System Recent Task removal. WorkLock is a separate work-profile failure-cleanup path. |
+| `TaskStack.removeTask()` | Recents dismissal, package-change cleanup, docking/model paths | In-memory Recents model mutation; not itself a system task-removal call. |
+| `ActivityManager.forceStopPackage(packageName)` | Recents DeleteTaskDataEvent consumer; Memory Cleaner | Destructive Recents cleanup; also force-stops the package. |
+| Vendor `Util.forceStopPackage()` / `SourceService.forceStopPackage()` | CarServices source arbitration, ACC/restart and wake-lock cleanup | Package termination outside Recents; current Protection scope does not block it. |
+| `ActivityManager.killBackgroundProcesses(packageName)` | AutoBtClient and BluetoothService `HProcessUtils` helper definitions | Helper definitions found, but no call sites found in the inspected JADX source trees. |
+| `Process.killProcess(pid)` | CarStatusService wake-lock cleanup; self-restart/crash paths | CarStatusService can kill a PID from the wake-lock list; other matches kill only their own process. |
+
+**Confirmed** — repository-wide source search in the extracted firmware tree found no additional `removeTaskById` or `removeRecentTask` method/call pattern. Search results for `removeTask(` resolve to the two system-level paths above, Recents model methods, the loader queue's internal removal method, and duplicate JADX/smali representations.
+
+**Audit limitation** — this is a source-tree search, not proof that no hidden/native/reflection-based process termination exists. Native binaries, dynamically loaded code, Binder calls through unindexed wrappers, and runtime-only behavior are outside this static result.
+
+### Protection boundary
+
+- Do not globally block `Process.killProcess()`, `forceStopPackage()`, or `killBackgroundProcesses()` as part of the current Recents-focused Protection behavior.
+- The CarStatusService PID kill is a distinct vendor power-management action and must remain outside the current scope unless the functional requirements are explicitly expanded to process survival.
+- WorkLock task removal is a work-profile credential failure path; whether it should be preserved is a separate policy decision.
+- The AutoBtClient/BluetoothService helper definitions are not sufficient evidence to justify hooks without a confirmed caller.
+- For the current scope, prioritize the Recents dismissal/Close All event path and the Memory Cleaner loop. Keep unrelated system and vendor lifecycle operations intact.
+
+**Research status** — direct task-removal and process-termination APIs in the inspected JADX trees are classified. Runtime validation remains necessary for CarStatusService wake-lock cleanup, work-profile challenge failure, and vendor process termination behavior on the target Android 9 head unit.
