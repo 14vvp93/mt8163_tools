@@ -2351,3 +2351,88 @@ Follow-up on Section 61:
 Inspect the run's details in GitHub Actions UI or repository-level Actions settings to obtain the platform startup diagnostic. Once GitHub can create the job, rerun the workflow and inspect the published `artifacts/framework/services/` output. Do not make further speculative workflow changes until the startup cause is known.
 
 **Status** — workflow instrumentation is committed, but target `services.vdex` decompilation remains blocked before job startup. Sections 59–60 remain AOSP Android 9 reference findings, not target-firmware confirmations. No Protection hooks or firmware binaries were modified.
+
+
+## 63. Target framework task retention, persistence, and task-ID allocation
+
+### Artifact provenance
+
+- Repository: `14vvp93/public_worker`
+- Workflow run: `44771655098` (successful; job `analyze`)
+- Workflow input revision: `1b0651063da1c0fa5ec866c6ecf279d79b5fb551`
+- Uploaded artifact: `mt8163-framework-mcu-analysis`
+- Artifact SHA-256: `457014f139e65cd469bad88ed242fba1e3fcc7393c4323d0ace04de3346c0390`
+- Target input: `rom/system/framework/oat/arm/services.vdex`
+- Extracted output: `vdex/oat_arm_services/services_classes.cdex`
+- Inspected output: `oat_arm_services-disassembly.txt`
+
+The workflow successfully extracted the framework CompactDEX and generated disassembly. JADX reported `Load failed! No classes for decompile!` for both `oat_arm_services` and `oat_arm_mediatek-services`. Therefore this section is based on the target firmware's VDEX disassembly, not reconstructed Java source. The inspected `mediatek-services.vdex` disassembly did not contain the ActivityTaskManager classes listed below.
+
+### Per-user task-ID allocator
+
+Source: `com.android.server.am.ActivityStackSupervisor` in `services.vdex`.
+
+**Confirmed in target firmware** — `getNextTaskIdForUserLocked(userId)`:
+
+1. Reads the per-user counter from `mCurTaskIdForUser`, defaulting to `100000 * userId`.
+2. Advances it through `nextTaskIdForUser(taskId, userId)`.
+3. Checks the candidate against `RecentTasks.containsTaskId(candidate, userId)`.
+4. Also checks `anyTaskForIdLocked(candidate, 1)` for an existing task record.
+5. Stores and returns the candidate only when both checks find no collision.
+6. Continues advancing and wrapping until the original counter is reached; then throws `IllegalStateException` if no ID is available.
+
+**Confirmed** — `nextTaskIdForUser()` increments the ID and wraps at the next `100000 * (userId + 1)` boundary by subtracting 100000. The target firmware therefore uses bounded per-user task-ID ranges and permits reuse after an ID is no longer occupied and the counter wraps.
+
+This directly confirms the Android 9 baseline behavior described in Section 59 for the inspected target framework. The target's allocator is no longer an AOSP-only assumption.
+
+### Recents persistence and restore order
+
+Source: `com.android.server.am.RecentTasks` in `services.vdex`.
+
+**Confirmed in target firmware** — `loadUserRecentsLocked(userId)`:
+
+1. Returns immediately when that user's Recents data is already marked loaded.
+2. Calls `loadPersistedTaskIdsForUserLocked(userId)` before restoring task records.
+3. Builds the persisted-ID set for that user from eligible tasks already present in memory.
+4. Calls `TaskPersister.restoreTasksForUserLocked(userId, persistedIds)`.
+5. Adds the restored records to `mTasks`.
+6. Calls `cleanupLocked(userId)`.
+7. Marks the user's Recents as loaded and synchronizes persisted IDs when the restored-ID set is non-empty.
+
+**Confirmed** — `loadPersistedTaskIdsForUserLocked()` lazily loads the per-user ID set through `TaskPersister.loadPersistedTaskIdsForUser(userId)` and caches it in `mPersistedTaskIds`.
+
+Source: `com.android.server.am.TaskPersister` in `services.vdex`.
+
+**Confirmed** — `getUserPersistedTaskIdsFile(userId)` resolves the file named `persisted_taskIds.txt` inside the per-user task-ID directory, creating the directory when necessary.
+
+**Confirmed** — `loadPersistedTaskIdsForUser(userId)` reads the file as whitespace-separated integer task IDs and returns them in a `SparseBooleanArray`. If the in-memory file cache already contains the user's set, it returns a clone of that set.
+
+**Confirmed** — `syncPersistentTaskIdsLocked()` clears the cached ID sets for users whose Recents data is loaded, then walks the current `mTasks` list and repopulates per-user ID sets for records accepted by `shouldPersistTaskLocked()`.
+
+These findings confirm on the target firmware that persisted task IDs are loaded before task-record restoration and that the allocator's Recents collision check is backed by persisted-ID state, including records not yet restored into the in-memory task list.
+
+### Recents removal and trimming
+
+**Confirmed in target firmware** — `RecentTasks.remove(task)` removes the `TaskRecord` from `mTasks` and invokes `notifyTaskRemoved(task, false)`. That notification iterates registered `RecentTasks.Callbacks` and calls `onRecentTaskRemoved(task, false)`; the notification method itself does not directly call the SystemUI Recents APIs.
+
+**Confirmed** — `trimInactiveRecentTasks()` compares `mTasks.size()` with `mGlobalMaxNumTasks`. When the list exceeds the configured maximum, it removes records from the end of the list and notifies the removal callbacks for each trimmed record.
+
+**Confirmed** — `unloadUserDataFromMemoryLocked(userId)` removes the loaded-user marker, removes that user's in-memory task records, drops the cached `mPersistedTaskIds` entry, and asks `TaskPersister` to unload its in-memory user data. The inspected method does not itself delete the persisted task-ID file.
+
+### Protection implications
+
+- Sections 59–60 are now corroborated by target-framework evidence for per-user bounded task-ID allocation, collision checks against Recents and task records, persisted-ID loading before restore, and max-count trimming.
+- `persistentId` / task ID remains a task-instance handle, not a durable application identity. Keep Protection identity as validated `packageName + userId`.
+- A task can reserve its ID through persisted Recents state before its full record is restored into memory.
+- Recents trimming can remove an old task record independently of the user pressing the card's X button. This is framework retention policy, not a Protection dismissal event.
+- Do not block framework task removal, Recents cleanup, persistence synchronization, or task-ID allocation globally. Protection must preserve the framework's normal lifecycle for unprotected tasks.
+- The target framework contains user/profile-aware code. This research does not change the agreed product scope: no additional Android-user/profile feature or Protection behavior is being designed here.
+
+### Evidence limitations
+
+- JADX did not produce Java source for either framework services VDEX. Findings above are decoded from CompactDEX disassembly and should be treated as static bytecode evidence.
+- The workflow artifact records the extraction output and disassembly; the original firmware image identity and target-device runtime behavior still require separate verification.
+- No runtime test has been performed on the head unit.
+- No Protection hooks or firmware binaries were modified.
+
+**Status** — target firmware confirms the key Android 9 task-ID allocation and Recents persistence mechanisms previously inferred from AOSP. Source-level JADX decompilation and runtime validation remain pending.
