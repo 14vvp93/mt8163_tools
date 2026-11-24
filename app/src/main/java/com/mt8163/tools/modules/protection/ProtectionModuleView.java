@@ -168,6 +168,8 @@ public final class ProtectionModuleView {
         button.setContentDescription(description);
         button.setFocusable(true);
         button.setClickable(true);
+        button.setMinimumWidth(dp(40));
+        button.setMinimumHeight(dp(40));
         button.setOnClickListener(view -> action.run());
 
         ImageView image = new ImageView(activity);
