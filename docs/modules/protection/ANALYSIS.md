@@ -104,7 +104,7 @@ Sources:
 - If identity cannot be established, do not guess. Preserve the original firmware behavior and do not claim the task is protected.
 - Never persist settings by task ID.
 
-## 5. Keep card in Recents — dismissal paths
+## 5. Implicit Keep — dismissal paths
 
 ### Swipe
 
@@ -138,7 +138,7 @@ Source: `recents/views/TaskStackView.java`.
 
 **Implementation constraint** — do not globally block `dismissTask()` or filter its event consumer without distinguishing user dismissal from firmware cleanup.
 
-## 6. Keep card in Recents — Close all
+## 6. Implicit Keep — Close all
 
 Sources:
 - `recents/views/TaskStackView.java`
@@ -266,10 +266,10 @@ The entries below are installed in source. Exact runtime availability still requ
 
 | Setting / action | Installed SystemUI method or boundary | Implemented behavior |
 |---|---|---|
-| Keep card — swipe | `TaskStackViewTouchHandler.canChildBeDismissed(View)` | Reject swipe dismissal for protected tasks; preserve original checks |
-| Keep card — X | Dismiss-button branch in `TaskViewHeader.onClick(View)` | Suppress only the X action |
-| Keep card — keyboard | `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` | Skip protected dismissal; reset focus and focus frame |
-| Keep card — Close all | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` | Use per-task dismissals for attached views; selectively remove unattached tasks |
+| Implicit Keep — swipe | `TaskStackViewTouchHandler.canChildBeDismissed(View)` | Reject swipe dismissal for protected tasks; preserve original checks |
+| X-button exception | Dismiss-button branch in `TaskViewHeader.onClick(View)` | Suppress X unless `allow_close_via_x` is enabled |
+| Implicit Keep — keyboard | `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` | Skip protected dismissal; reset focus and focus frame |
+| Implicit Keep — Close all | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` | Use per-task dismissals for attached views; selectively remove unattached tasks |
 | Hide — initial display | `RecentsView.onReload(TaskStack, boolean)` | Filter local display stack before view consumes it |
 | Hide — refresh | `MultiWindowStateChangedEvent(TaskStack)` constructor | Filter before subscribers and deferred animation consume it |
 | Memory Cleaner | `clearRecentsTask()`, `deleteTaskData()`, `removeTask()`, `forceStopPackage()` | Suppress all three destructive operations for protected tasks |
@@ -283,7 +283,8 @@ Exact method descriptors and target class-loader resolution must be checked agai
 - SystemUI main-process routing and the `SystemUIApplication.onCreate()` bootstrap hook.
 - One process-wide configuration receiver with sender-UID validation.
 - Configuration model, persistence mirror, and package-name matcher.
-- Keep: swipe, card X, keyboard dismissal, and selective Close all.
+- Implicit Keep: swipe, keyboard dismissal, and selective Close all.
+- X-button handling: block by default; preserve the firmware action when `allow_close_via_x` is enabled.
 - Hide: initial Recents stack and deferred multi-window refresh stack.
 - Memory Cleaner: cache deletion, task removal, and package force-stop guards.
 - MainApplication startup publication and publication when the Protection module enabled state changes.
@@ -303,7 +304,7 @@ Exact method descriptors and target class-loader resolution must be checked agai
 1. Complete automated build and module-test verification.
 2. Verify configuration readability through XSharedPreferences on the target LSPosed build.
 3. Verify each installed hook resolves on the target firmware and logs installation success.
-4. Validate all three settings independently and their agreed mutual exclusion.
+4. Validate all three configurable settings independently, including the X-button exception.
 5. Test swipe, X, keyboard dismissal, and Close all in Grid and non-Grid layouts.
 5. Test Memory Cleaner with protected and unprotected tasks.
 6. Test Hide from Recents on initial display and refresh, including restoration after disabling the setting.
