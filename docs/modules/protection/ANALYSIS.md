@@ -386,3 +386,95 @@ The listener base class also defines callbacks for task creation, removal, and m
 7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
 8. Validate the behavior on the target MT8163 head unit running Android 9.
 
+## 19. Dismissal entry points and event chain
+
+Sources:
+
+- `recents/views/TaskView.java`
+- `recents/views/TaskViewHeader.java`
+- `recents/views/TaskStackView.java`
+- `recents/views/TaskStackViewTouchHandler.java`
+- `recents/views/RecentsView.java`
+- `recents/RecentsActivity.java`
+- `recents/events/EventBus.java`
+- `recents/misc/ReferenceCountedTrigger.java`
+
+### TaskView.dismissTask() call sites
+
+The repository search found these Java call sites:
+
+1. `TaskViewHeader.onClick()` — the task-card dismiss (X) button.
+2. `TaskStackView.onBusEvent(PackagesChangedEvent)` — when a package/component was removed; if a corresponding view exists, it calls `dismissTask()`, otherwise it removes the task directly from the stack.
+3. `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)` — dismisses the focused task view.
+4. `RecentsView` launch-failure handling — if launching a task fails and its view exists, it calls `dismissTask()`.
+
+**Implementation constraint** — `TaskView.dismissTask()` is not exclusive to user-initiated dismissal. A blanket hook there would also affect package-change cleanup and launch-failure handling. The intended Keep-card policy must distinguish user dismissal from system-driven cleanup, or intercept at a later stage with enough context.
+
+### Swipe path
+
+**Confirmed** — `TaskStackViewTouchHandler.canChildBeDismissed(View)` currently rejects a view only when it is already in swipe-helper animation state or its task is no longer in the stack. Otherwise it permits dismissal.
+
+**Confirmed** — after swipe animation, `onChildDismissed(View)` sends `TaskViewDismissedEvent`. The `TaskStackView` handler for this event removes the task from the in-memory stack and sends `DeleteTaskDataEvent`.
+
+**Candidate hook** — extend the existing swipe eligibility decision for protected tasks, preserving the original result for all other tasks. This prevents the swipe from reaching the destructive dismissal chain.
+
+### X-button and other dismissTask() callers
+
+**Confirmed** — the X button calls `TaskView.dismissTask()`. That method sends an animated `DismissTaskViewEvent` and registers a post-animation callback that sends `TaskViewDismissedEvent`.
+
+The `TaskStackView` handles `DismissTaskViewEvent` by starting the selected grid/non-grid delete animation. After the animation trigger completes, the callback sends `TaskViewDismissedEvent`; the handler removes the task from the stack and sends `DeleteTaskDataEvent`.
+
+**Important** — simply returning early from the `DismissTaskViewEvent` handler is not sufficient. The animated event's trigger still completes after dispatch, and the callback registered by `TaskView.dismissTask()` can still send `TaskViewDismissedEvent`. A prevention point must also suppress that callback or stop the dismissal before it is scheduled.
+
+**Candidate direction** — protect the user-triggered X/focused-dismiss path before the animated dismissal is committed, while leaving package-change and launch-failure behavior intact. Do not implement a blanket `TaskView.dismissTask()` block without source discrimination.
+
+## 20. Close All: grid and stack layouts
+
+Source: `TaskStackView.java`, `TaskStackAnimationHelper.java`, `RecentsViewTouchHandler.java`.
+
+**Confirmed** — the stack action button sends `DismissAllTaskViewsEvent`.
+
+The `TaskStackView` handler snapshots the full current task list, starts the delete-all animation for the currently attached task views, and registers a post-animation callback. That callback:
+
+1. Announces that all items were dismissed.
+2. Calls `mStack.removeAllTasks(true)`.
+3. Sends `DeleteTaskDataEvent` for every task in the original snapshot.
+
+### Non-grid path
+
+**Confirmed** — `startTaskStackDeleteAllTasksAnimation()` animates each attached task view off-screen with staggered delays. Each animation decrements the shared trigger when it ends. Once the trigger reaches zero, the registered bulk callback removes the stack contents and sends cleanup events for the snapshot.
+
+### Grid path
+
+**Confirmed** — `startDeleteAllTasksAnimation()` invokes `startTaskGridDeleteTaskAnimation()` for each attached task view. Each grid animation registers a last-decrement callback that calls `TaskStackViewTouchHandler.onChildDismissed()`.
+
+That callback sends `TaskViewDismissedEvent`, whose normal handler removes the task from the stack and sends an individual `DeleteTaskDataEvent`.
+
+The bulk post-animation callback registered by `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` is also attached to the same reference-counted trigger.
+
+**Code-path concern requiring device/runtime validation** — in grid mode, the per-view last-decrement callbacks are registered before the bulk callback. When the trigger reaches zero, they run first and synchronously dispatch individual task-dismissal events; the bulk callback then iterates the original pre-animation task snapshot and sends another `DeleteTaskDataEvent` for those same tasks. This appears to create duplicate cleanup events for grid-visible tasks. Confirm on the target firmware before treating duplicate cleanup as a runtime fact.
+
+**Implementation constraint** — Close All cannot be protected by blocking only `removeAllTasks(true)` or only `DeleteTaskDataEvent`. Both layout paths have animation-trigger callbacks that can dispatch individual dismissal events. The protected/unprotected partition must be applied before animation scheduling, and the post-animation cleanup must operate only on the unprotected snapshot.
+
+## 21. Candidate interception map
+
+| Behavior | Candidate control point | Required condition |
+|---|---|---|
+| Keep card during swipe | `TaskStackViewTouchHandler.canChildBeDismissed()` | Return false for protected package + user |
+| Keep card on X | Before `TaskView.dismissTask()` schedules its animated event, or equivalent source-aware control | Block user X without blocking package-change/launch-failure cleanup |
+| Keep card on focused dismiss | `DismissFocusedTaskViewEvent` handling before calling `dismissTask()` | Check focused task identity |
+| Keep card during Close All | Filter task views and task snapshot before `startDeleteAllTasksAnimation()` | Animate and clean up only unprotected tasks |
+| Prevent destructive system cleanup | `RecentsActivity.onBusEvent(DeleteTaskDataEvent)` as a final safety gate | Suppress cleanup for protected tasks only when event source is a protected dismissal; do not suppress legitimate system cleanup |
+
+**Caution** — a global guard on `DeleteTaskDataEvent` alone may preserve a task after its UI/model entry has already been removed. It is a final destructive-operation safety gate, not a complete Keep-card implementation.
+
+## 22. Updated research status
+
+- Swipe eligibility and its destructive event chain are confirmed.
+- X-button event sequence is confirmed.
+- Additional non-X `dismissTask()` callers are identified: focused dismissal, package-change cleanup, and launch-failure cleanup.
+- Close All entry point and grid/non-grid animation branches are confirmed.
+- Grid mode contains a possible duplicate cleanup-event sequence that requires runtime validation.
+- A blanket `TaskView.dismissTask()` hook is unsafe because the method has system-driven callers.
+- A blanket `DeleteTaskDataEvent` guard is insufficient because it does not preserve the visible stack/model.
+
