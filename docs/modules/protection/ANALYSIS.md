@@ -795,3 +795,58 @@ The MTK Memory Cleaner remains a separate direct cleanup path and does not use t
 4. Inspect the full package-monitor lifecycle to distinguish uninstall/component removal from transient package-update resolution gaps.
 
 **Status** — all four `dismissTask()` call sites, both `DeleteTaskDataEvent` producer paths, the destructive consumer, and the grid/non-grid Close All callback distinction are confirmed from source. Runtime validation and the focused-dismiss event origin remain pending.
+
+
+## 32. Dismiss event input origins and system task-stack callbacks
+
+Sources:
+
+- `recents/RecentsActivity.java`
+- `recents/views/RecentsViewTouchHandler.java`
+- `shared/system/TaskStackChangeListener.java`
+- `shared/system/TaskStackChangeListeners.java`
+- `recents/RecentsImpl.java`
+
+### Focused-task dismissal input
+
+**Confirmed** — `RecentsActivity.onKeyDown()` dispatches `DismissFocusedTaskViewEvent` when the key is not handled by the Tab or arrow-key navigation branches and the key event is not a repeat. The explicit dismissal key codes are:
+
+- `KEYCODE_DEL` (67, Backspace);
+- `KEYCODE_FORWARD_DEL` (112, Delete).
+
+The event is then handled by `TaskStackView.onBusEvent(DismissFocusedTaskViewEvent)`, which calls `dismissTask()` for the focused task when its `TaskView` is attached.
+
+**Implementation constraint** — the focused-dismiss path is a keyboard/input dismissal path, not the X-button path. Protection must preserve the expected behavior for unprotected focused tasks and must not assume that every `dismissTask()` call originated from the header button.
+
+### Close All input origin
+
+**Confirmed** — the source search found one producer of `DismissAllTaskViewsEvent`: `RecentsViewTouchHandler.handleTouchEvent()`. It dispatches the event when the stack action button is pressed and the pointer is released or cancelled while still inside the button bounds.
+
+No keyboard producer of `DismissAllTaskViewsEvent` was found in the inspected source tree.
+
+The action button event is separate from focused-task dismissal and from individual card dismissal.
+
+### System task-stack callbacks
+
+**Confirmed** — `TaskStackChangeListeners` receives ActivityManager task-stack callbacks and forwards them to registered `TaskStackChangeListener` instances through its Handler. Its `onTaskRemoved(taskId)` callback is forwarded to listeners as a task-ID notification.
+
+**Confirmed** — the base `TaskStackChangeListener.onTaskRemoved(int)` implementation is empty, and the inspected `RecentsImpl.TaskStackListenerImpl` does not override it.
+
+**Confirmed** — `RecentsImpl.TaskStackListenerImpl.onTaskStackChangedBackground()` reloads the system Recent Tasks list into a new load plan and loads task data/thumbnails for cache use when the overview proxy is disabled, the current user check passes, the window bounds are valid, and `svelteLevel == 0`. It does not directly replace the visible `RecentsActivity` stack in this callback.
+
+**Implementation constraint** — do not treat the framework `onTaskRemoved(taskId)` notification as an interception point for preventing task removal. In this source, it is a post-change notification with no default removal action in the listener base class. It also carries only a task ID, so package/user matching would require a separately validated lookup.
+
+### Updated event map
+
+| Operation | Entry point | Main event/path |
+|---|---|---|
+| Card X | `TaskViewHeader.onClick()` | `TaskView.dismissTask()` |
+| Focused task key dismissal | `RecentsActivity.onKeyDown()` | `DismissFocusedTaskViewEvent` |
+| Swipe dismissal | `TaskStackViewTouchHandler` / `SwipeHelper` | `TaskViewDismissedEvent` |
+| Close All | `RecentsViewTouchHandler` stack action button | `DismissAllTaskViewsEvent` |
+| Package/component change | `RecentsActivity.onPackageChanged()` | `PackagesChangedEvent` |
+| Failed task launch | `RecentsView.lambda$startTaskActivity$2()` | `TaskView.dismissTask()` |
+| MTK Memory Cleaner | `MemoryCleanerTile.clearRecentsTask()` | Direct loader/system cleanup calls |
+| System task-stack notification | ActivityManager callback | `TaskStackChangeListener.onTaskRemoved(taskId)` / `onTaskStackChanged()` |
+
+**Status** — focused-dismiss keyboard origin, Close All stack-button origin, and the distinction between post-removal task-stack notifications and active Recents mutation are confirmed from source. Target-device input behavior remains untested.
