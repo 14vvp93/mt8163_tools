@@ -319,13 +319,9 @@ public final class ProtectionHook implements PackageHook {
     private static void closeRecentsWindow(ClassLoader loader) {
         try {
             Class<?> eventClass = XposedHelpers.findClass(
-                    "com.android.systemui.recents.events.ui.AllTaskViewsDismissedEvent",
+                    "com.android.systemui.recents.events.activity.HideRecentsEvent",
                     loader);
-            Class<?> stringsClass = XposedHelpers.findClass(
-                    "com.android.systemui.R$string", loader);
-            int messageId = XposedHelpers.getStaticIntField(
-                    stringsClass, "recents_empty_message_dismissed_all");
-            Object event = XposedHelpers.newInstance(eventClass, messageId);
+            Object event = XposedHelpers.newInstance(eventClass, false, true);
             Class<?> busClass = XposedHelpers.findClass(
                     "com.android.systemui.recents.events.EventBus", loader);
             Object bus = XposedHelpers.callStaticMethod(busClass, "getDefault");
