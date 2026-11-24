@@ -36,6 +36,10 @@ jobs:
         with:
           ref: development
 
+      - name: Verify Xposed configuration
+        if: inputs.mode == 'full'
+        run: python3 .github/scripts/verify_xposed.py
+
       - name: Set up JDK 17
         if: inputs.mode == 'full'
         uses: actions/setup-java@v6
@@ -141,19 +145,41 @@ jobs:
 
             capture_screen() {
               local name="$1"
-              local y="$2"
 
-              adb shell input tap 140 "$y"
+              adb shell uiautomator dump /sdcard/window.xml >/dev/null
+              adb pull /sdcard/window.xml /tmp/ui-window.xml >/dev/null
+
+              read -r x y < <(python3 - "$name" /tmp/ui-window.xml <<'PY'
+            import re
+            import sys
+            import xml.etree.ElementTree as ET
+
+            target = sys.argv[1].casefold()
+            root = ET.parse(sys.argv[2]).getroot()
+
+            for node in root.iter("node"):
+                if node.attrib.get("text", "").strip().casefold() == target:
+                    match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", node.attrib["bounds"])
+                    if match:
+                        left, top, right, bottom = map(int, match.groups())
+                        print((left + right) // 2, (top + bottom) // 2)
+                        break
+            else:
+                raise SystemExit(f"Module not found in UI hierarchy: {target}")
+            PY
+              )
+
+              adb shell input tap "$x" "$y"
               adb shell uiautomator dump /sdcard/window.xml >/dev/null
               adb exec-out screencap -p > "artifacts/ui-preview/$name.png"
               test -s "artifacts/ui-preview/$name.png"
             }
 
-            capture_screen media 128
-            capture_screen protection 198
-            capture_screen voltage 268
-            capture_screen autorun 338
-            capture_screen events 408
+            capture_screen Media
+            capture_screen Protection
+            capture_screen Voltage
+            capture_screen Autorun
+            capture_screen Events
 
             {
               echo "Android API: 28"
