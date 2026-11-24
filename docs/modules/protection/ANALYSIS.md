@@ -1009,3 +1009,92 @@ The other direct system task-removal route is `ActivityManagerWrapper.removeTask
 **Source audit completed** — all indexed JADX-source call sites for `TaskStack.removeTask()`, `removeAllTasks()`, and `setTasks()` were classified, with smali cross-checks for the corresponding compiled methods. Direct system `removeTask(taskId)` paths outside TaskStack were also identified.
 
 **Pending** — audit all producers and consumers of `DeleteTaskDataEvent` and trace the task-stack/package/user callbacks that can invalidate a task independently of Recents UI. Device validation is still required for timing and actual system-service outcomes.
+
+## 35. DeleteTaskDataEvent and system task-stack callback audit
+
+Sources:
+
+- `recents/events/ui/DeleteTaskDataEvent.java`
+- `recents/views/TaskStackView.java`
+- `recents/RecentsActivity.java`
+- `recents/events/EventBus.java`
+- `shared/system/TaskStackChangeListener.java`
+- `shared/system/TaskStackChangeListeners.java`
+- `recents/RecentsImpl.java`
+- `statusbar/phone/NavigationBarFragment.java`
+- `recents/misc/SysUiTaskStackChangeListener.java`
+
+### DeleteTaskDataEvent producers and consumer
+
+**Confirmed** — the JADX source search found two producers of `DeleteTaskDataEvent`:
+
+1. `TaskStackView.onBusEvent(TaskViewDismissedEvent)` dispatches one event after removing the dismissed task from the in-memory stack. This is the common individual card dismissal path (Swipe/X).
+2. `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` captures a snapshot of all tasks before animation, then dispatches one event for every task in that snapshot after the Close All animation callback.
+
+**Confirmed** — the only consumer found in the inspected JADX source tree is `RecentsActivity.onBusEvent(DeleteTaskDataEvent)`.
+
+The consumer performs this exact sequence:
+
+1. `Recents.getTaskLoader().deleteTaskData(event.task, false)`
+2. `ActivityManagerWrapper.getInstance().removeTask(event.task.key.id)`
+3. `ActivityManager.forceStopPackage(event.task.key.getComponent().getPackageName())`
+
+The first operation synchronously clears loader queue/cache state. The second schedules system task removal on the wrapper's background executor. The third directly requests package force-stop. The consumer does not wait for the asynchronous task-removal result.
+
+**Confirmed** — the event contains a `Task` reference, not a stable task ID/package/user tuple independent of that object. The consumer dereferences `event.task.key.getComponent()` without null checks. This repeats the component/base-intent null-safety risk identified for Memory Cleaner in Section 33.
+
+**Confirmed** — the consumer's force-stop call supplies a package name but no explicit user ID. The originating TaskKey does carry a user ID. A Protection policy must therefore evaluate user identity before allowing the event to reach this consumer; package-only filtering is not sufficient for multi-user correctness.
+
+### EventBus implications
+
+**Confirmed** — `DeleteTaskDataEvent` is a normal EventBus event, not an animated event with its own completion callback. The animation synchronization happens in the Close All event's `ReferenceCountedTrigger` callback before the individual delete events are dispatched.
+
+**Implementation constraint** — cancelling or filtering the event must happen before `RecentsActivity.onBusEvent(DeleteTaskDataEvent)` executes. Filtering after the consumer begins is too late because loader cache deletion occurs before the asynchronous system task-removal request and package force-stop.
+
+**Confirmed** — no other producer or consumer was found in the inspected JADX source tree. APKTool smali contains the corresponding compiled event producer and consumer methods, consistent with the JADX findings.
+
+### Package lifecycle callbacks
+
+**Confirmed** — `RecentsActivity` registers a `PackageMonitor` whose inspected callbacks are:
+
+- `onPackageRemoved(packageName, uid)`
+- `onPackageChanged(packageName, uid, components)`
+- `onPackageModified(packageName)`
+
+Each forwards the package name and `getChangingUserId()` to `RecentsActivity.onPackageChanged(packageName,userId)`.
+
+That method first calls `RecentsTaskLoader.onPackageChanged(packageName)`, then dispatches `PackagesChangedEvent(packageName,userId)`.
+
+**Confirmed** — the loader method invalidates cached `ActivityInfo` entries for components in the changed package. The Recents event handler then checks package components against the supplied user and removes tasks whose components no longer resolve. This path is a reaction to package lifecycle notifications, not a generic task-dismissal request.
+
+**Important limitation** — the inspected PackageMonitor does not override `onPackageAdded()`; do not infer an explicit added-package callback from this class. Package update/replace notification ordering and transient resolution failures still require Android 9 device validation.
+
+### TaskStackChangeListener callbacks
+
+**Confirmed** — `TaskStackChangeListeners` receives ActivityManager task-stack callbacks and dispatches them to registered `TaskStackChangeListener` instances. `onTaskRemoved(taskId)` is queued to the listener Handler and delivered after the system callback has been received.
+
+**Confirmed** — the base `TaskStackChangeListener.onTaskRemoved(int)` method is empty. In the inspected SystemUI source, the only concrete override found is in `NavigationBarFragment`, where it resets the rotate-suggestion button state. The Recents task-stack listener does not override `onTaskRemoved()`.
+
+**Implementation constraint** — `onTaskRemoved(taskId)` is a post-removal notification, not a veto/interception point. It provides only the task ID, not the package/user identity required for Protection policy matching.
+
+**Confirmed** — `RecentsImpl.TaskStackListenerImpl.onTaskStackChangedBackground()` may reload a new Recent Tasks plan and load task data into caches when the overview proxy is disabled, the current-user check passes, the window rectangle is valid, and `svelteLevel == 0`. It does not directly mutate the visible RecentsActivity stack in this callback. This is a background cache-refresh path, consistent with the earlier task-refresh analysis.
+
+**Confirmed** — the same listener dispatcher also invokes other SystemUI listeners for task-stack changes (keyguard, navigation/status bar, PiP, work-lock, onboarding, and split-screen UI). These callbacks serve their respective UI/system functions; no additional Recents task-removal veto was found in the inspected listeners.
+
+### Protection interception map update
+
+| Path | Can prevent removal before destructive action? | Notes |
+|---|---|---|
+| `DeleteTaskDataEvent` consumer | Yes, if filtered before consumer execution | Covers ordinary Swipe/X and Close All cleanup |
+| Memory Cleaner loop | Yes, only before `deleteTaskData()` | Bypasses EventBus entirely |
+| WorkLock direct `IActivityManager.removeTask()` | Separate direct path | Whether it is in Protection scope requires a policy decision |
+| `TaskStack.removeTask()` | Model mutation only | Not a universal system-removal interception point |
+| `TaskStackChangeListener.onTaskRemoved()` | No | Post-removal notification |
+| PackageMonitor / `PackagesChangedEvent` | Not a generic task-removal veto | Handles package/component invalidation |
+| `TaskStack.setTasks()` refresh | Not by itself | Replaces Recents model; callback behavior depends on notification and layout initialization |
+
+### Research status
+
+**Confirmed from source** — all `DeleteTaskDataEvent` producers and consumers found in JADX sources are classified; package monitor callbacks and task-stack listener dispatch behavior are traced.
+
+**Pending** — inspect the complete set of direct ActivityManager task-removal APIs and any vendor-specific cleanup paths outside the Recents package; validate package replacement, user/profile boundaries, and system callback timing on the target Android 9 firmware.
