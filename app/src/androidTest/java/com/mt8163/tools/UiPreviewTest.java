@@ -7,7 +7,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.BySelector;
-import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
@@ -66,7 +65,7 @@ public final class UiPreviewTest {
         capture("05-protection-picker-default");
         clickText("Display system applications");
         capture("06-protection-picker-system-apps");
-        UiObject2 search = waitFor(By.hint("Search applications"));
+        UiObject2 search = waitFor(By.clazz("android.widget.EditText"));
         search.click();
         search.setText("Settings");
         assertNotNull("Settings application was not found",
@@ -82,9 +81,9 @@ public final class UiPreviewTest {
         capture("10-protection-application-settings-enabled");
         clickText("Cancel");
         clickDescription("Remove application");
-        capture("10-protection-remove-confirmation");
+        capture("11-protection-remove-confirmation");
         clickText("Cancel");
-        capture("11-protection-list");
+        capture("12-protection-list");
 
         openModule("Voltage");
         captureHeaderDisabledAndEnabled("voltage");
