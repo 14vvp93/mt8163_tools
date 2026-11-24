@@ -1370,3 +1370,101 @@ A correct Close All implementation must make one consistent unprotected-task set
 **Not yet approved as implementation** — the exact hook method and callback replacement strategy still require a proof that Grid and non-Grid paths each produce exactly one cleanup per unprotected task and zero cleanup for protected tasks. Keep implementation deferred.
 
 **Status** — source-level interception boundary and required invariants are identified. No runtime hook has been implemented or tested.
+
+
+## 36. Package replacement semantics: AOSP PackageMonitor audit
+
+Reference source: AOSP `PackageMonitor.java`, revision [c72fc67](https://android.googlesource.com/platform/frameworks/base/+/c72fc67/core/java/com/android/internal/content/PackageMonitor.java).
+
+**Confirmed in the referenced PackageMonitor implementation**:
+
+- `ACTION_PACKAGE_REMOVED` with `EXTRA_REPLACING=true` sets `PACKAGE_UPDATING` and calls `onPackageUpdateStarted()`. It does **not** call `onPackageRemoved()`.
+- `ACTION_PACKAGE_REMOVED` without replacement sets `PACKAGE_PERMANENT_CHANGE` and calls `onPackageRemoved()`.
+- `ACTION_PACKAGE_ADDED` with `EXTRA_REPLACING=true` calls `onPackageUpdateFinished()`, then `onPackageModified()`, and reports the package as appearing with `PACKAGE_UPDATING`.
+- `ACTION_PACKAGE_CHANGED` calls `onPackageChanged()` and then `onPackageModified()`.
+- `isPackageDisappearing(packageName)` returns the current change type while handling a disappearing-package callback. The referenced revision does not expose an `isReplacing()` method.
+
+### Effect on RecentsActivity
+
+The firmware overrides `onPackageRemoved()`, `onPackageChanged()`, and `onPackageModified()`, but not `onPackageUpdateStarted()` or `onPackageUpdateFinished()`.
+
+Therefore:
+
+1. The replacement-removal broadcast does not enter RecentsActivity's package cleanup through its `onPackageRemoved()` override.
+2. The replacement-add broadcast reaches the inherited `onPackageUpdateFinished()` no-op, then RecentsActivity's `onPackageModified()` override.
+3. That `onPackageModified()` callback invalidates the package ActivityInfo cache and dispatches `PackagesChangedEvent` after the package has been added again.
+
+**Correction to Section 33 risk assessment** — the earlier concern that RecentsActivity necessarily performs the component lookup during the temporary replacement-removal window is not supported by this PackageMonitor dispatch sequence. The normal replacement path deliberately skips the overridden `onPackageRemoved()` callback and performs RecentsActivity's cleanup check on the add/finish side. A separate `ACTION_PACKAGE_CHANGED` event can still trigger the same cleanup path; whether it can occur during a transient unavailable interval is not established here.
+
+**Implementation consequence** — do not add a speculative replacement delay or broad PackageManager-result override. First validate the actual target firmware's PackageMonitor implementation and package broadcast sequence. Do not rely on `isReplacing()` without confirming that the target class exposes it; the referenced source revision instead provides `isPackageDisappearing()` and the `PACKAGE_UPDATING` change type.
+
+## 37. ReferenceCountedTrigger: exact Grid Close All callback order
+
+Source: `recents/misc/ReferenceCountedTrigger.java` and `recents/events/EventBus.java`.
+
+**Confirmed** — an `AnimatedEvent` increments its trigger before dispatch and decrements it after synchronous dispatch. Each Grid task animation:
+
+1. increments the same trigger;
+2. registers a last-decrement runnable that calls `TaskStackViewTouchHandler.onChildDismissed(taskView)`;
+3. decrements the trigger when its 300 ms animation ends.
+
+The Close All handler registers its own post-animation callback after registering the Grid animation callbacks.
+
+**Confirmed** — `ReferenceCountedTrigger.decrement()` runs all registered last-decrement callbacks only when the shared count reaches zero, in registration order, then clears the callback list.
+
+This establishes the Grid callback sequence:
+
+1. All Grid card animations finish.
+2. Each registered per-card callback calls `onChildDismissed()`.
+3. Each call synchronously dispatches `TaskViewDismissedEvent`; TaskStackView removes that task from the model and sends `DeleteTaskDataEvent`.
+4. The Close All post-animation callback then calls `removeAllTasks(true)` and sends `DeleteTaskDataEvent` for every task in the original snapshot.
+
+**Confirmed duplicate dispatch** — tasks with an animated TaskView receive an individual `DeleteTaskDataEvent` and then another bulk `DeleteTaskDataEvent`. Tasks in the original stack snapshot without an animated TaskView receive only the bulk event. This is a source-level duplicate dispatch; the exact downstream impact of repeating loader cleanup, system task removal, and force-stop must be runtime-tested.
+
+**Non-Grid path** — `startTaskStackDeleteAllTasksAnimation()` registers animation-completion decrements for each view but does not register `onChildDismissed()` callbacks. The post-animation callback therefore performs the only task-data deletion pass in this path.
+
+### Consequences for a filtered Close All operation
+
+- Grid filtering must be applied before animation callbacks are registered.
+- The filtered task snapshot must be retained for final model and data cleanup.
+- Do not combine Grid per-view dismissal callbacks with a second bulk deletion for the same task.
+- Tasks without attached TaskViews still require cleanup; the implementation must account for them separately.
+- The shared trigger must reach zero exactly once and must retain the event's normal post-animation completion semantics.
+- Protected tasks must not be included in animation callbacks, model removal, or any data-deletion pass.
+
+This narrows the required implementation, but does not approve a hook yet.
+
+## 38. MTK Memory Cleaner: complete per-task destructive sequence
+
+Source: `qs/tiles/MemoryCleanerTile.java`.
+
+### Invocation lifecycle
+
+**Confirmed** — `handleClick()` collapses Quick Settings panels and schedules message `what=1` after 1500 ms. The Handler then calls `clearRecentsTask()` and displays the completion Toast.
+
+The delay is part of the firmware's click flow; it is not a repeating operation.
+
+### Task acquisition and destructive operations
+
+**Confirmed** — `clearRecentsTask()`:
+
+1. Creates a `RecentsTaskLoadPlan`.
+2. Calls `preloadTasks(loadPlan, -1)`.
+3. Loads tasks using the current Recents launch-state visible-task and thumbnail counts.
+4. Gets the resulting `TaskStack` and its task list.
+5. For every task, performs all three operations in sequence:
+   - `loader.deleteTaskData(task, false)`;
+   - `ActivityManagerWrapper.removeTask(task.key.id)`;
+   - `ActivityManager.forceStopPackage(packageName)`.
+
+The Memory Cleaner loop does not dispatch the Recents `DeleteTaskDataEvent`; it directly invokes loader cleanup, system task removal, and package force-stop.
+
+### Protection requirements
+
+**Confirmed design consequence** — Protect from Memory Cleaner must skip the entire per-task operation for a protected package. Skipping only `forceStopPackage()` is insufficient because the preceding calls still delete Recents task data and remove the system task. Skipping only `removeTask()` is also insufficient because the loader data is deleted and the package is force-stopped.
+
+**Candidate hook boundary** — `MemoryCleanerTile.clearRecentsTask()` is the narrowest inspected method containing the complete Memory Cleaner task loop. A future implementation should preserve the original load-plan behavior and apply the package protection predicate before any of the three destructive calls for each task. Do not globally hook `ActivityManagerWrapper.removeTask()`, `ActivityManager.forceStopPackage()`, or `RecentsTaskLoader.deleteTaskData()`; those APIs have unrelated callers and broader system effects.
+
+**Important scope boundary** — `forceStopPackage(packageName)` is package-wide, while task removal uses a task ID. When a package is protected, skipping its task iteration also prevents this loop from force-stopping that package. This does not protect the package from force-stop operations initiated by other system or vendor paths.
+
+**Status** — invocation delay, task acquisition, and all three destructive operations are confirmed. The proposed per-task filter is a design boundary only; no hook has been implemented or tested.
