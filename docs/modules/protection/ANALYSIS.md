@@ -850,3 +850,87 @@ The action button event is separate from focused-task dismissal and from individ
 | System task-stack notification | ActivityManager callback | `TaskStackChangeListener.onTaskRemoved(taskId)` / `onTaskStackChanged()` |
 
 **Status** — focused-dismiss keyboard origin, Close All stack-button origin, and the distinction between post-removal task-stack notifications and active Recents mutation are confirmed from source. Target-device input behavior remains untested.
+
+## 33. MTK Memory Cleaner task selection and destructive sequence
+
+Sources:
+
+- `qs/tiles/MemoryCleanerTile.java`
+- `qs/tileimpl/QSFactoryImpl.java`
+- `shared/recents/model/RecentsTaskLoadPlan.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+- `shared/recents/model/Task.java`
+- `shared/system/ActivityManagerWrapper.java`
+
+### Entry point and execution timing
+
+**Confirmed** — `QSFactoryImpl.createTile()` constructs `MemoryCleanerTile` for the Quick Settings tile spec `memorycleaner`. The inspected source contains no other Java call site for `clearRecentsTask()`; it is invoked by the tile's private Handler after a click.
+
+**Confirmed** — `handleClick()` first calls `mHost.collapsePanels()`, then posts Handler message `what == 1` with a 1,500 ms delay. The Handler invokes `clearRecentsTask()` and displays the completion Toast after the method returns.
+
+The delay is a fixed UI sequencing delay. It is not a task-state or animation-completion callback. The inspected code does not cancel the pending message when the tile is no longer visible.
+
+### Task-list construction
+
+**Confirmed** — each invocation creates a new `RecentsTaskLoadPlan` and calls:
+
+```java
+loader.preloadTasks(loadPlan, -1);
+```
+
+The two-argument loader overload supplies `ActivityManagerWrapper.getInstance().getCurrentUserId()`. The load plan obtains up to `ActivityManager.getMaxRecentTasksStatic()` system Recent Tasks for that user and reverses the returned list.
+
+The plan converts the raw entries into a new `TaskStack`. The inspected conversion logic:
+
+1. Creates each `TaskKey` from the persistent task ID, windowing mode, base intent, source component, user ID, and last-active time.
+2. Resolves `ActivityInfo` through `RecentsTaskLoader`; entries with no resolved `ActivityInfo` are not added.
+3. Skips a task when an earlier accepted task has the same top component.
+4. Skips packages listed in `R.array.recents_task_hidden_list`.
+5. Skips the current Dock activity.
+6. Adds the remaining tasks to the new stack. Freeform tasks are marked as non-stack tasks but are not excluded by that condition alone.
+
+**Confirmed** — the cleaner then creates `RecentsTaskLoadPlan.Options`, copies `launchedNumVisibleTasks` and `launchedNumVisibleThumbnails` from the Recents launch state, calls `loader.loadTasks()`, and reads `loadPlan.getTaskStack().getTasks()`.
+
+The Options defaults are `loadIcons = true`, `loadThumbnails = false`, and `onlyLoadForCache = false`. The visible-task counts affect the loading plan; they do not limit the subsequent cleaner loop. The loop iterates from index zero through the full resulting task-list size.
+
+**Implementation constraint** — Protection must evaluate the actual `Task` objects in this newly generated stack, not only currently attached `TaskView` instances or the visible-task counts. The plan is built from the current system list and can differ from the Recents Activity's currently displayed stack.
+
+### Per-task destructive sequence
+
+**Confirmed** — for every task in the generated stack, the cleaner performs these operations in this exact order:
+
+1. `loader.deleteTaskData(task, false)`
+2. `ActivityManagerWrapper.getInstance().removeTask(task.key.id)`
+3. Obtains `ActivityManager` from the tile context and calls `forceStopPackage(task.key.getComponent().getPackageName())`
+
+There is no `DeleteTaskDataEvent` dispatch in this method. The cleaner therefore bypasses the Recents EventBus cleanup consumer entirely.
+
+**Confirmed** — `deleteTaskData(task, false)` removes the task from the background resource-load queue and removes its icon, activity-label, and content-description cache entries. Because the boolean is false, it does not call `task.notifyTaskDataUnloaded()`. This method does not itself remove the system Recent Task or force-stop the package.
+
+**Confirmed** — `ActivityManagerWrapper.removeTask(taskId)` submits the system `ActivityManager.getService().removeTask(taskId)` call to its background executor. The wrapper catches and logs `RemoteException`; it does not synchronously report success to the cleaner.
+
+**Confirmed** — the final `forceStopPackage()` call is issued directly by the tile, not by the wrapper or a Recents event handler. The call passes a package name and no explicit user ID.
+
+### Identity and failure risks
+
+**Confirmed** — the cleaner obtains the package using `task.key.getComponent().getPackageName()`. `TaskKey.getComponent()` returns `baseIntent.getComponent()`; it does not fall back to `sourceComponent` or `Intent.getPackage()`.
+
+**Confirmed null-safety risk** — the inspected `TaskKey.getComponent()` dereferences `baseIntent`, and the cleaner then dereferences the returned component. If either is null, the loop can throw before completing the current task's force-stop call and before processing later tasks. The source does not guard these values or catch exceptions around each task.
+
+**Implementation constraint** — Protection matching must not reuse this unguarded package lookup. Validate `task`, `task.key`, `baseIntent`, and the available component/package identity before evaluating the protected-app policy. For an unknown identity, do not allow the cleaner to proceed with destructive operations on that task.
+
+### Protection implications
+
+- A filter only on `DeleteTaskDataEvent`, `TaskView.dismissTask()`, or Recents UI gestures cannot protect tasks from this cleaner.
+- The protection decision must occur before `deleteTaskData()`; filtering only `removeTask()` or `forceStopPackage()` would still erase Recents cache state for a protected task.
+- Apply the decision independently to every task in the generated stack. Preserve the original three-operation order for unprotected tasks.
+- Use package name plus Android user ID for the persistent protection policy. The cleaner's force-stop call does not pass a user ID, while the task key does contain one.
+- The cleaner operates on a fresh system-derived task list, not the currently attached UI cards. A task with no attached `TaskView` can still be cleaned.
+- The Toast is displayed after the method returns; it does not verify that asynchronous system task removal succeeded.
+
+### Research status
+
+**Confirmed from source** — the cleaner entry point, 1.5-second delayed execution, current-user task-list acquisition, task-list filtering, full-stack iteration, cache deletion, asynchronous system task removal, and direct package force-stop sequence are now traced.
+
+**Pending runtime validation** — verify on the target Android 9 firmware how `removeTask()` and `forceStopPackage()` behave for protected tasks, multiple tasks from one package, work/profile users, unresolved components, and a task list that changes during the cleaner loop. Static source inspection cannot establish the system-service outcome or timing of these operations.
+
