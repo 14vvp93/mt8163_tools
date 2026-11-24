@@ -122,6 +122,7 @@ jobs:
           script: |
             set -euo pipefail
 
+            mkdir -p artifacts/ui-preview
             adb shell wm size 1280x720
             adb shell wm density 160
             adb shell settings put system font_scale 1.0
@@ -130,17 +131,27 @@ jobs:
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell pm clear com.mt8163.tools
 
-            bash -o pipefail -c 'adb shell am instrument -w -r -e class com.mt8163.tools.UiPreviewTest com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee /tmp/ui-preview-test.log | grep "OK (1 test)" >/dev/null'
+            set +e
+            adb shell am instrument -w -r -e class com.mt8163.tools.UiPreviewTest com.mt8163.tools.test/androidx.test.runner.AndroidJUnitRunner > artifacts/ui-preview/instrumentation.log 2>&1
+            TEST_STATUS=$?
+            set -e
 
-            mkdir -p artifacts/ui-preview
+            cat artifacts/ui-preview/instrumentation.log
+
+            if [ "$TEST_STATUS" -ne 0 ] || ! grep -q "OK (1 test)" artifacts/ui-preview/instrumentation.log; then
+              echo "UI Preview instrumentation failed (exit code: $TEST_STATUS)."
+              exit 1
+            fi
+
             adb pull /sdcard/Android/data/com.mt8163.tools/files/ui-preview artifacts/ui-preview
 
             printf 'Android API: 28\nResolution: 1280x720\nDensity: 160 dpi\nSource branch: development\nSource commit: %s\nPreview mode: %s\nCapture method: AndroidX UIAutomator instrumentation\n' "$GITHUB_SHA" "${{ inputs.mode }}" > artifacts/ui-preview/preview-info.txt
 
-      - name: Upload UI screenshots
+      - name: Upload UI preview and diagnostics
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: MT8163Tools_UI_Preview_${{ github.run_number }}
           path: artifacts/ui-preview/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
