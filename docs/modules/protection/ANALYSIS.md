@@ -179,3 +179,113 @@ This is a separate deletion path from the Recents X and Close all flows. Protect
 - No final Close all interception design has been approved.
 - The outstanding research listed above remains.
 - Firmware behavior has not yet been validated with the Protection implementation on the target head unit.
+
+## 11. Recents task loading and cache lifecycle
+
+Sources:
+
+- `shared/recents/model/RecentsTaskLoadPlan.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+- `shared/system/ActivityManagerWrapper.java`
+
+**Confirmed** — `RecentsTaskLoadPlan.preloadPlan()` obtains the current user's system Recent Tasks through:
+
+```java
+ActivityManagerWrapper.getInstance().getRecentTasks(
+    ActivityManager.getMaxRecentTasksStatic(),
+    currentUserId
+);
+```
+
+The returned list is reversed before conversion into Recents `Task` objects. Each task key is constructed from the persistent task ID, windowing mode, base intent, source component, user ID, and last-active time.
+
+**Confirmed** — `ActivityManagerWrapper.getRecentTasks()` calls the ActivityManager service with flags value `2` and returns an empty list if a `RemoteException` occurs.
+
+**Confirmed** — `RecentsTaskLoadPlan` builds a new `TaskStack` from the tasks it accepts. It skips entries whose activity information cannot be resolved, entries whose source component is already represented in the current load plan, configured hidden packages, and the current dock activity.
+
+**Implementation constraint** — hiding a card from the Recents UI must not remove the corresponding system task. A filtered display list and the system Recent Tasks list are different layers.
+
+### TaskKey identity
+
+Source: `shared/recents/model/Task.java`
+
+**Confirmed** — `TaskKey.equals()` and `hashCode()` use exactly:
+
+- task ID;
+- windowing mode;
+- Android user ID.
+
+The base intent, source component, and last-active time are not part of equality.
+
+**Implementation constraint** — use the package name and user ID for Protection's persistent application settings. Use the task ID only when an operation specifically targets a task instance. Do not treat `TaskKey.equals()` as application identity.
+
+**Null-safety finding** — `TaskKey.getPackageName()` checks whether the base intent has a component, then falls back to the intent package. It still assumes that `baseIntent` itself is non-null. The inspected Recents loader also dereferences `t.realActivity` in some paths. Protection matching must therefore validate the available task identity before reading it and fail closed for destructive-operation interception.
+
+## 12. Destructive cleanup paths
+
+### Recents dismissal event
+
+Sources:
+
+- `recents/views/TaskStackView.java`
+- `recents/RecentsActivity.java`
+- `shared/recents/model/RecentsTaskLoader.java`
+- `shared/system/ActivityManagerWrapper.java`
+
+**Confirmed** — the individual card dismissal path removes the task from the in-memory `TaskStack`, then dispatches `DeleteTaskDataEvent`.
+
+**Confirmed** — `RecentsActivity.onBusEvent(DeleteTaskDataEvent)` performs all of the following:
+
+1. Calls `RecentsTaskLoader.deleteTaskData(task, false)`.
+2. Requests system task removal through `ActivityManagerWrapper.removeTask(taskId)`.
+3. Calls `ActivityManager.forceStopPackage(packageName)`.
+
+**Confirmed** — `RecentsTaskLoader.deleteTaskData()` removes the task from the background load queue and removes its icon, activity-label, and content-description cache entries. It does not itself remove the system Recent Task or force-stop the package.
+
+**Implementation constraint** — blocking only the system `removeTask()` call is insufficient: task data may already have been removed from Recents caches and the in-memory stack. The complete dismissal path must be prevented for protected tasks before destructive state changes begin.
+
+### MTK Memory Cleaner
+
+Source: `qs/tiles/MemoryCleanerTile.java`
+
+**Confirmed** — `MemoryCleanerTile.clearRecentsTask()` creates a fresh load plan, preloads and loads the current user's Recents tasks, then iterates the resulting stack. For every task it directly calls `deleteTaskData()`, `removeTask(taskId)`, and `forceStopPackage(packageName)`.
+
+**Confirmed** — this cleaner path does not dispatch `DeleteTaskDataEvent`. Intercepting only that event will not protect tasks from Memory Cleaner.
+
+**Candidate** — apply the Memory Cleaner protection check before the first destructive call for each task. The check must use package name and user ID and preserve the original sequence for unprotected tasks.
+
+## 13. Revised implementation constraints
+
+- The system Recent Tasks list is authoritative for Recents reload; retaining only a local card is not sufficient.
+- A hidden card must be filtered from the displayed Recents stack without deleting its system task.
+- `TaskKey` equality is task-instance identity, not application identity.
+- Individual dismissal, Close all, and Memory Cleaner have distinct destructive paths.
+- `DeleteTaskDataEvent` is destructive: it clears loader data, removes the system task, and force-stops the package.
+- `deleteTaskData()` is a cache/load-queue operation and must not be confused with system task removal.
+- Protected tasks must be filtered before animation callbacks, model removal, cache cleanup, system task removal, or package force-stop can occur.
+- Memory Cleaner protection must be checked before any of its three destructive operations.
+- If task identity cannot be resolved safely, do not classify the task as protected by a guessed package name.
+
+## 14. Updated research status
+
+### Newly confirmed
+
+- Recents reload obtains the system Recent Tasks list for the current user through `ActivityManagerWrapper.getRecentTasks()`.
+- The load plan reverses that list and constructs a new `TaskStack`.
+- The load plan may omit tasks because of unresolved activity information, duplicate source components, configured hidden packages, or the dock activity.
+- `TaskKey.equals()` uses task ID, windowing mode, and user ID.
+- `deleteTaskData()` clears the loader queue and selected caches, but does not itself remove the system task.
+- `DeleteTaskDataEvent` performs cache cleanup, system task removal, and package force-stop.
+- MTK Memory Cleaner performs those destructive operations directly without using `DeleteTaskDataEvent`.
+
+### Remaining research
+
+1. Enumerate all call sites of `TaskView.dismissTask()`.
+2. Trace all producers and consumers of `DeleteTaskDataEvent`.
+3. Inspect `TaskStack.setTasks(List<Task>, boolean)` in full and determine how protected tasks behave during reload and reconciliation.
+4. Trace the complete grid and non-grid Close all callback sequence, including task-view filtering and trigger completion.
+5. Inspect all callers and entry points of MTK Memory Cleaner.
+6. Trace relevant `TaskStackListener` callbacks and Recents reload behavior after system task changes.
+7. Verify nullability and package/user identity for unusual tasks, including tasks without a resolved component.
+8. Validate the behavior on the target MT8163 head unit running Android 9.
+
