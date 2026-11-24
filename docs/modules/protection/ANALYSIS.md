@@ -2237,3 +2237,57 @@ Sources:
 The task-ID allocator source inspected here is the AOSP Android 9 reference, not a decompilation of the head unit's `services.jar`. The target firmware's SystemUI confirms use of `persistentId`, but its exact allocator implementation and any MediaTek modifications remain unverified. Treat ID recycling as the Android 9 framework baseline and confirm the vendor implementation before relying on implementation-specific details.
 
 **Status** — Android 9 reference establishes bounded per-user allocation, wraparound, collision checks against active and recent tasks, and eventual ID reuse. Target SystemUI confirms `persistentId` is consumed as the task handle. No hooks or firmware code were changed.
+
+
+## 60. Recent-task retention, removal, and persisted task IDs
+
+AOSP Android 9 reference sources:
+
+- `RecentTasks.java`: https://android.googlesource.com/platform/frameworks/base/+/2170093/services/core/java/com/android/server/am/RecentTasks.java
+- `TaskRecord.java` (Pie release): https://android.googlesource.com/platform/frameworks/base/+/refs/heads/pie-release/services/core/java/com/android/server/am/TaskRecord.java
+- `ActivityStackSupervisor.java`, Android 9 reference commit: https://android.googlesource.com/platform/frameworks/base/+/efb758420d4385e7064df8740611fbd9fdcdbcac/services/core/java/com/android/server/am/ActivityStackSupervisor.java
+- `TaskPersister.java`: https://android.googlesource.com/platform/frameworks/base/+/refs/heads/pie-release/services/core/java/com/android/server/am/TaskPersister.java
+
+### Inactive tasks remain allocated
+
+**Confirmed in the AOSP Android 9 reference** — `RecentTasks` maintains task records independently of whether their activities are currently running. The task ID allocator checks both active stacks and RecentTasks, so an inactive task retained in Recents continues to occupy its ID.
+
+**Confirmed** — the Recents list is bounded. `RecentTasks.addLocked()` trims older entries when the maximum recent-task count is reached. The trim path removes the entry and calls `TaskRecord.removedFromRecents()`. Similar removal occurs when cleanup finds an auto-remove task with no top activity, or a task whose application/activity is no longer installed.
+
+**Confirmed** — `TaskRecord.removedFromRecents()` clears its Recents membership state, updates persistence, closes affiliation links, and notifies WindowManager that the task was removed from Recents. This is a Recents lifecycle transition; it is not by itself proof that a running task's activities have been destroyed.
+
+### Explicit and automatic removal
+
+**Confirmed** — the Android 9 framework has multiple paths that remove a task from Recents:
+
+- Explicit task removal through the supervisor's task-removal path, when requested with `removeFromRecents=true`.
+- Automatic removal when task/activity policy requests it, including `autoRemoveRecents`.
+- Recents cleanup of invalid or no-longer-installed task records.
+- Recents trimming when the list reaches its configured maximum.
+- Removal of a user's Recents records during user-data cleanup.
+
+**Confirmed** — merely finishing the last activity does not universally imply Recents removal. The task may remain as a non-running recent task unless its auto-remove policy or another removal condition applies.
+
+### Persistence and ID reservation
+
+**Confirmed** — `RecentTasks` keeps a per-user set of task IDs for persistable tasks. The source comments explicitly account for persisted task records that may not currently be loaded into memory. On loading a user's Recents, the framework loads the persisted ID set before restoring task records.
+
+**Confirmed** — the framework synchronizes persisted IDs from tasks still marked persistable and present in Recents. `TaskPersister` reads and writes the per-user persisted-ID file. This allows the allocator to avoid colliding with a persisted task whose full task record has not yet been restored into the in-memory Recents list.
+
+**Important distinction** — unloading a user's Recents from memory does not itself delete the persisted records. The source explicitly separates unloading in-memory state from touching persistent storage. Conversely, removing a task from Recents triggers persistence synchronization so its ID can cease to be reserved after the updated task-ID state is committed.
+
+### Protection implications
+
+- A task with no running Activity can still occupy its task ID while retained in Recents.
+- Recents list eviction or automatic cleanup can release an ID even without a user pressing the Recents card's X button.
+- Persisted task IDs are an additional collision guard during restore; an ID can remain reserved while its record is not currently in memory.
+- Task ID lifetime is therefore tied to framework task/Recents persistence state, not to process lifetime or Activity lifetime.
+- Keep `packageName + userId` as the Protection application identity. Task ID remains a transient task-operation handle only.
+- Do not infer that an inactive task has been removed, or that a task ID is reusable, solely because no Activity/process is running.
+- Do not try to preserve a task by manipulating task-ID allocation or persistence. Protection must operate at the verified Recents policy boundary and must not interfere with framework task lifecycle.
+
+### Firmware-specific confidence
+
+These lifecycle and persistence findings are from the AOSP Android 9 framework reference. The target firmware SystemUI confirms its use of `RecentTaskInfo.persistentId`, but the exact MediaTek `services.jar` implementation has not yet been decompiled and compared. Vendor-specific changes to Recents retention, persistence, or allocator checks remain unverified.
+
+**Status** — AOSP Android 9 source confirms inactive Recents retention, automatic/list-limit removal paths, per-user persisted task-ID reservations, and persistence restoration. No hooks or firmware code were changed.
