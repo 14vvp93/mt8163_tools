@@ -46,8 +46,8 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Compile app sources
-        run: gradle :app:compileDebugJavaWithJavac
+      - name: Compile app and UI preview test sources
+        run: gradle :app:compileDebugJavaWithJavac :app:compileDebugAndroidTestJavaWithJavac
 
   voltage-tests:
     name: Voltage Tests
