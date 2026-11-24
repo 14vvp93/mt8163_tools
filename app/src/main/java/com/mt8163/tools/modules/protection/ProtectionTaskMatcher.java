@@ -25,6 +25,11 @@ public final class ProtectionTaskMatcher {
         return settings != null && settings.shouldProtectCleaner();
     }
 
+    public static boolean shouldAllowCloseViaX(String packageName) {
+        ProtectionConfig.ApplicationSettings settings = settingsFor(packageName);
+        return settings != null && settings.shouldAllowCloseViaX();
+    }
+
     private static ProtectionConfig.ApplicationSettings settingsFor(String packageName) {
         if (!ProtectionConfig.isValidPackageName(packageName)) return null;
         return configuration.getApplicationSettings(packageName);
