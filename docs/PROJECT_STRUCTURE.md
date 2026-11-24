@@ -100,7 +100,7 @@ Feature modules are separated by responsibility:
 | Package | Responsibility | Default state |
 |---|---|---|
 | `media` | Audio source and playback-state presentation/configuration | Disabled |
-| `protection` | Protection module definition | Disabled |
+| `protection` | Per-application Recents and Memory Cleaner protection settings and matching | Disabled |
 | `voltage` | Voltage settings and module UI | Disabled |
 | `autorun` | Autorun module definition | Disabled |
 | `events` | Event storage, retrieval, and presentation | Enabled |
@@ -119,6 +119,7 @@ Legacy XposedBridge integration:
 - `PackageHook` — interface for package-specific hook implementations.
 - `hooks/media/MediaHook` — observes firmware SourceService source and music callbacks in the Android system process.
 - `hooks/voltage/VoltageHook` — Voltage hook implementation for the Android system process.
+- `hooks/protection/ProtectionHook` — installs the Protection bootstrap in the main SystemUI process and maintains its process-wide configuration receiver.
 
 Each feature hook remains isolated in its own package.
 
@@ -131,6 +132,8 @@ Stage 1 reads and presents only:
 `MediaHook` observes the firmware `SourceService.callManager` callbacks. A source callback updates the package and resets the displayed playback state to unknown until a music callback arrives. A music callback updates the raw playback state without replacing the selected package.
 
 When the Media screen opens, the app requests a snapshot. The system-process hook reads `SourceInfo.getSourcePackage()` and `SourceInfo.getMusicInfo()`, then sends the values to the app through an explicit package broadcast. The UI receiver is registered only while the activity is resumed.
+
+Protection configuration is persisted by `ProtectionSettingsStore`, mirrored to `protection_hook_config`, and published to the main SystemUI process. `ProtectionHook` registers one receiver after `SystemUIApplication.onCreate()`; `ProtectionTaskMatcher` exposes the active per-package and per-user settings to Protection interception points.
 
 Raw playback values are preserved for diagnostics and mapped for display:
 - `start` and `write` → `PLAYING`
@@ -158,7 +161,7 @@ The module uses the **Legacy XposedBridge API 82**, not Modern libxposed.
 - `de.robv.android.xposed:api:82` is the compile-time Legacy API dependency and is declared as `compileOnly`.
 - `xposedminversion=82` declares the minimum Xposed runtime API.
 - `assets/xposed_init` registers the Legacy Xposed entry point.
-- The declared LSPosed scope is `android`, matching the process targeted by the Media and Voltage hooks.
+- The declared LSPosed scope includes `android` for Media and Voltage and `com.android.systemui` for Protection.
 - Android `minSdk` and `targetSdk` are both 28. The project compiles against SDK 35.
 - Java source and target compatibility are Java 17.
 
