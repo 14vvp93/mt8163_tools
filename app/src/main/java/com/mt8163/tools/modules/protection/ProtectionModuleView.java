@@ -192,15 +192,20 @@ public final class ProtectionModuleView {
         addOption(options, hide);
         addOption(options, cleaner);
 
+        boolean[] updating = {false};
         keep.setOnCheckedChangeListener((button, checked) -> {
-            boolean hideChecked = checked ? false : hide.isChecked();
-            setChecked(hide, hideChecked);
+            if (updating[0]) return;
+            updating[0] = true;
+            if (checked) hide.setChecked(false);
+            updating[0] = false;
             save(app, keep, hide, cleaner);
         });
 
         hide.setOnCheckedChangeListener((button, checked) -> {
-            boolean keepChecked = checked ? false : keep.isChecked();
-            setChecked(keep, keepChecked);
+            if (updating[0]) return;
+            updating[0] = true;
+            if (checked) keep.setChecked(false);
+            updating[0] = false;
             save(app, keep, hide, cleaner);
         });
 
@@ -224,15 +229,6 @@ public final class ProtectionModuleView {
     private void addOption(LinearLayout parent, CheckBox option) {
         parent.addView(option, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-    }
-
-    private void setChecked(CheckBox option, boolean checked) {
-        option.setOnCheckedChangeListener(null);
-        option.setChecked(checked);
-        if (option.getText().toString().equals("Keep")) {
-            option.setOnCheckedChangeListener((button, value) -> {
-            });
-        }
     }
 
     private void save(AppEntry app, CheckBox keep, CheckBox hide, CheckBox cleaner) {
