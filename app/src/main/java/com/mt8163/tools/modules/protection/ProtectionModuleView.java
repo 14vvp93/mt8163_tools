@@ -5,7 +5,6 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.os.UserHandle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -80,8 +79,7 @@ public final class ProtectionModuleView {
                     label = info.packageName;
                 }
 
-                int userId = UserHandle.getUserHandleForUid(info.uid).getIdentifier();
-                applications.add(new AppEntry(info, label, userId));
+                applications.add(new AppEntry(info, label));
             }
         } catch (RuntimeException error) {
             Toast.makeText(context, "Unable to load installed applications",
@@ -174,7 +172,7 @@ public final class ProtectionModuleView {
 
         ProtectionConfig.ApplicationSettings saved =
                 ProtectionSettingsStore.getApplicationSettings(
-                        context, app.info.packageName, app.userId);
+                        context, app.info.packageName);
 
         CheckBox keep = createOption("Keep", saved.shouldKeepRecents());
         CheckBox hide = createOption("Hide", saved.shouldHideRecents());
@@ -233,7 +231,7 @@ public final class ProtectionModuleView {
 
     private void save(AppEntry app, CheckBox keep, CheckBox hide, CheckBox cleaner) {
         boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                context, app.info.packageName, app.userId,
+                context, app.info.packageName,
                 keep.isChecked(), hide.isChecked(), cleaner.isChecked());
         if (!saved) {
             Toast.makeText(context, "Unable to save Protection settings",
@@ -249,12 +247,9 @@ public final class ProtectionModuleView {
     private static final class AppEntry {
         final ApplicationInfo info;
         final String label;
-        final int userId;
-
-        AppEntry(ApplicationInfo info, String label, int userId) {
+        AppEntry(ApplicationInfo info, String label) {
             this.info = info;
             this.label = label;
-            this.userId = userId;
         }
     }
 }
