@@ -97,7 +97,8 @@ jobs:
           cards = []
           for image in screenshots:
               name = image.stem
-              title = name.split("-", 1)[1].replace("-", " ").title() if "-" in name else name
+              label = name[3:] if len(name) > 3 and name[:2].isdigit() and name[2] == "-" else name
+              title = label.replace("-", " ").title()
               image_path = image.relative_to(output).as_posix()
               cards.append(
                   '<a class="screen" href="{0}" target="_blank" rel="noopener">'
