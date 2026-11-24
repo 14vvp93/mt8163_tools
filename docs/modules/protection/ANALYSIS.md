@@ -2590,3 +2590,27 @@ The active-task session duration comes from another framework integer resource i
 - No Protection hooks or firmware binaries were modified.
 
 **Status** — target firmware's two-pass trimming algorithm and its eligibility gates are source-confirmed at bytecode level. Exact numeric thresholds remain pending resource-table/runtime inspection.
+
+
+## 66. Target global Recents task limit
+
+Source: `android.app.ActivityManager` in target `boot-framework.vdex` CompactDEX disassembly, from workflow artifact `44771655098`.
+
+**Confirmed in target firmware** — `ActivityManager.getMaxRecentTasksStatic()` reads static field `gMaxRecentTasks`. When the field is negative (uninitialized), it evaluates `isLowRamDeviceStatic()` and initializes the limit:
+
+- Low-RAM device: **36** recent tasks.
+- Non-low-RAM device: **48** recent tasks.
+
+The initialized value is cached in `gMaxRecentTasks` and returned on subsequent calls.
+
+**Confirmed** — target `RecentTasks` constructor initializes `mGlobalMaxNumTasks` from `ActivityManager.getMaxRecentTasksStatic()`. Its `setGlobalMaxNumTasks(int)` method can overwrite the field later.
+
+### Protection implications
+
+- The target framework's default global Recents cap is 36 or 48 tasks, depending on the framework's low-RAM classification.
+- The exact active value on the head unit remains unknown until `ActivityManager.isLowRamDeviceStatic()` is evaluated on-device or the device's low-RAM classification is otherwise verified.
+- The framework cap is a task-count limit, not a count of unique packages. Multiple task records for one package can consume multiple slots.
+- The cap applies before the second visible/age-based trimming pass described in Section 65.
+- Do not assume Protection can retain a task indefinitely against this framework-level cap. Do not change the global cap or suppress its trim callbacks as a side effect of Recents UI protection.
+
+**Status** — target bytecode confirms the exact conditional defaults (36/48) and their use by RecentTasks. Runtime branch selection and any later override remain unverified.
