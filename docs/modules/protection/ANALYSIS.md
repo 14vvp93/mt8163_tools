@@ -50,7 +50,7 @@ They are not targets in the `android` SystemServer process.
 
 ### Existing project integration
 
-**Confirmed** — the project uses Legacy Xposed API 82 and the classic `assets/xposed_init` entry point. The current hook registry routes only the `android` package, so it does not yet install hooks in SystemUI.
+**Confirmed** — the project uses Legacy Xposed API 82 and the classic `assets/xposed_init` entry point. The original registry routed only `android`; the current implementation adds a separate main-process `com.android.systemui` route.
 
 **Implementation requirements:**
 - Add a separate Protection installer for package `com.android.systemui`.
@@ -259,7 +259,7 @@ Target `services.vdex` and `boot-framework.vdex` were inspected through the repo
 
 ## 10. Candidate hook surface
 
-All entries below are candidates, not installed hooks.
+The entries below are installed in source. Exact runtime availability still requires confirmation on the target head unit.
 
 | Setting / action | Installed SystemUI method or boundary | Implemented behavior |
 |---|---|---|
