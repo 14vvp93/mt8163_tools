@@ -33,7 +33,7 @@
     </style>
 
     <style name="AppAlertDialogTheme" parent="@android:style/Theme.Material.Dialog.Alert">
-        <item name="android:windowBackground">@color/dialog_background</item>
+        <item name="android:windowBackground">@drawable/dialog_window_background</item>
         <item name="android:colorAccent">@color/neon_red</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
