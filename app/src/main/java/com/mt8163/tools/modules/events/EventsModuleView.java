@@ -6,7 +6,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.net.Uri;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -104,7 +103,7 @@ public final class EventsModuleView {
         if (activity == null) return;
         String[] labels = new String[availableModules.size() + 1];
         boolean[] checked = new boolean[labels.length];
-        labels[0] = "Усі модулі";
+        labels[0] = "All modules";
         checked[0] = allModules;
         for (int i = 0; i < availableModules.size(); i++) {
             String name = availableModules.get(i);
@@ -113,7 +112,7 @@ public final class EventsModuleView {
         }
 
         new AlertDialog.Builder(activity)
-                .setTitle("Фільтр модулів")
+                .setTitle("Module filter")
                 .setMultiChoiceItems(labels, checked, (dialog, which, value) -> {
                     if (which == 0) {
                         allModules = value;
@@ -125,14 +124,14 @@ public final class EventsModuleView {
                         if (selectedModules.isEmpty()) allModules = true;
                     }
                 })
-                .setPositiveButton("Застосувати", (dialog, which) -> {
+                .setPositiveButton("Apply", (dialog, which) -> {
                     if (selectedModules.isEmpty()) allModules = true;
                     filterButton.setText(allModules ? "Усі модулі  ▾"
                             : String.join(", ", selectedModules) + "  ▾");
                     manager.logLifecycle("filterChanged", filterButton.getText().toString());
                     refresh();
                 })
-                .setNegativeButton("Скасувати", null)
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 
@@ -147,9 +146,9 @@ public final class EventsModuleView {
             oldestLoadedId = records.isEmpty() ? Long.MAX_VALUE
                     : records.get(records.size() - 1).id;
             for (int i = records.size() - 1; i >= 0; i--) addRecord(records.get(i));
-            count.setText(records.size() + " завантажено · втрачено "
-                    + current.getDroppedCount() + " · максимум "
-                    + EventDatabase.MAX_RECORDS + " · прокрутіть угору для старіших");
+            count.setText(records.size() + " loaded · dropped "
+                    + current.getDroppedCount() + " · max "
+                    + EventDatabase.MAX_RECORDS + " · scroll up for older events");
             autoScroll = true;
             scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
         });
@@ -193,9 +192,9 @@ public final class EventsModuleView {
 
     private static TextView createRecordView(EventRecord record) {
         TextView line = new TextView(activity);
-        line.setTextColor(Color.WHITE);
-        line.setTextSize(15);
-        line.setPadding(14, 12, 14, 12);
+        line.setTextColor(activity.getColor(R.color.text_primary));
+        line.setTextSize(13);
+        line.setPadding(12, 8, 12, 8);
         String date = DATE.format(new Date(record.timestamp));
         String module = "[" + record.module + "]";
         String source = "[" + record.source + "]";
@@ -203,9 +202,9 @@ public final class EventsModuleView {
                 new SpannableStringBuilder(date + " " + module + source + ": " + record.message);
         int moduleStart = date.length() + 1;
         int sourceStart = moduleStart + module.length();
-        text.setSpan(new ForegroundColorSpan(Color.RED), moduleStart, sourceStart,
+        text.setSpan(new ForegroundColorSpan(activity.getColor(R.color.neon_red)), moduleStart, sourceStart,
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.setSpan(new ForegroundColorSpan(Color.rgb(255, 64, 64)), sourceStart,
+        text.setSpan(new ForegroundColorSpan(activity.getColor(R.color.text_secondary)), sourceStart,
                 sourceStart + source.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         line.setText(text);
         return line;
@@ -231,34 +230,34 @@ public final class EventsModuleView {
             if (manager != current || activity != owner) return;
             String text = exportText(records);
             if (text.isEmpty()) {
-                Toast.makeText(owner, "Немає записів для копіювання", Toast.LENGTH_SHORT).show();
+                Toast.makeText(owner, "No events to copy", Toast.LENGTH_SHORT).show();
                 return;
             }
             ClipboardManager clipboard =
                     (ClipboardManager) owner.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard == null) return;
             clipboard.setPrimaryClip(ClipData.newPlainText("MT8163 Events", text));
-            Toast.makeText(owner, "Журнал скопійовано", Toast.LENGTH_SHORT).show();
+            Toast.makeText(owner, "Event log copied", Toast.LENGTH_SHORT).show();
         });
     }
 
     private static void clear() {
         new AlertDialog.Builder(activity)
-                .setTitle("Очистити журнал?")
-                .setMessage("Буде видалено всю історію подій (не лише видимі записи).")
+                .setTitle("Clear event log?")
+                .setMessage("This will delete the complete event history, not only the visible entries.")
                 .setNegativeButton("Скасувати", null)
                 .setPositiveButton("Очистити", (dialog, which) -> {
                     autoScroll = true;
                     manager.clear();
-                    Toast.makeText(activity, "Історію очищено", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(activity, "Event history cleared", Toast.LENGTH_SHORT).show();
                 })
                 .show();
     }
 
     private static void export() {
         new AlertDialog.Builder(activity)
-                .setTitle("Експорт журналу")
-                .setItems(new String[]{"Поточний фільтр", "Уся історія"}, (dialog, which) -> {
+                .setTitle("Export event log")
+                .setItems(new String[]{"Current filter", "All history"}, (dialog, which) -> {
                     exportMode = which == 0 ? "filtered" : "all";
                     manager.logLifecycle("exportHistory",
                             which == 0 ? "Filtered export requested" : "Full history export requested");
@@ -299,9 +298,9 @@ public final class EventsModuleView {
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
                 if (output == null) throw new IllegalStateException("Cannot open export destination");
                 output.write(exportText(records).getBytes(StandardCharsets.UTF_8));
-                Toast.makeText(owner, "Експорт завершено", Toast.LENGTH_SHORT).show();
+                Toast.makeText(owner, "Export completed", Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
-                Toast.makeText(owner, "Помилка експорту: " + error.getMessage(),
+                Toast.makeText(owner, "Export failed: " + error.getMessage(),
                         Toast.LENGTH_LONG).show();
             }
         });
