@@ -64,7 +64,7 @@ The tree lists the current tracked project files and directories. The repository
 
 Contains GitHub automation:
 - `scripts/verify_xposed.py` — validates Xposed-related project configuration.
-- `workflows/manual-build.yml` — builds the debug APK on pushes to `development` and by manual dispatch.
+- `workflows/manual-build.yml` — builds the debug APK only when manually dispatched.
 
 ### `app/`
 
@@ -109,7 +109,7 @@ The module registry controls display order. Events receives shared log events; o
 
 ### `com.mt8163.tools.ui`
 
-Contains the main activity and shared UI components. UI code displays module state and interacts with module/Core interfaces. Xposed hook implementations do not belong here.
+Contains the main activity, module binding controllers, and sidebar binding. Java UI classes only inflate resource layouts, bind runtime data, and register listeners. They must not construct view hierarchies or assign visual properties such as colors, dimensions, padding, typography, backgrounds, or tint. Xposed hook implementations do not belong here.
 
 ### `com.mt8163.tools.xposed`
 
@@ -165,6 +165,20 @@ The module uses the **Legacy XposedBridge API 82**, not Modern libxposed.
 - Android `minSdk` and `targetSdk` are both 28. The project compiles against SDK 35.
 - Java source and target compatibility are Java 17.
 
+
+## UI resource architecture
+
+The complete UI hierarchy and its presentation belong in Android resources:
+
+- `res/layout/` defines screens, reusable rows, dialog contents, and dynamically repeated UI items.
+- `res/values/colors.xml` defines the application palette; `res/color/` defines state-aware color selectors.
+- `res/values/dimens.xml` defines dimensions, spacing, control sizes, and dialog sizes.
+- `res/values/styles.xml` defines typography and reusable component appearance.
+- `res/drawable/` defines shapes, backgrounds, selectors, and vector assets.
+- `res/values/strings.xml` defines user-visible text.
+
+Java may inflate these layouts, bind dynamic content, update state, and register listeners. It must not instantiate UI widgets or set their visual appearance. Repeated cards, rows, and dialog options must be inflated from dedicated XML item layouts.
+
 ## Dependency direction
 
 ```text
@@ -190,5 +204,5 @@ Events module ───────────────────► event
 - Android minimum and target SDK: API 28 (Android 9).
 - Compile SDK: API 35.
 - Java source/target compatibility: Java 17.
-- UI target display: 1280×720 at 160 dpi.
+- UI target display: 1280×720 at an effective density of 186 dpi.
 - Use callbacks, listeners, broadcasts, and process lifecycle events instead of polling or timer-based state checks.
