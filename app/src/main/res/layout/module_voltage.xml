@@ -62,7 +62,6 @@
                 android:max="40"
                 android:progress="20"
                 android:progressDrawable="@drawable/seekbar_progress"
-                android:thumb="@drawable/seekbar_thumb"
                 android:splitTrack="false" />
 
             <LinearLayout
