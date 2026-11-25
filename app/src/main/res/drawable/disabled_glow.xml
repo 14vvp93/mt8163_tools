@@ -5,6 +5,6 @@
         android:gradientRadius="420dp"
         android:centerX="0.5"
         android:centerY="0.5"
-        android:centerColor="#22FF0000"
-        android:endColor="#00111316" />
+        android:centerColor="@color/accent_overlay"
+        android:endColor="@color/disabled_glow_edge" />
 </shape>
