@@ -3,14 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="@dimen/spacing_sm"
-    android:background="@drawable/module_card_background"
-    android:gravity="center_vertical"
-    android:minHeight="@dimen/protection_card_min_height"
-    android:orientation="horizontal"
-    android:paddingStart="@dimen/spacing_md"
-    android:paddingTop="@dimen/spacing_sm"
-    android:paddingEnd="@dimen/spacing_sm"
-    android:paddingBottom="@dimen/spacing_sm">
+    style="@style/ProtectionApplicationCard">
 
     <ImageView
         android:id="@+id/protection_app_icon"
