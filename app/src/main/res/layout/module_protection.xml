@@ -17,12 +17,12 @@
             android:layout_height="wrap_content"
             android:text="Keep selected applications protected from Recents cleanup and configure their visibility."
             android:textColor="@color/text_muted"
-            android:textSize="17sp" />
+            android:textSize="16sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/module_card_background"
             android:orientation="vertical"
             android:padding="20dp">
@@ -40,21 +40,15 @@
                 android:id="@+id/protection_add_application"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:layout_marginTop="14dp"
-                android:background="@drawable/module_button_background"
-                android:minHeight="48dp"
-                android:text="+  Add application"
-                android:textAllCaps="false"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp" />
+                android:layout_marginTop="12dp"
+                android:text="+  Add application" />
 
             <LinearLayout
                 android:id="@+id/protection_applications"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="12dp"
                 android:orientation="vertical" />
-
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
