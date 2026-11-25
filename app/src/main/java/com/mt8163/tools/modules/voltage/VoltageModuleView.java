@@ -62,6 +62,6 @@ public final class VoltageModuleView {
     }
 
     private static String formatOffset(float offset) {
-        return String.format(Locale.US, "%+.1f V", offset);
+        return String.format(Locale.US, context.getString(R.string.voltage_offset_format), offset);
     }
 }

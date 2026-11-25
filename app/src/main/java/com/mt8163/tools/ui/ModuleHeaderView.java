@@ -17,7 +17,7 @@ public final class ModuleHeaderView {
         TextView status = root.findViewById(R.id.header_status);
         Switch toggle = root.findViewById(R.id.header_switch);
 
-        title.setText(module.getName());
+        title.setText(root.getContext().getString(module.getNameRes()));
         updateStatus(status, module.isEnabled());
 
         toggle.setOnCheckedChangeListener(null);

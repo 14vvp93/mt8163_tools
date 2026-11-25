@@ -54,11 +54,11 @@ public final class SidebarAdapter extends BaseAdapter {
         ImageView icon = view.findViewById(R.id.module_icon);
         TextView name = view.findViewById(R.id.module_name);
 
-        name.setText(module.getName());
+        name.setText(parent.getContext().getString(module.getNameRes()));
         name.setActivated(isSelected);
         icon.setImageResource(icon(module.getId()));
         icon.setActivated(isSelected);
-        icon.setContentDescription(module.getName());
+        icon.setContentDescription(parent.getContext().getString(module.getNameRes()));
         view.setActivated(isSelected);
         view.findViewById(R.id.module_state).setVisibility(
                 module.isEnabled() ? View.VISIBLE : View.INVISIBLE);

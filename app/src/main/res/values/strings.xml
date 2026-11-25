@@ -21,4 +21,7 @@
 <string name="media_description">Restore background media and Bluetooth players when switching between apps.</string><string name="media_restore_background_media">Restore background media player</string><string name="media_restore_background_bluetooth">Restore background Bluetooth player</string>
 <string name="voltage_description">Adjust the voltage reported by the MCU</string><string name="voltage_current_correction">CURRENT CORRECTION</string><string name="voltage_zero">0.0 V</string><string name="voltage_minimum">−2.0 V</string><string name="voltage_maximum">+2.0 V</string><string name="voltage_initial_offset">+0.0 V</string><string name="voltage_reset">Reset</string>
 <string name="autorun_description">Manage automatic application startup.</string><string name="autorun_placeholder">Module settings will be available later.</string>
+
+<string name="module_media_title">Media</string><string name="module_protection_title">Protection</string><string name="module_voltage_title">Voltage</string><string name="module_autorun_title">Autorun</string><string name="module_events_title">Events</string>
+<string name="voltage_offset_format">%+.1f V</string>
 </resources>

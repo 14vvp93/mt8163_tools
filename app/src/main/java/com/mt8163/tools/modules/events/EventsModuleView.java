@@ -60,7 +60,7 @@ public final class EventsModuleView {
         inflater = LayoutInflater.from(owner);
         manager = EventManager.get(owner);
         availableModules = new ArrayList<>();
-        for (ModuleContract module : modules) availableModules.add(module.getName());
+        for (ModuleContract module : modules) availableModules.add(owner.getString(module.getNameRes()));
         selectedModules.clear();
         allModules = true;
         autoScroll = true;
