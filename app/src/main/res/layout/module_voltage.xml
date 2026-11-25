@@ -56,7 +56,8 @@
             android:maxHeight="24dp"
             android:minHeight="24dp"
             android:progress="20"
-            android:progressDrawable="@drawable/seekbar_progress"
+            android:progressBackgroundTint="@color/line"
+            android:progressTint="@color/neon_red"
             android:splitTrack="false"
             android:thumbTint="@color/white" />
 
