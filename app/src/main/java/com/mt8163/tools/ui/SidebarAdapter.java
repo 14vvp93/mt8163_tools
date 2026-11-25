@@ -1,6 +1,7 @@
 package com.mt8163.tools.ui;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -51,8 +52,10 @@ public final class SidebarAdapter extends BaseAdapter {
 
         ModuleContract module = getItem(position);
         boolean isSelected = position == selected;
+        boolean enabled = module.isEnabled();
         ImageView icon = view.findViewById(R.id.module_icon);
         TextView name = view.findViewById(R.id.module_name);
+        View state = view.findViewById(R.id.module_state);
 
         name.setText(parent.getContext().getString(module.getNameRes()));
         name.setActivated(isSelected);
@@ -60,8 +63,11 @@ public final class SidebarAdapter extends BaseAdapter {
         icon.setActivated(isSelected);
         icon.setContentDescription(parent.getContext().getString(module.getNameRes()));
         view.setActivated(isSelected);
-        view.findViewById(R.id.module_state).setVisibility(
-                module.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+
+        state.setVisibility(View.VISIBLE);
+        state.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
+                enabled ? R.color.module_status_active : R.color.neon_red)));
+
         return view;
     }
 
