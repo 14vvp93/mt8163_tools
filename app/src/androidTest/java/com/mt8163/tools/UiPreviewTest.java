@@ -173,7 +173,11 @@ public final class UiPreviewTest {
         UiObject2 object = device.wait(Until.findObject(selector), UI_TIMEOUT);
         if (object == null) {
             device.takeScreenshot(new File(output, "failure.png"));
-            device.dumpWindowHierarchy(new File(output, "failure.xml"));
+            try {
+                device.dumpWindowHierarchy(new File(output, "failure.xml"));
+            } catch (IOException ignored) {
+                // Preserve the original selector assertion if diagnostics cannot be saved.
+            }
         }
         assertNotNull("UI element not found: " + selector, object);
         return object;
