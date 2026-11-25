@@ -1,31 +1,21 @@
 package com.mt8163.tools.modules.protection;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
-import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
-import android.util.TypedValue;
-import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,30 +30,20 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class ProtectionModuleView {
-    private final int RED;
-    private final int PRIMARY;
-    private final int SECONDARY;
-    private final int MUTED;
-    private final int PANEL;
-    private final int LINE;
     private static final int MAX_PICKER_RESULTS = 10;
 
     private final Activity activity;
     private final PackageManager packageManager;
+    private final LayoutInflater inflater;
     private final LinearLayout applicationsContainer;
 
     public ProtectionModuleView(View root, Activity activity) {
         this.activity = activity;
-        RED = activity.getColor(R.color.neon_red);
-        PRIMARY = activity.getColor(R.color.text_primary);
-        SECONDARY = activity.getColor(R.color.text_secondary);
-        MUTED = activity.getColor(R.color.text_muted);
-        PANEL = activity.getColor(R.color.panel_background);
-        LINE = activity.getColor(R.color.line);
         packageManager = activity.getPackageManager();
+        inflater = LayoutInflater.from(activity);
         applicationsContainer = root.findViewById(R.id.protection_applications);
-        Button addButton = root.findViewById(R.id.protection_add_application);
-        addButton.setOnClickListener(view -> showApplicationPicker());
+        root.findViewById(R.id.protection_add_application)
+                .setOnClickListener(view -> showApplicationPicker());
         renderProtectedApplications();
     }
 
@@ -75,271 +55,129 @@ public final class ProtectionModuleView {
             try {
                 ApplicationInfo info = packageManager.getApplicationInfo(packageName, 0);
                 configured.add(new AppEntry(info, getApplicationLabel(info)));
-            } catch (PackageManager.NameNotFoundException ignored) {
-            } catch (RuntimeException ignored) {
+            } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
             }
         }
 
         sortApplications(configured);
         for (AppEntry app : configured) {
-            applicationsContainer.addView(createProtectedApplicationCard(app));
+            addProtectedApplication(app);
         }
 
         if (configured.isEmpty()) {
-            TextView empty = createTextFromDimen("No applications added yet", R.dimen.text_body, MUTED);
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, dimen(R.dimen.spacing_md), 0, dimen(R.dimen.spacing_sm));
-            applicationsContainer.addView(empty);
+            applicationsContainer.addView(inflater.inflate(
+                    R.layout.item_protection_empty, applicationsContainer, false));
         }
     }
 
-    private View createProtectedApplicationCard(AppEntry app) {
+    private void addProtectedApplication(AppEntry app) {
+        View card = inflater.inflate(R.layout.item_protected_application,
+                applicationsContainer, false);
         ProtectionConfig.ApplicationSettings settings =
                 ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
 
-        LinearLayout card = new LinearLayout(activity);
-        card.setOrientation(LinearLayout.HORIZONTAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dimen(R.dimen.spacing_md), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm));
-        card.setMinimumHeight(dimen(R.dimen.protection_card_min_height));
-        card.setBackgroundResource(R.drawable.module_card_background);
-
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        cardParams.bottomMargin = dimen(R.dimen.spacing_sm);
-        card.setLayoutParams(cardParams);
-
-        ImageView appIcon = new ImageView(activity);
-        appIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        ImageView icon = card.findViewById(R.id.protection_app_icon);
         try {
-            appIcon.setImageDrawable(packageManager.getApplicationIcon(app.info));
+            icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
         } catch (RuntimeException error) {
-            appIcon.setImageResource(android.R.drawable.sym_def_app_icon);
+            icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
-        card.addView(appIcon, new LinearLayout.LayoutParams(dimen(R.dimen.control_size_large), dimen(R.dimen.control_size_large)));
 
-        TextView name = createTextFromDimen(app.label, R.dimen.text_section_title, PRIMARY);
-        name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        name.setSingleLine(true);
-        name.setEllipsize(TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        nameParams.leftMargin = dimen(R.dimen.spacing_md);
-        nameParams.rightMargin = dimen(R.dimen.spacing_sm);
-        card.addView(name, nameParams);
+        TextView name = card.findViewById(R.id.protection_app_name);
+        name.setText(app.label);
 
-        LinearLayout indicators = new LinearLayout(activity);
-        indicators.setGravity(Gravity.CENTER);
-        indicators.setOrientation(LinearLayout.HORIZONTAL);
-        card.addView(indicators, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dimen(R.dimen.control_size_large)));
+        setIndicatorState(card, R.id.protection_indicator_cleaner,
+                settings.shouldProtectCleaner());
+        setIndicatorState(card, R.id.protection_indicator_hide,
+                settings.shouldHideRecents());
+        setIndicatorState(card, R.id.protection_indicator_close,
+                settings.shouldAllowCloseViaX());
 
-        addIndicator(indicators, R.drawable.ic_protection_cleaner,
-                settings.shouldProtectCleaner(), "Protected from Memory Cleaner");
-        addHiddenIndicator(indicators, settings.shouldHideRecents());
-        addIndicator(indicators, android.R.drawable.ic_menu_close_clear_cancel,
-                settings.shouldAllowCloseViaX(), "Allow closing the card via X");
-
-        View separator = new View(activity);
-        separator.setBackgroundColor(LINE);
-        LinearLayout.LayoutParams separatorParams = new LinearLayout.LayoutParams(dimen(R.dimen.border_width), dimen(R.dimen.protection_separator_height));
-        separatorParams.leftMargin = dimen(R.dimen.spacing_sm);
-        separatorParams.rightMargin = dimen(R.dimen.spacing_xs);
-        card.addView(separator, separatorParams);
-
-        card.addView(createActionButton(R.drawable.ic_protection_settings,
-                "Application settings", () -> showApplicationSettings(app)));
-
-        card.addView(createActionButton(R.drawable.ic_protection_delete,
-                "Remove application", () -> confirmRemoveApplication(app)));
-
-        return card;
+        card.findViewById(R.id.protection_app_settings)
+                .setOnClickListener(view -> showApplicationSettings(app));
+        card.findViewById(R.id.protection_app_remove)
+                .setOnClickListener(view -> confirmRemoveApplication(app));
+        applicationsContainer.addView(card);
     }
 
-    private void addHiddenIndicator(LinearLayout parent, boolean enabled) {
-        ImageView indicator = new ImageView(activity);
-        indicator.setImageResource(R.drawable.ic_protection_hide);
-        indicator.setImageTintList(ColorStateList.valueOf(enabled ? RED : MUTED));
-        indicator.setContentDescription("Hide application card in Recents");
-        indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small));
-        params.leftMargin = dimen(R.dimen.spacing_xs);
-        params.rightMargin = dimen(R.dimen.spacing_xs);
-        parent.addView(indicator, params);
-    }
-
-    private void addIndicator(LinearLayout parent, int icon, boolean enabled, String description) {
-        ImageView indicator = new ImageView(activity);
-        indicator.setImageResource(icon);
-        indicator.setImageTintList(ColorStateList.valueOf(enabled ? RED : MUTED));
-        indicator.setContentDescription(description);
-        indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small));
-        params.leftMargin = dimen(R.dimen.spacing_xs);
-        params.rightMargin = dimen(R.dimen.spacing_xs);
-        parent.addView(indicator, params);
-    }
-
-    private View createActionButton(int icon, String description, Runnable action) {
-        FrameLayout button = new FrameLayout(activity);
-        button.setBackgroundResource(R.drawable.module_button_background);
-        button.setContentDescription(description);
-        button.setFocusable(true);
-        button.setClickable(true);
-        button.setMinimumWidth(dimen(R.dimen.button_height));
-        button.setMinimumHeight(dimen(R.dimen.button_height));
-        button.setOnClickListener(view -> action.run());
-
-        ImageView image = new ImageView(activity);
-        image.setImageResource(icon);
-        image.setImageTintList(ColorStateList.valueOf(SECONDARY));
-        image.setScaleType(ImageView.ScaleType.CENTER);
-        FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(
-                dimen(R.dimen.icon_size), dimen(R.dimen.icon_size), Gravity.CENTER);
-        button.addView(image, imageParams);
-
-        return button;
+    private static void setIndicatorState(View root, int id, boolean enabled) {
+        root.findViewById(id).setActivated(enabled);
     }
 
     private void showApplicationSettings(AppEntry app) {
         ProtectionConfig.ApplicationSettings current =
                 ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
 
-        LinearLayout options = new LinearLayout(activity);
-        options.setOrientation(LinearLayout.VERTICAL);
-        options.setPadding(dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs));
+        Dialog dialog = new Dialog(activity);
+        View root = inflater.inflate(R.layout.dialog_protection_settings, null, false);
+        TextView title = root.findViewById(R.id.protection_settings_title);
+        CheckBox cleaner = root.findViewById(R.id.protection_setting_cleaner);
+        CheckBox hide = root.findViewById(R.id.protection_setting_hide);
+        CheckBox allowClose = root.findViewById(R.id.protection_setting_allow_close);
+        Button save = root.findViewById(R.id.protection_settings_save);
+        Button cancel = root.findViewById(R.id.protection_settings_cancel);
 
-        CheckBox cleaner = createSettingOption(
-                "Protect from Memory Cleaner", current.shouldProtectCleaner());
-        CheckBox hide = createSettingOption(
-                "Hide application card in Recents", current.shouldHideRecents());
-        CheckBox allowClose = createSettingOption(
-                "Allow closing the card via X", current.shouldAllowCloseViaX());
+        title.setText(app.label);
+        cleaner.setChecked(current.shouldProtectCleaner());
+        hide.setChecked(current.shouldHideRecents());
+        allowClose.setChecked(current.shouldAllowCloseViaX());
 
-        options.addView(cleaner);
-        options.addView(hide);
-        options.addView(allowClose);
+        save.setOnClickListener(view -> {
+            boolean saved = ProtectionSettingsStore.setApplicationSettings(
+                    activity, app.info.packageName, hide.isChecked(),
+                    cleaner.isChecked(), allowClose.isChecked());
+            if (!saved) {
+                showToast(R.string.protection_save_failed);
+                return;
+            }
+            dialog.dismiss();
+            renderProtectedApplications();
+        });
+        cancel.setOnClickListener(view -> dialog.dismiss());
 
-        AlertDialog dialog = new AlertDialog.Builder(activity)
-                .setTitle(app.label)
-                .setView(options)
-                .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
-
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(view -> {
-                    boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                            activity, app.info.packageName, hide.isChecked(),
-                            cleaner.isChecked(), allowClose.isChecked());
-                    if (!saved) {
-                        showToast("Unable to save Protection settings");
-                        return;
-                    }
-                    dialog.dismiss();
-                    renderProtectedApplications();
-                }));
-        dialog.show();
-    }
-
-    private CheckBox createSettingOption(String title, boolean checked) {
-        CheckBox option = new CheckBox(activity);
-        option.setText(title);
-        option.setTextColor(PRIMARY);
-        option.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                activity.getResources().getDimension(R.dimen.text_button));
-        option.setMinHeight(dimen(R.dimen.button_height));
-        option.setPadding(dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs));
-        option.setButtonTintList(ColorStateList.valueOf(RED));
-        option.setChecked(checked);
-        return option;
+        showDialog(dialog, root, R.dimen.protection_settings_dialog_width,
+                R.dimen.protection_settings_dialog_height);
     }
 
     private void confirmRemoveApplication(AppEntry app) {
-        new AlertDialog.Builder(activity)
-                .setTitle("Remove application?")
-                .setMessage("Remove " + app.label + " from the Protection list?")
-                .setPositiveButton("Remove", (dialog, which) -> {
-                    if (ProtectionSettingsStore.removeApplicationSettings(
-                            activity, app.info.packageName)) {
-                        renderProtectedApplications();
-                    } else {
-                        showToast("Unable to remove application");
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+        Dialog dialog = new Dialog(activity);
+        View root = inflater.inflate(R.layout.dialog_protection_confirm, null, false);
+        TextView message = root.findViewById(R.id.protection_confirm_message);
+        Button remove = root.findViewById(R.id.protection_confirm_remove);
+        Button cancel = root.findViewById(R.id.protection_confirm_cancel);
+
+        message.setText(activity.getString(R.string.protection_remove_message, app.label));
+        remove.setOnClickListener(view -> {
+            if (ProtectionSettingsStore.removeApplicationSettings(
+                    activity, app.info.packageName)) {
+                dialog.dismiss();
+                renderProtectedApplications();
+            } else {
+                showToast(R.string.protection_remove_failed);
+            }
+        });
+        cancel.setOnClickListener(view -> dialog.dismiss());
+
+        showDialog(dialog, root, R.dimen.protection_settings_dialog_width,
+                R.dimen.protection_confirm_dialog_height);
     }
 
     private void showApplicationPicker() {
         List<AppEntry> installed = loadInstalledApplications();
         Dialog dialog = new Dialog(activity);
-        LinearLayout root = new LinearLayout(activity);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dimen(R.dimen.spacing_xl), dimen(R.dimen.card_padding), dimen(R.dimen.spacing_xl), dimen(R.dimen.card_padding));
-        root.setBackground(createPanelBackground());
+        View root = inflater.inflate(R.layout.dialog_protection_picker, null, false);
 
-        LinearLayout titleRow = new LinearLayout(activity);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        EditText search = root.findViewById(R.id.protection_picker_search);
+        CheckBox systemApps = root.findViewById(R.id.protection_picker_system_apps);
+        TextView results = root.findViewById(R.id.protection_picker_results);
+        LinearLayout list = root.findViewById(R.id.protection_picker_list);
 
-        TextView title = createTextFromDimen("Add application", R.dimen.text_section_title, PRIMARY);
-        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        titleRow.addView(title, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.findViewById(R.id.protection_picker_close)
+                .setOnClickListener(view -> dialog.dismiss());
 
-        TextView close = createTextFromDimen("×", R.dimen.text_icon_button, SECONDARY);
-        close.setGravity(Gravity.CENTER);
-        close.setBackgroundResource(R.drawable.module_button_background);
-        close.setContentDescription("Close");
-        titleRow.addView(close, new LinearLayout.LayoutParams(dimen(R.dimen.control_size_large), dimen(R.dimen.control_size_large)));
-        close.setOnClickListener(view -> dialog.dismiss());
-        root.addView(titleRow);
+        Runnable render = () -> renderPickerResults(installed,
+                search.getText().toString(), systemApps.isChecked(), list, results, dialog);
 
-        EditText search = new EditText(activity);
-        search.setSingleLine(true);
-        search.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                activity.getResources().getDimension(R.dimen.text_button));
-        search.setTextColor(PRIMARY);
-        search.setHintTextColor(MUTED);
-        search.setHint("Search applications");
-        search.setPadding(dimen(R.dimen.spacing_md), 0, dimen(R.dimen.spacing_md), 0);
-        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        search.setBackground(createSearchBackground(false));
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dimen(R.dimen.button_height));
-        searchParams.topMargin = dimen(R.dimen.spacing_md);
-        root.addView(search, searchParams);
-
-        CheckBox systemApps = createSettingOption("Display system applications", false);
-        LinearLayout.LayoutParams systemParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dimen(R.dimen.button_height));
-        systemParams.topMargin = dimen(R.dimen.spacing_xs);
-        root.addView(systemApps, systemParams);
-
-        TextView results = createTextFromDimen("", R.dimen.text_secondary, MUTED);
-        LinearLayout.LayoutParams resultsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        resultsParams.topMargin = dimen(R.dimen.spacing_xs);
-        resultsParams.bottomMargin = dimen(R.dimen.spacing_xs);
-        root.addView(results, resultsParams);
-
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(false);
-        scroll.setVerticalScrollBarEnabled(false);
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
-        root.addView(scroll, scrollParams);
-
-        LinearLayout list = new LinearLayout(activity);
-        list.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(list);
-
-        Runnable renderPicker = () -> renderPickerResults(
-                installed, search.getText().toString(), systemApps.isChecked(),
-                list, results, dialog);
         search.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {
@@ -347,35 +185,27 @@ public final class ProtectionModuleView {
 
             @Override
             public void onTextChanged(CharSequence text, int start, int before, int count) {
-                renderPicker.run();
+                render.run();
             }
 
             @Override
             public void afterTextChanged(Editable editable) {
             }
         });
-        search.setOnFocusChangeListener((view, focused) ->
-                search.setBackground(createSearchBackground(focused)));
-        systemApps.setOnCheckedChangeListener((button, checked) -> renderPicker.run());
+        systemApps.setOnCheckedChangeListener((button, checked) -> render.run());
 
-        dialog.setContentView(root);
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
-
+        showDialog(dialog, root, R.dimen.picker_dialog_max_width,
+                R.dimen.picker_dialog_max_height);
         Window window = dialog.getWindow();
         if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-            int maxWidth = activity.getResources().getDisplayMetrics().widthPixels - dimen(R.dimen.button_height);
-            int maxHeight = activity.getResources().getDisplayMetrics().heightPixels - dimen(R.dimen.button_height);
-            window.setLayout(Math.min(dimen(R.dimen.picker_dialog_max_width), maxWidth), Math.min(dimen(R.dimen.picker_dialog_max_height), maxHeight));
         }
-        renderPicker.run();
+        render.run();
     }
 
     private void renderPickerResults(List<AppEntry> installed, String query,
-                                     boolean showSystem, LinearLayout list, TextView results,
-                                     Dialog dialog) {
+                                     boolean showSystem, LinearLayout list,
+                                     TextView results, Dialog dialog) {
         list.removeAllViews();
         String filter = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         Set<String> configured = new HashSet<>(
@@ -389,82 +219,71 @@ public final class ProtectionModuleView {
 
             String label = app.label.toLowerCase(Locale.ROOT);
             String packageName = app.info.packageName.toLowerCase(Locale.ROOT);
-            if (!filter.isEmpty() && !label.contains(filter) && !packageName.contains(filter)) {
-                continue;
-            }
+            if (!filter.isEmpty() && !label.contains(filter)
+                    && !packageName.contains(filter)) continue;
 
             matches++;
             if (shown >= MAX_PICKER_RESULTS) continue;
-            list.addView(createPickerRow(app, dialog));
+            addPickerRow(app, list, dialog);
             shown++;
         }
 
-        results.setText(matches > MAX_PICKER_RESULTS
-                ? "Showing " + shown + " of " + matches + " matching applications"
-                : matches + " matching applications");
+        results.setText(activity.getResources().getQuantityString(
+                R.plurals.protection_picker_results, matches, shown, matches));
 
         if (shown == 0) {
-            TextView empty = createTextFromDimen(filter.isEmpty()
-                    ? "No available applications found"
-                    : "No applications match your search", R.dimen.text_body, MUTED);
-            empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, dimen(R.dimen.page_padding), 0, dimen(R.dimen.page_padding));
+            TextView empty = (TextView) inflater.inflate(
+                    R.layout.item_protection_empty, list, false);
+            empty.setText(filter.isEmpty()
+                    ? R.string.protection_picker_empty
+                    : R.string.protection_picker_no_matches);
             list.addView(empty);
         }
     }
 
-    private View createPickerRow(AppEntry app, Dialog dialog) {
-        LinearLayout row = new LinearLayout(activity);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm));
-        row.setMinimumHeight(dimen(R.dimen.sidebar_item_height));
-        row.setBackgroundResource(R.drawable.module_row_background);
-        row.setClickable(true);
-        row.setFocusable(true);
-
-        ImageView icon = new ImageView(activity);
+    private void addPickerRow(AppEntry app, LinearLayout list, Dialog dialog) {
+        View row = inflater.inflate(R.layout.item_protection_picker, list, false);
+        ImageView icon = row.findViewById(R.id.protection_picker_app_icon);
         try {
             icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
         } catch (RuntimeException error) {
             icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
-        row.addView(icon, new LinearLayout.LayoutParams(dimen(R.dimen.sidebar_icon_size), dimen(R.dimen.sidebar_icon_size)));
 
-        LinearLayout text = new LinearLayout(activity);
-        text.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        textParams.leftMargin = dimen(R.dimen.spacing_md);
-        textParams.rightMargin = dimen(R.dimen.spacing_sm);
-        row.addView(text, textParams);
-
-        TextView label = createTextFromDimen(app.label, R.dimen.text_button, PRIMARY);
-        label.setSingleLine(true);
-        label.setEllipsize(TextUtils.TruncateAt.END);
-        text.addView(label);
-
-        TextView packageName = createTextFromDimen(app.info.packageName, R.dimen.text_secondary, MUTED);
-        packageName.setSingleLine(true);
-        packageName.setEllipsize(TextUtils.TruncateAt.END);
-        text.addView(packageName);
-
-        ImageView add = new ImageView(activity);
-        add.setImageResource(android.R.drawable.ic_input_add);
-        add.setImageTintList(ColorStateList.valueOf(SECONDARY));
-        row.addView(add, new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small)));
+        ((TextView) row.findViewById(R.id.protection_picker_app_name)).setText(app.label);
+        ((TextView) row.findViewById(R.id.protection_picker_package))
+                .setText(app.info.packageName);
 
         row.setOnClickListener(view -> {
             boolean saved = ProtectionSettingsStore.setApplicationSettings(
                     activity, app.info.packageName, false, false, false);
             if (!saved) {
-                showToast("Unable to add application");
+                showToast(R.string.protection_add_failed);
                 return;
             }
             dialog.dismiss();
             renderProtectedApplications();
         });
-        return row;
+        list.addView(row);
+    }
+
+    private void showDialog(Dialog dialog, View content, int widthResource,
+                            int heightResource) {
+        dialog.setContentView(content);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+
+        Window window = dialog.getWindow();
+        if (window == null) return;
+
+        window.setBackgroundDrawableResource(R.drawable.dialog_window_background);
+        int maxWidth = activity.getResources().getDisplayMetrics().widthPixels
+                - activity.getResources().getDimensionPixelSize(R.dimen.button_height);
+        int maxHeight = activity.getResources().getDisplayMetrics().heightPixels
+                - activity.getResources().getDimensionPixelSize(R.dimen.button_height);
+        int width = Math.min(activity.getResources().getDimensionPixelSize(widthResource), maxWidth);
+        int height = Math.min(activity.getResources().getDimensionPixelSize(heightResource), maxHeight);
+        window.setLayout(width, height);
     }
 
     private List<AppEntry> loadInstalledApplications() {
@@ -481,7 +300,7 @@ public final class ProtectionModuleView {
                 result.add(new AppEntry(info, getApplicationLabel(info)));
             }
         } catch (RuntimeException error) {
-            showToast("Unable to load installed applications");
+            showToast(R.string.protection_load_failed);
         }
         sortApplications(result);
         return result;
@@ -501,7 +320,7 @@ public final class ProtectionModuleView {
                 | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
     }
 
-    private void sortApplications(List<AppEntry> applications) {
+    private static void sortApplications(List<AppEntry> applications) {
         Collator collator = Collator.getInstance(Locale.getDefault());
         Collections.sort(applications, (left, right) -> {
             int result = collator.compare(left.label, right.label);
@@ -510,37 +329,8 @@ public final class ProtectionModuleView {
         });
     }
 
-    private TextView createTextFromDimen(String value, int sizeResource, int color) {
-        TextView text = new TextView(activity);
-        text.setText(value);
-        text.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                activity.getResources().getDimension(sizeResource));
-        text.setTextColor(color);
-        return text;
-    }
-
-    private GradientDrawable createPanelBackground() {
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(PANEL);
-        background.setCornerRadius(dimen(R.dimen.radius_card));
-        background.setStroke(dimen(R.dimen.border_width), LINE);
-        return background;
-    }
-
-    private GradientDrawable createSearchBackground(boolean focused) {
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(activity.getColor(R.color.sidebar_background));
-        background.setCornerRadius(dimen(R.dimen.radius_card));
-        background.setStroke(dimen(focused ? R.dimen.border_width_emphasis : R.dimen.border_width), focused ? RED : LINE);
-        return background;
-    }
-
-    private int dimen(int resourceId) {
-        return activity.getResources().getDimensionPixelSize(resourceId);
-    }
-
-    private void showToast(String message) {
-        Toast.makeText(activity, message, Toast.LENGTH_SHORT).show();
+    private void showToast(int messageResource) {
+        Toast.makeText(activity, messageResource, Toast.LENGTH_SHORT).show();
     }
 
     private static final class AppEntry {

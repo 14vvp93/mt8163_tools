@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/dialog_window_background"
+    android:orientation="vertical"
+    android:padding="@dimen/card_padding">
+
+    <TextView
+        android:id="@+id/protection_settings_title"
+        style="@style/DialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <CheckBox
+        android:id="@+id/protection_setting_cleaner"
+        style="@style/ProtectionSettingCheckBox"
+        android:text="@string/protection_setting_cleaner" />
+
+    <CheckBox
+        android:id="@+id/protection_setting_hide"
+        style="@style/ProtectionSettingCheckBox"
+        android:text="@string/protection_setting_hide" />
+
+    <CheckBox
+        android:id="@+id/protection_setting_allow_close"
+        style="@style/ProtectionSettingCheckBox"
+        android:text="@string/protection_setting_allow_close" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_md"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/protection_settings_cancel"
+            style="@style/DialogSecondaryButton"
+            android:text="@string/cancel" />
+
+        <Button
+            android:id="@+id/protection_settings_save"
+            style="@style/DialogPrimaryButton"
+            android:layout_marginStart="@dimen/spacing_sm"
+            android:text="@string/save" />
+    </LinearLayout>
+</LinearLayout>

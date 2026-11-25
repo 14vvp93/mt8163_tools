@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/dialog_window_background"
+    android:orientation="vertical"
+    android:padding="@dimen/card_padding">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/DialogTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/protection_picker_title" />
+
+        <ImageButton
+            android:id="@+id/protection_picker_close"
+            style="@style/ProtectionActionButton"
+            android:contentDescription="@string/close"
+            android:src="@android:drawable/ic_menu_close_clear_cancel" />
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/protection_picker_search"
+        style="@style/ModuleEditText"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/button_height"
+        android:layout_marginTop="@dimen/spacing_md"
+        android:background="@drawable/protection_search_background"
+        android:hint="@string/protection_search_hint"
+        android:imeOptions="actionSearch"
+        android:inputType="text"
+        android:paddingStart="@dimen/spacing_md"
+        android:paddingEnd="@dimen/spacing_md"
+        android:singleLine="true" />
+
+    <CheckBox
+        android:id="@+id/protection_picker_system_apps"
+        style="@style/ProtectionSettingCheckBox"
+        android:layout_marginTop="@dimen/spacing_xs"
+        android:text="@string/protection_show_system_apps" />
+
+    <TextView
+        android:id="@+id/protection_picker_results"
+        style="@style/ProtectionResultCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:fillViewport="false"
+        android:layout_weight="1"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:id="@+id/protection_picker_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+</LinearLayout>

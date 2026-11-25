@@ -1,6 +1,10 @@
 <resources>
-    <string name="app_name">MT8163 Tools</string>
-    <string name="xposed_description">Modular tools for MT8163 Android head units.</string>
-    <string name="module_enabled">Module enabled</string>
-    <string name="module_disabled">Module disabled</string>
+<string name="app_name">MT8163 Tools</string><string name="xposed_description">Modular tools for MT8163 Android head units.</string><string name="module_enabled">Module enabled</string><string name="module_disabled">Module disabled</string>
+<string name="cancel">Cancel</string><string name="save">Save</string><string name="remove">Remove</string><string name="close">Close</string>
+<string name="protection_description">Keep selected applications protected from Recents cleanup and configure their visibility.</string><string name="protection_section_title">PROTECTED APPLICATIONS</string><string name="protection_empty">No applications added yet</string><string name="protection_add_application">Add application</string><string name="protection_application_settings">Application settings</string><string name="protection_remove_application">Remove application</string>
+<string name="protection_indicator_cleaner">Protected from Memory Cleaner</string><string name="protection_indicator_hide">Hide application card in Recents</string><string name="protection_indicator_close">Allow closing the card via X</string>
+<string name="protection_setting_cleaner">Protect from Memory Cleaner</string><string name="protection_setting_hide">Hide application card in Recents</string><string name="protection_setting_allow_close">Allow closing the card via X</string>
+<string name="protection_save_failed">Unable to save Protection settings</string><string name="protection_remove_title">Remove application?</string><string name="protection_remove_message">Remove %1$s from the Protection list?</string><string name="protection_remove_failed">Unable to remove application</string>
+<string name="protection_picker_title">Add application</string><string name="protection_search_hint">Search applications</string><string name="protection_show_system_apps">Display system applications</string><string name="protection_picker_empty">No available applications found</string><string name="protection_picker_no_matches">No applications match your search</string><string name="protection_add_failed">Unable to add application</string><string name="protection_load_failed">Unable to load installed applications</string>
+<plurals name="protection_picker_results"><item quantity="one">%1$d of %2$d matching applications</item><item quantity="other">Showing %1$d of %2$d matching applications</item></plurals>
 </resources>
