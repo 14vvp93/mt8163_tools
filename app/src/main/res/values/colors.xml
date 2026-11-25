@@ -25,5 +25,4 @@
     <color name="accent_overlay">#22E53935</color>
     <color name="accent_stroke">#66E53935</color>
     <color name="sidebar_icon_background">#24272D</color>
-    <color name="disabled_glow_edge">#0017191C</color>
 </resources>
