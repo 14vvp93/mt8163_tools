@@ -3,9 +3,11 @@
     <color name="sidebar_background">#15171A</color>
     <color name="header_background">#17191D</color>
     <color name="panel_background">#1B1D22</color>
+    <color name="dialog_background">#1B1D22</color>
     <color name="line">#343A40</color>
     <color name="neon_red">#FFFF0000</color>
     <color name="button_background">#343B40</color>
+    <color name="button_pressed_background">#FF41484D</color>
     <color name="button_stroke">#596168</color>
     <color name="button_disabled">#252A2E</color>
     <color name="white">#FFFFFFFF</color>
