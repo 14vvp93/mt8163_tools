@@ -38,6 +38,7 @@ public final class MainActivity extends Activity {
     private FrameLayout header;
     private FrameLayout content;
     private View overlay;
+    private View appRoot;
     private int selected;
 
     @Override
@@ -55,6 +56,7 @@ public final class MainActivity extends Activity {
         header = findViewById(R.id.header_container);
         content = findViewById(R.id.content_container);
         overlay = findViewById(R.id.disabled_overlay);
+        appRoot = findViewById(android.R.id.content);
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
@@ -62,11 +64,11 @@ public final class MainActivity extends Activity {
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
 
         designListener = () -> {
-            DesignRuntime.applyTree(header, designStore);
-            DesignRuntime.applyTree(content, designStore);
+            DesignRuntime.applyTree(appRoot, designStore);
             adapter.notifyDataSetChanged();
         };
         designStore.addListener(designListener);
+        DesignRuntime.attach(appRoot, designStore, "global");
         showModule(selected);
     }
 
@@ -126,7 +128,7 @@ public final class MainActivity extends Activity {
             content.addView(view);
             if ("design".equals(module.getId())) {
                 DesignRuntime.attach(view, designStore, module.getId());
-                new DesignModuleView(view, this, registry, designStore);
+                new DesignModuleView(view, designStore);
             } else {
                 if ("voltage".equals(module.getId())) {
                     VoltageModuleView.bind(view, this);

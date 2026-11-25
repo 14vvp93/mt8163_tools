@@ -24,31 +24,79 @@
                 style="@style/ModuleSectionLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/design_target" />
+                android:text="@string/design_colors" />
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
                 android:orientation="horizontal">
-                <Spinner
-                    android:id="@+id/design_target_module"
+                <EditText
+                    android:id="@+id/design_app_color"
+                    style="@style/ModuleEditText"
                     android:layout_width="0dp"
                     android:layout_height="@dimen/button_height"
-                    android:layout_weight="1" />
-                <Spinner
-                    android:id="@+id/design_target_view"
+                    android:layout_weight="1"
+                    android:hint="@string/design_app_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_sidebar_color"
+                    style="@style/ModuleEditText"
                     android:layout_width="0dp"
                     android:layout_height="@dimen/button_height"
                     android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1" />
+                    android:layout_weight="1"
+                    android:hint="@string/design_sidebar_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_header_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_header_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_surface_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_surface_color_hint"
+                    android:inputType="text" />
             </LinearLayout>
-            <FrameLayout
-                android:id="@+id/design_preview"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="180dp"
-                android:layout_marginTop="@dimen/spacing_md"
-                android:background="@color/sidebar_background"
-                android:clipToPadding="true" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_xs"
+                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/design_accent_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:hint="@string/design_accent_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_primary_text_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_primary_text_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_secondary_text_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_secondary_text_color_hint"
+                    android:inputType="text" />
+            </LinearLayout>
         </LinearLayout>
         <LinearLayout
             style="@style/ModuleCard"
@@ -59,161 +107,55 @@
                 style="@style/ModuleSectionLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/design_properties" />
-            <LinearLayout
+                android:text="@string/design_layout" />
+            <TextView
+                style="@style/ModuleBodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_sm"
-                android:orientation="horizontal">
-                <EditText
-                    android:id="@+id/design_background_color"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_weight="1"
-                    android:hint="@string/design_background_hint"
-                    android:inputType="text" />
-                <EditText
-                    android:id="@+id/design_text_color"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_text_color_hint"
-                    android:inputType="text" />
-                <EditText
-                    android:id="@+id/design_image_tint"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_image_tint_hint"
-                    android:inputType="text" />
-                <EditText
-                    android:id="@+id/design_text_size"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_text_size_hint"
-                    android:inputType="numberDecimal" />
-            </LinearLayout>
-            <LinearLayout
+                android:text="@string/design_spacing" />
+            <SeekBar
+                android:id="@+id/design_spacing"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/seekbar_height" />
+            <TextView
+                android:id="@+id/design_spacing_value"
+                style="@style/ModuleDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <TextView
+                style="@style/ModuleBodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:orientation="horizontal">
-                <EditText
-                    android:id="@+id/design_width"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_weight="1"
-                    android:hint="@string/design_width_hint"
-                    android:inputType="numberSigned" />
-                <EditText
-                    android:id="@+id/design_height"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_height_hint"
-                    android:inputType="numberSigned" />
-                <EditText
-                    android:id="@+id/design_padding"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_padding_hint"
-                    android:inputType="number" />
-            </LinearLayout>
-            <LinearLayout
+                android:text="@string/design_size" />
+            <SeekBar
+                android:id="@+id/design_size"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/seekbar_height" />
+            <TextView
+                android:id="@+id/design_size_value"
+                style="@style/ModuleDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+            <TextView
+                style="@style/ModuleBodyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:orientation="horizontal">
-                <EditText
-                    android:id="@+id/design_margin"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_weight="1"
-                    android:hint="@string/design_margin_hint"
-                    android:inputType="number" />
-                <EditText
-                    android:id="@+id/design_radius"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_radius_hint"
-                    android:inputType="number" />
-                <EditText
-                    android:id="@+id/design_alpha"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_alpha_hint"
-                    android:inputType="numberDecimal" />
-            </LinearLayout>
-            <LinearLayout
+                android:text="@string/design_radius" />
+            <SeekBar
+                android:id="@+id/design_radius"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:orientation="horizontal">
-                <EditText
-                    android:id="@+id/design_rotation"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_weight="1"
-                    android:hint="@string/design_rotation_hint"
-                    android:inputType="numberSigned|numberDecimal" />
-                <EditText
-                    android:id="@+id/design_elevation"
-                    style="@style/ModuleEditText"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:hint="@string/design_elevation_hint"
-                    android:inputType="number" />
-            </LinearLayout>
-            <LinearLayout
+                android:layout_height="@dimen/seekbar_height" />
+            <TextView
+                android:id="@+id/design_radius_value"
+                style="@style/ModuleDescription"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="wrap_content" />
+            <Button
+                android:id="@+id/design_reset_all"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
                 android:layout_marginTop="@dimen/spacing_md"
-                android:orientation="horizontal">
-                <Button
-                    android:id="@+id/design_apply"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_weight="1"
-                    android:text="@string/design_apply" />
-                <Button
-                    android:id="@+id/design_reset"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:text="@string/design_reset" />
-                <Button
-                    android:id="@+id/design_reset_all"
-                    android:layout_width="0dp"
-                    android:layout_height="@dimen/button_height"
-                    android:layout_marginStart="@dimen/spacing_sm"
-                    android:layout_weight="1"
-                    android:text="@string/design_reset_all" />
-            </LinearLayout>
+                android:text="@string/design_reset_all" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

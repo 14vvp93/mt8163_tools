@@ -2,71 +2,41 @@ package com.mt8163.tools.core.design;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class DesignStore {
-    private static final String PREFS_NAME = "runtime_design";
-    private static final String KEY_STYLES = "styles";
-
+    private static final String PREFS_NAME = "global_design";
+    private static final String KEY_VALUES = "values";
     private final SharedPreferences preferences;
     private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
-    private JSONObject styles;
+    private JSONObject values;
 
     public DesignStore(Context context) {
-        preferences = context.getApplicationContext()
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        styles = readStyles();
+        preferences = context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        values = readValues();
     }
 
-    public synchronized JSONObject getStyle(String viewName) {
-        JSONObject style = styles.optJSONObject(viewName);
-        if (style == null) return new JSONObject();
-        try {
-            return new JSONObject(style.toString());
-        } catch (JSONException error) {
-            return new JSONObject();
-        }
+    public synchronized int getColor(String key, int fallback) {
+        return values.optInt(key, fallback);
     }
 
-    public void updateStyle(String viewName, JSONObject values) {
-        if (viewName == null || viewName.isEmpty() || values == null) return;
+    public synchronized float getFloat(String key, float fallback) {
+        return (float) values.optDouble(key, fallback);
+    }
+
+    public void setColor(String key, int color) {
+        update(key, color);
+    }
+
+    public void setFloat(String key, float value) {
+        update(key, value);
+    }
+
+    public void reset() {
         synchronized (this) {
-            JSONObject style = styles.optJSONObject(viewName);
-            if (style == null) style = new JSONObject();
-            java.util.Iterator<String> keys = values.keys();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                try {
-                    style.put(key, values.get(key));
-                } catch (JSONException ignored) {
-                }
-            }
-            try {
-                styles.put(viewName, style);
-            } catch (JSONException ignored) {
-                return;
-            }
-            persist();
-        }
-        notifyListeners();
-    }
-
-    public void resetView(String viewName) {
-        if (viewName == null || viewName.isEmpty()) return;
-        synchronized (this) {
-            styles.remove(viewName);
-            persist();
-        }
-        notifyListeners();
-    }
-
-    public void resetAll() {
-        synchronized (this) {
-            styles = new JSONObject();
+            values = new JSONObject();
             persist();
         }
         notifyListeners();
@@ -80,18 +50,30 @@ public final class DesignStore {
         if (listener != null) listeners.remove(listener);
     }
 
-    private JSONObject readStyles() {
-        String json = preferences.getString(KEY_STYLES, "{}");
+    private void update(String key, Object value) {
+        if (key == null || key.isEmpty()) return;
+        synchronized (this) {
+            try {
+                values.put(key, value);
+                persist();
+            } catch (JSONException ignored) {
+                return;
+            }
+        }
+        notifyListeners();
+    }
+
+    private JSONObject readValues() {
+        String json = preferences.getString(KEY_VALUES, "{}");
         try {
-            JSONObject result = new JSONObject(json == null ? "{}" : json);
-            return result;
+            return new JSONObject(json == null ? "{}" : json);
         } catch (JSONException error) {
             return new JSONObject();
         }
     }
 
     private void persist() {
-        preferences.edit().putString(KEY_STYLES, styles.toString()).apply();
+        preferences.edit().putString(KEY_VALUES, values.toString()).apply();
     }
 
     private void notifyListeners() {

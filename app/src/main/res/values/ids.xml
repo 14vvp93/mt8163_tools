@@ -1,4 +1,8 @@
 <resources>
     <item name="design_runtime_key" type="id" />
     <item name="design_listener_scope" type="id" />
+    <item name="design_base_text_color" type="id" />
+    <item name="design_base_image_tint" type="id" />
+    <item name="design_base_background_tint" type="id" />
+    <item name="design_base_background_color" type="id" />
 </resources>

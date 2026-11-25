@@ -25,24 +25,18 @@
 <string name="module_media_title">Media</string><string name="module_protection_title">Protection</string><string name="module_voltage_title">Voltage</string><string name="module_autorun_title">Autorun</string><string name="module_events_title">Events</string>
 <string name="voltage_offset_format">%+.1f V</string>
     <string name="module_design_title">Design</string>
-    <string name="design_description">Edit interface properties and see changes immediately. Saved values are applied whenever matching views are displayed.</string>
-    <string name="design_target">TARGET</string>
-    <string name="design_properties">PROPERTIES</string>
-    <string name="design_background_hint">Background #HEX</string>
-    <string name="design_text_color_hint">Text #HEX</string>
-    <string name="design_text_size_hint">Text sp</string>
-    <string name="design_width_hint">Width dp</string>
-    <string name="design_height_hint">Height dp</string>
-    <string name="design_padding_hint">Padding dp</string>
-    <string name="design_margin_hint">Margin dp</string>
-    <string name="design_radius_hint">Radius dp</string>
-    <string name="design_alpha_hint">Alpha 0–1</string>
-    <string name="design_apply">Apply</string>
-    <string name="design_reset">Reset item</string>
+    <string name="design_description">Change shared design settings and see the entire interface update immediately.</string>
+    <string name="design_colors">GLOBAL COLORS</string>
+    <string name="design_layout">GLOBAL LAYOUT</string>
+    <string name="design_app_color_hint">App #HEX</string>
+    <string name="design_sidebar_color_hint">Sidebar #HEX</string>
+    <string name="design_header_color_hint">Header #HEX</string>
+    <string name="design_surface_color_hint">Surface #HEX</string>
+    <string name="design_accent_color_hint">Accent #HEX</string>
+    <string name="design_primary_text_color_hint">Text #HEX</string>
+    <string name="design_secondary_text_color_hint">Secondary #HEX</string>
+    <string name="design_spacing">Spacing</string>
+    <string name="design_size">Element and text size</string>
+    <string name="design_radius">Corner radius</string>
     <string name="design_reset_all">Reset all</string>
-    <string name="design_invalid_value">Invalid property value</string>
-    <string name="design_applied">Changes applied and saved</string>
-    <string name="design_image_tint_hint">Image tint #HEX</string>
-    <string name="design_rotation_hint">Rotation °</string>
-    <string name="design_elevation_hint">Elevation dp</string>
 </resources>
