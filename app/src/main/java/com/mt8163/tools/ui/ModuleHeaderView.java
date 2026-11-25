@@ -31,7 +31,8 @@ public final class ModuleHeaderView {
 
     private static void updateStatus(TextView status, boolean enabled) {
         status.setText(enabled ? R.string.module_enabled : R.string.module_disabled);
-        status.setActivated(enabled);
+        status.setTextColor(status.getContext().getColor(
+                enabled ? R.color.module_status_active : R.color.neon_red));
     }
 
     public interface OnCheckedChangeListener {
