@@ -22,7 +22,6 @@ public final class VoltageModuleView {
 
         int progress = Math.max(0, Math.min(40,
                 Math.round(VoltageSettingsStore.getOffset(context) * 10.0f) + 20));
-        offsetBar.setMax(40);
         offsetBar.setProgress(progress);
         valueText.setText(formatOffset((progress - 20) / 10.0f));
 
