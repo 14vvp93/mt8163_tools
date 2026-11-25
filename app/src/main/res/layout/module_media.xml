@@ -12,3 +12,4 @@
 <Switch style="@style/ModuleSettingSwitch" android:id="@+id/media_restore_background_bluetooth" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="@string/media_restore_background_bluetooth" />
 </LinearLayout>
 </LinearLayout>
+</LinearLayout>
