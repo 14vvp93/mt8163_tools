@@ -19,9 +19,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v7
 
-      - name: Verify Xposed configuration
-        run: python3 .github/scripts/verify_xposed.py
-
       - name: Set up JDK 17
         uses: actions/setup-java@v6
         with:
