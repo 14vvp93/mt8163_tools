@@ -13,6 +13,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -39,12 +40,12 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class ProtectionModuleView {
-    private static final int RED = Color.rgb(255, 0, 0);
-    private static final int PRIMARY = Color.rgb(241, 242, 244);
-    private static final int SECONDARY = Color.rgb(174, 178, 186);
-    private static final int MUTED = Color.rgb(133, 138, 148);
-    private static final int PANEL = Color.rgb(27, 29, 34);
-    private static final int LINE = Color.rgb(52, 58, 64);
+    private final int RED;
+    private final int PRIMARY;
+    private final int SECONDARY;
+    private final int MUTED;
+    private final int PANEL;
+    private final int LINE;
     private static final int MAX_PICKER_RESULTS = 10;
 
     private final Activity activity;
@@ -53,6 +54,12 @@ public final class ProtectionModuleView {
 
     public ProtectionModuleView(View root, Activity activity) {
         this.activity = activity;
+        RED = activity.getColor(R.color.neon_red);
+        PRIMARY = activity.getColor(R.color.text_primary);
+        SECONDARY = activity.getColor(R.color.text_secondary);
+        MUTED = activity.getColor(R.color.text_muted);
+        PANEL = activity.getColor(R.color.panel_background);
+        LINE = activity.getColor(R.color.line);
         packageManager = activity.getPackageManager();
         applicationsContainer = root.findViewById(R.id.protection_applications);
         Button addButton = root.findViewById(R.id.protection_add_application);
@@ -79,7 +86,7 @@ public final class ProtectionModuleView {
         }
 
         if (configured.isEmpty()) {
-            TextView empty = createText("No applications added yet", 14, MUTED);
+            TextView empty = createTextFromDimen("No applications added yet", R.dimen.text_body, MUTED);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dp(14), 0, dimen(R.dimen.spacing_sm));
             applicationsContainer.addView(empty);
@@ -111,7 +118,7 @@ public final class ProtectionModuleView {
         }
         card.addView(appIcon, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView name = createText(app.label, 16, PRIMARY);
+        TextView name = createTextFromDimen(app.label, R.dimen.text_section_title, PRIMARY);
         name.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
@@ -251,7 +258,7 @@ public final class ProtectionModuleView {
         CheckBox option = new CheckBox(activity);
         option.setText(title);
         option.setTextColor(PRIMARY);
-        option.setTextSize(15);
+        option.setTextSize(TypedValue.COMPLEX_UNIT_PX,\n                activity.getResources().getDimension(R.dimen.text_button));
         option.setMinHeight(dp(52));
         option.setPadding(dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs));
         option.setButtonTintList(ColorStateList.valueOf(RED));
@@ -287,7 +294,7 @@ public final class ProtectionModuleView {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
 
-        TextView title = createText("Add application", 19, PRIMARY);
+        TextView title = createTextFromDimen("Add application", R.dimen.text_section_title, PRIMARY);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         titleRow.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -302,7 +309,7 @@ public final class ProtectionModuleView {
 
         EditText search = new EditText(activity);
         search.setSingleLine(true);
-        search.setTextSize(15);
+        search.setTextSize(TypedValue.COMPLEX_UNIT_PX,\n                activity.getResources().getDimension(R.dimen.text_button));
         search.setTextColor(PRIMARY);
         search.setHintTextColor(MUTED);
         search.setHint("Search applications");
@@ -321,7 +328,7 @@ public final class ProtectionModuleView {
         systemParams.topMargin = dp(2);
         root.addView(systemApps, systemParams);
 
-        TextView results = createText("", 12, MUTED);
+        TextView results = createTextFromDimen("", R.dimen.text_secondary, MUTED);
         LinearLayout.LayoutParams resultsParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         resultsParams.topMargin = dp(2);
@@ -441,12 +448,12 @@ public final class ProtectionModuleView {
         textParams.rightMargin = dimen(R.dimen.spacing_sm);
         row.addView(text, textParams);
 
-        TextView label = createText(app.label, 15, PRIMARY);
+        TextView label = createTextFromDimen(app.label, R.dimen.text_button, PRIMARY);
         label.setSingleLine(true);
         label.setEllipsize(TextUtils.TruncateAt.END);
         text.addView(label);
 
-        TextView packageName = createText(app.info.packageName, 11, MUTED);
+        TextView packageName = createTextFromDimen(app.info.packageName, R.dimen.text_secondary, MUTED);
         packageName.setSingleLine(true);
         packageName.setEllipsize(TextUtils.TruncateAt.END);
         text.addView(packageName);
@@ -520,6 +527,15 @@ public final class ProtectionModuleView {
         return text;
     }
 
+    private TextView createTextFromDimen(String value, int sizeResource, int color) {
+        TextView text = new TextView(activity);
+        text.setText(value);
+        text.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                activity.getResources().getDimension(sizeResource));
+        text.setTextColor(color);
+        return text;
+    }
+
     private GradientDrawable createPanelBackground() {
         GradientDrawable background = new GradientDrawable();
         background.setColor(PANEL);
@@ -530,7 +546,7 @@ public final class ProtectionModuleView {
 
     private GradientDrawable createSearchBackground(boolean focused) {
         GradientDrawable background = new GradientDrawable();
-        background.setColor(Color.rgb(21, 23, 26));
+        background.setColor(activity.getColor(R.color.sidebar_background));
         background.setCornerRadius(dimen(R.dimen.radius_card));
         background.setStroke(dp(focused ? 2 : 1), focused ? RED : LINE);
         return background;
