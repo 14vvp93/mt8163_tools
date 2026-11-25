@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:background="@color/app_background"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="@dimen/page_padding">
 
     <TextView
         android:layout_width="match_parent"
@@ -16,22 +16,22 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="@dimen/spacing_section"
         android:layout_weight="1"
         android:background="@drawable/module_card_background"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/card_padding">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="@dimen/button_height"
             android:orientation="horizontal">
 
             <Button
                 android:id="@+id/events_refresh"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="@dimen/spacing_sm"
                 android:layout_weight="1"
                 android:text="Refresh" />
 
@@ -39,7 +39,7 @@
                 android:id="@+id/events_copy"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="@dimen/spacing_sm"
                 android:layout_weight="1"
                 android:text="Copy" />
 
@@ -47,7 +47,7 @@
                 android:id="@+id/events_clear"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="@dimen/spacing_sm"
                 android:layout_weight="1"
                 android:text="Clear" />
 
@@ -62,8 +62,8 @@
         <Button
             android:id="@+id/events_filter"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/spacing_sm"
             android:text="All modules  ▾" />
 
         <TextView
@@ -75,7 +75,7 @@
             android:paddingEnd="6dp"
             android:paddingBottom="10dp"
             android:textColor="@color/text_secondary"
-            android:textSize="13sp" />
+            android:textSize="@dimen/text_label" />
 
         <ScrollView
             android:id="@+id/events_scroll"
