@@ -395,7 +395,7 @@ Sources:
 **Confirmed:**
 - After a Recents drag-to-dock operation successfully starts the task with split-screen options, the transition callback calls `TaskStack.removeTask(task, null, true)`.
 - `TaskStack.removeTask()` removes the item from the in-memory `mStackTaskList` and `mRawTaskList`, then notifies the view callback. It does not call `IActivityManager.removeTask()` and does not dispatch `DeleteTaskDataEvent`. This is a model update for a task moved into split-screen, not task deletion.
-- `TaskStack.setTasks()` also reconciles the local model against the supplied list: keys absent from the new list are removed from the local stack and reported through `onStackTaskRemoved()`. This method does not dispatch `DeleteTaskDataEvent` or call the system task-removal API.
+- `TaskStack.setTasks()` also reconciles the local model against the supplied list: keys absent from the new list are removed from the local stack; when stack callbacks are enabled and `notifyStackChanges` is true, those removals are reported through `onStackTaskRemoved()`. This method does not dispatch `DeleteTaskDataEvent` or call the system task-removal API.
 
 A missing card after a model refresh or successful dock transition is therefore not, by itself, evidence that Android removed the system task or terminated its process. The existing `DeleteTaskDataEvent` path remains the separate Recents dismissal cleanup path described in Sections 5–9.
 
