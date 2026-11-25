@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.util.TypedValue;
 import android.text.style.ForegroundColorSpan;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -193,8 +194,11 @@ public final class EventsModuleView {
     private static TextView createRecordView(EventRecord record) {
         TextView line = new TextView(activity);
         line.setTextColor(activity.getColor(R.color.text_primary));
-        line.setTextSize(13);
-        line.setPadding(12, 8, 12, 8);
+        line.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                activity.getResources().getDimension(R.dimen.text_label));
+        int horizontalPadding = activity.getResources().getDimensionPixelSize(R.dimen.spacing_md);
+        int verticalPadding = activity.getResources().getDimensionPixelSize(R.dimen.spacing_sm);
+        line.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
         String date = DATE.format(new Date(record.timestamp));
         String module = "[" + record.module + "]";
         String source = "[" + record.source + "]";
