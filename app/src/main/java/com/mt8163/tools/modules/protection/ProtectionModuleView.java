@@ -187,7 +187,7 @@ public final class ProtectionModuleView {
 
     private View createActionButton(int icon, String description, Runnable action) {
         FrameLayout button = new FrameLayout(activity);
-        button.setBackgroundResource(android.R.drawable.list_selector_background);
+        button.setBackgroundResource(R.drawable.module_button_background);
         button.setContentDescription(description);
         button.setFocusable(true);
         button.setClickable(true);
@@ -294,7 +294,7 @@ public final class ProtectionModuleView {
 
         TextView close = createText("×", 28, SECONDARY);
         close.setGravity(Gravity.CENTER);
-        close.setBackgroundResource(android.R.drawable.list_selector_background);
+        close.setBackgroundResource(R.drawable.module_button_background);
         close.setContentDescription("Close");
         titleRow.addView(close, new LinearLayout.LayoutParams(dp(40), dp(40)));
         close.setOnClickListener(view -> dialog.dismiss());
@@ -421,7 +421,7 @@ public final class ProtectionModuleView {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(10), dp(8), dp(10), dp(8));
         row.setMinimumHeight(dp(60));
-        row.setBackgroundResource(android.R.drawable.list_selector_background);
+        row.setBackgroundResource(R.drawable.module_row_background);
         row.setClickable(true);
         row.setFocusable(true);
 
