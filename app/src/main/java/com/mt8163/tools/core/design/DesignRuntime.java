@@ -55,8 +55,9 @@ public final class DesignRuntime {
     private static void attachHierarchy(View view, DesignStore store, String scope) {
         if (!(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
-        if (!Boolean.TRUE.equals(group.getTag(R.id.design_listener_attached))) {
-            group.setTag(R.id.design_listener_attached, Boolean.TRUE);
+        Object attachedScope = group.getTag(R.id.design_listener_scope);
+        if (!scope.equals(attachedScope)) {
+            group.setTag(R.id.design_listener_scope, scope);
             group.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
                 @Override
                 public void onChildViewAdded(View parent, View child) {

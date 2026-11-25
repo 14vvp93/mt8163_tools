@@ -124,16 +124,19 @@ public final class MainActivity extends Activity {
             View view = LayoutInflater.from(this)
                     .inflate(module.getLayoutRes(), content, false);
             content.addView(view);
-            if ("voltage".equals(module.getId())) {
-                VoltageModuleView.bind(view, this);
-            } else if ("media".equals(module.getId())) {
-                new MediaModuleView(view, this);
-            } else if ("protection".equals(module.getId())) {
-                new ProtectionModuleView(view, this);
-            } else if ("design".equals(module.getId())) {
+            if ("design".equals(module.getId())) {
+                DesignRuntime.attach(view, designStore, module.getId());
                 new DesignModuleView(view, this, registry, designStore);
+            } else {
+                if ("voltage".equals(module.getId())) {
+                    VoltageModuleView.bind(view, this);
+                } else if ("media".equals(module.getId())) {
+                    new MediaModuleView(view, this);
+                } else if ("protection".equals(module.getId())) {
+                    new ProtectionModuleView(view, this);
+                }
+                DesignRuntime.attach(view, designStore, module.getId());
             }
-            DesignRuntime.attach(view, designStore, module.getId());
         }
         updateState();
     }
