@@ -99,7 +99,7 @@ public final class DesignRuntime {
                 view.setTag(R.id.design_base_background_color, base);
             }
             color.setColor(mapColor(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
-        } else if (background instanceof GradientDrawable) {
+        } else if (background instanceof GradientDrawable && view instanceof ViewGroup) {
             Drawable shape = background.mutate();
             shape.setTintList(ColorStateList.valueOf(store.getColor("surfaceColor", surface)));
             view.setBackground(shape);
