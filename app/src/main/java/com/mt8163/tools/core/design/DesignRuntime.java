@@ -63,7 +63,7 @@ public final class DesignRuntime {
                     int index = ((ViewGroup) parent).indexOfChild(child);
                     Object parentPath = parent.getTag(R.id.design_runtime_key);
                     String path = parentPath instanceof String
-                            ? parentPath.substring(parentPath.lastIndexOf(':') + 1) : "root";
+                            ? ((String) parentPath).substring(((String) parentPath).lastIndexOf(':') + 1) : "root";
                     assignKeys(child, scope, path + "/" + index);
                     applyTree(child, store);
                     attachHierarchy(child, store, scope);
