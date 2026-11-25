@@ -1,24 +1,30 @@
 <resources>
-    <color name="app_background">#111316</color>
+    <color name="app_background">#17191C</color>
     <color name="sidebar_background">#15171A</color>
-    <color name="header_background">#17191D</color>
-    <color name="panel_background">#1B1D22</color>
-    <color name="dialog_background">#1B1D22</color>
-    <color name="line">#343A40</color>
-    <color name="neon_red">#FFFF0000</color>
-    <color name="button_background">#343B40</color>
-    <color name="button_pressed_background">#FF41484D</color>
-    <color name="button_stroke">#596168</color>
+    <color name="header_background">#1B1D22</color>
+    <color name="panel_background">#202328</color>
+    <color name="dialog_background">#202328</color>
+    <color name="line">#383D44</color>
+
+    <color name="neon_red">#E53935</color>
+    <color name="button_background">#292D33</color>
+    <color name="button_pressed_background">#343A40</color>
+    <color name="button_stroke">#383D44</color>
     <color name="button_disabled">#252A2E</color>
+
     <color name="white">#FFFFFFFF</color>
-    <color name="text_primary">#F1F2F4</color>
-    <color name="text_secondary">#AEB2BA</color>
-    <color name="text_muted">#858A94</color>
+    <color name="text_primary">#F1F2F3</color>
+    <color name="text_secondary">#969DA6</color>
+    <color name="text_muted">#777F89</color>
+
     <color name="switch_thumb">#FFFFFFFF</color>
-    <color name="module_status_active">@color/neon_red</color>
-    <color name="module_status_inactive">#FFFFB45C</color>
-    <color name="accent_overlay">#22FF0000</color>
-    <color name="accent_stroke">#66FF0000</color>
-    <color name="sidebar_icon_background">#FF24272D</color>
-    <color name="disabled_glow_edge">#00111316</color>
+    <color name="switch_track">#596168</color>
+
+    <color name="module_status_active">#43A047</color>
+    <color name="module_status_inactive">#777F89</color>
+
+    <color name="accent_overlay">#22E53935</color>
+    <color name="accent_stroke">#66E53935</color>
+    <color name="sidebar_icon_background">#24272D</color>
+    <color name="disabled_glow_edge">#0017191C</color>
 </resources>
