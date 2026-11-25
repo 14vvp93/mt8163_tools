@@ -5,8 +5,8 @@
     android:background="@color/header_background"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="32dp"
-    android:paddingEnd="32dp">
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -19,7 +19,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/text_primary"
-            android:textSize="24sp"
+            android:textSize="23sp"
             android:textStyle="bold" />
 
         <TextView
@@ -28,14 +28,14 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textColor="@color/text_muted"
-            android:textSize="15sp" />
+            android:textSize="13sp" />
     </LinearLayout>
 
     <Switch
         android:id="@+id/header_switch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="76dp"
-        android:minHeight="64dp"
+        android:minWidth="72dp"
+        android:minHeight="48dp"
         android:showText="false" />
 </LinearLayout>
