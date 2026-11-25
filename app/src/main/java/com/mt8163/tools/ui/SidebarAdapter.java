@@ -1,10 +1,10 @@
 package com.mt8163.tools.ui;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.content.res.ColorStateList;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -77,7 +77,7 @@ public final class SidebarAdapter extends BaseAdapter {
     private int icon(String id) {
         switch (id) {
             case "media": return R.drawable.ic_module_media;
-            case "protection": return R.drawable.ic_protection_keep;
+            case "protection": return R.drawable.ic_module_protection;
             case "voltage": return R.drawable.ic_module_voltage;
             case "autorun": return R.drawable.ic_module_autorun;
             case "events": return R.drawable.ic_module_events;
