@@ -17,4 +17,8 @@
     <color name="switch_thumb">#FFFFFFFF</color>
     <color name="module_status_active">@color/neon_red</color>
     <color name="module_status_inactive">#FFFFB45C</color>
+    <color name="accent_overlay">#22FF0000</color>
+    <color name="accent_stroke">#66FF0000</color>
+    <color name="sidebar_icon_background">#FF24272D</color>
+    <color name="disabled_glow_edge">#00111316</color>
 </resources>
