@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_background"
+    android:fillViewport="true"
+    android:overScrollMode="never">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/page_padding">
+        <TextView
+            style="@style/ModuleDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/design_description" />
+        <LinearLayout
+            style="@style/ModuleCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md">
+            <TextView
+                style="@style/ModuleSectionLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/design_target" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm"
+                android:orientation="horizontal">
+                <Spinner
+                    android:id="@+id/design_target_module"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1" />
+                <Spinner
+                    android:id="@+id/design_target_view"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1" />
+            </LinearLayout>
+            <FrameLayout
+                android:id="@+id/design_preview"
+                android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:layout_marginTop="@dimen/spacing_md"
+                android:background="@color/sidebar_background"
+                android:clipToPadding="true" />
+        </LinearLayout>
+        <LinearLayout
+            style="@style/ModuleCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md">
+            <TextView
+                style="@style/ModuleSectionLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/design_properties" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_sm"
+                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/design_background_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:hint="@string/design_background_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_text_color"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_text_color_hint"
+                    android:inputType="text" />
+                <EditText
+                    android:id="@+id/design_text_size"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_text_size_hint"
+                    android:inputType="numberDecimal" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_xs"
+                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/design_width"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:hint="@string/design_width_hint"
+                    android:inputType="numberSigned" />
+                <EditText
+                    android:id="@+id/design_height"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_height_hint"
+                    android:inputType="numberSigned" />
+                <EditText
+                    android:id="@+id/design_padding"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_padding_hint"
+                    android:inputType="number" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_xs"
+                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/design_margin"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:hint="@string/design_margin_hint"
+                    android:inputType="number" />
+                <EditText
+                    android:id="@+id/design_radius"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_radius_hint"
+                    android:inputType="number" />
+                <EditText
+                    android:id="@+id/design_alpha"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_alpha_hint"
+                    android:inputType="numberDecimal" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_md"
+                android:orientation="horizontal">
+                <Button
+                    android:id="@+id/design_apply"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:text="@string/design_apply" />
+                <Button
+                    android:id="@+id/design_reset"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:text="@string/design_reset" />
+                <Button
+                    android:id="@+id/design_reset_all"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:text="@string/design_reset_all" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -9,8 +9,10 @@ import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.ModuleContract;
+import com.mt8163.tools.core.design.DesignRuntime;
 
 import java.util.List;
 
@@ -67,7 +69,8 @@ public final class SidebarAdapter extends BaseAdapter {
         state.setVisibility(View.VISIBLE);
         state.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
                 enabled ? R.color.module_status_active : R.color.neon_red)));
-
+        DesignRuntime.applyTree(view,
+                ((MainApplication) parent.getContext().getApplicationContext()).getDesignStore());
         return view;
     }
 
@@ -77,6 +80,7 @@ public final class SidebarAdapter extends BaseAdapter {
             case "protection": return R.drawable.ic_module_protection;
             case "voltage": return R.drawable.ic_module_voltage;
             case "autorun": return R.drawable.ic_module_autorun;
+            case "design": return R.drawable.ic_module_design;
             case "events": return R.drawable.ic_module_events;
             default: return R.drawable.ic_module_default;
         }

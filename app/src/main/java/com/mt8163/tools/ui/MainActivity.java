@@ -14,6 +14,9 @@ import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.core.ModuleContract;
 import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
+import com.mt8163.tools.core.design.DesignRuntime;
+import com.mt8163.tools.core.design.DesignStore;
+import com.mt8163.tools.modules.design.DesignModuleView;
 import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.events.EventsModuleView;
 import com.mt8163.tools.modules.media.MediaModuleView;
@@ -28,6 +31,8 @@ import java.util.List;
 public final class MainActivity extends Activity {
     private ModuleRegistry registry;
     private PreferencesManager preferences;
+    private DesignStore designStore;
+    private Runnable designListener;
     private List<ModuleContract> modules;
     private SidebarAdapter adapter;
     private FrameLayout header;
@@ -43,6 +48,7 @@ public final class MainActivity extends Activity {
         MainApplication app = (MainApplication) getApplication();
         registry = app.getModuleRegistry();
         preferences = app.getPreferencesManager();
+        designStore = app.getDesignStore();
         modules = registry.getModules();
 
         ListView list = findViewById(R.id.sidebar_list);
@@ -54,6 +60,15 @@ public final class MainActivity extends Activity {
         list.setAdapter(adapter);
         selected = modules.size() - 1;
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
+
+        designListener = () -> {
+            DesignRuntime.applyTree(header, designStore);
+            DesignRuntime.applyTree(content, designStore);
+            adapter.notifyDataSetChanged();
+        };
+        designStore.addListener(designListener);
+        DesignRuntime.attach(header, designStore);
+        DesignRuntime.attach(content, designStore);
         showModule(selected);
     }
 
@@ -97,11 +112,14 @@ public final class MainActivity extends Activity {
             else updateState();
         });
         header.addView(headerView);
+        DesignRuntime.attach(headerView, designStore);
 
         EventsModuleView.destroy();
         content.removeAllViews();
         if ("events".equals(module.getId())) {
-            if (module.isEnabled()) content.addView(EventsModuleView.create(this, modules));
+            if (module.isEnabled()) {
+                content.addView(EventsModuleView.create(this, modules));
+            }
         } else {
             View view = LayoutInflater.from(this)
                     .inflate(module.getLayoutRes(), content, false);
@@ -112,7 +130,10 @@ public final class MainActivity extends Activity {
                 new MediaModuleView(view, this);
             } else if ("protection".equals(module.getId())) {
                 new ProtectionModuleView(view, this);
+            } else if ("design".equals(module.getId())) {
+                new DesignModuleView(view, this, registry, designStore);
             }
+            DesignRuntime.attach(view, designStore);
         }
         updateState();
     }
@@ -125,6 +146,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (designStore != null) designStore.removeListener(designListener);
         EventsModuleView.destroy();
         super.onDestroy();
     }
