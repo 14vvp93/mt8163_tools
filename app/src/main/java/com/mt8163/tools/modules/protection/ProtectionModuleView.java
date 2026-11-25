@@ -415,9 +415,9 @@ public final class ProtectionModuleView {
                 : matches + " matching applications");
 
         if (shown == 0) {
-            TextView empty = createText(filter.isEmpty()
+            TextView empty = createTextFromDimen(filter.isEmpty()
                     ? "No available applications found"
-                    : "No applications match your search", 14, MUTED);
+                    : "No applications match your search", R.dimen.text_body, MUTED);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dimen(R.dimen.page_padding), 0, dimen(R.dimen.page_padding));
             list.addView(empty);
