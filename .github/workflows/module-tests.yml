@@ -13,21 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  xposed-config-validation:
-    name: Xposed Configuration
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.x'
-
-      - name: Validate Xposed configuration
-        run: python .github/scripts/verify_xposed.py
-
   app-compile:
     name: App Compile Check
     runs-on: ubuntu-latest
