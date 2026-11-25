@@ -1,95 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/app_background"
-    android:orientation="vertical"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/app_background" android:orientation="vertical"
     android:padding="@dimen/page_padding">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="View and manage system events recorded by MT8163 Tools."
-        android:textColor="@color/text_muted"
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/events_description" android:textColor="@color/text_muted"
         android:textSize="@dimen/text_body" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="@dimen/spacing_lg"
-        android:layout_weight="1"
-        android:background="@drawable/module_card_background"
-        android:orientation="vertical"
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_marginTop="@dimen/spacing_lg" android:layout_weight="1"
+        android:background="@drawable/module_card_background" android:orientation="vertical"
         android:padding="@dimen/card_padding">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/button_height"
+        <LinearLayout android:layout_width="match_parent" android:layout_height="@dimen/button_height"
             android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/events_refresh"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:layout_weight="1"
-                android:text="Refresh" />
-
-            <Button
-                android:id="@+id/events_copy"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:layout_weight="1"
-                android:text="Copy" />
-
-            <Button
-                android:id="@+id/events_clear"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:layout_weight="1"
-                android:text="Clear" />
-
-            <Button
-                android:id="@+id/events_export"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="Export" />
+            <Button android:id="@+id/events_refresh" style="@style/ModuleButton"
+                android:layout_width="0dp" android:layout_height="match_parent"
+                android:layout_marginEnd="@dimen/spacing_sm" android:layout_weight="1"
+                android:text="@string/refresh" />
+            <Button android:id="@+id/events_copy" style="@style/ModuleButton"
+                android:layout_width="0dp" android:layout_height="match_parent"
+                android:layout_marginEnd="@dimen/spacing_sm" android:layout_weight="1"
+                android:text="@string/copy" />
+            <Button android:id="@+id/events_clear" style="@style/ModuleButton"
+                android:layout_width="0dp" android:layout_height="match_parent"
+                android:layout_marginEnd="@dimen/spacing_sm" android:layout_weight="1"
+                android:text="@string/clear" />
+            <Button android:id="@+id/events_export" style="@style/ModuleButton"
+                android:layout_width="0dp" android:layout_height="match_parent"
+                android:layout_weight="1" android:text="@string/export" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/events_filter"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/button_height"
-            android:layout_marginTop="@dimen/spacing_sm"
-            android:text="All modules  ▾" />
-
-        <TextView
-            android:id="@+id/events_count"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingStart="@dimen/spacing_sm"
-            android:paddingTop="@dimen/spacing_md"
-            android:paddingEnd="@dimen/spacing_sm"
-            android:paddingBottom="@dimen/spacing_md"
-            android:textColor="@color/text_secondary"
+        <Button android:id="@+id/events_filter" style="@style/ModuleButton"
+            android:layout_width="match_parent" android:layout_height="@dimen/button_height"
+            android:layout_marginTop="@dimen/spacing_sm" android:text="@string/events_filter_all" />
+        <TextView android:id="@+id/events_count" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:paddingStart="@dimen/spacing_sm"
+            android:paddingTop="@dimen/spacing_md" android:paddingEnd="@dimen/spacing_sm"
+            android:paddingBottom="@dimen/spacing_md" android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_label" />
-
-        <ScrollView
-            android:id="@+id/events_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true"
+        <ScrollView android:id="@+id/events_scroll" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"
             android:overScrollMode="never">
-
-            <LinearLayout
-                android:id="@+id/events_entries"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
+            <LinearLayout android:id="@+id/events_entries" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" />
         </ScrollView>
     </LinearLayout>
 </LinearLayout>

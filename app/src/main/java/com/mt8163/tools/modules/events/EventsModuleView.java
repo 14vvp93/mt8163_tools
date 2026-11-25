@@ -1,19 +1,17 @@
 package com.mt8163.tools.modules.events;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
-import android.util.TypedValue;
-import android.text.style.ForegroundColorSpan;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -40,6 +38,7 @@ public final class EventsModuleView {
 
     private static EventManager manager;
     private static Activity activity;
+    private static LayoutInflater inflater;
     private static LinearLayout entries;
     private static ScrollView scroll;
     private static TextView count;
@@ -59,6 +58,7 @@ public final class EventsModuleView {
     public static View create(Activity owner, List<ModuleContract> modules) {
         destroy();
         activity = owner;
+        inflater = LayoutInflater.from(owner);
         manager = EventManager.get(owner);
         availableModules = new ArrayList<>();
         for (ModuleContract module : modules) availableModules.add(module.getName());
@@ -69,24 +69,29 @@ public final class EventsModuleView {
         hasMore = false;
         oldestLoadedId = Long.MAX_VALUE;
 
-        View root = LayoutInflater.from(owner)
-                .inflate(R.layout.module_events, null, false);
+        View root = inflater.inflate(R.layout.module_events, null, false);
         entries = root.findViewById(R.id.events_entries);
         scroll = root.findViewById(R.id.events_scroll);
         count = root.findViewById(R.id.events_count);
         filterButton = root.findViewById(R.id.events_filter);
 
-        root.findViewById(R.id.events_refresh).setOnClickListener(v -> refresh());
-        root.findViewById(R.id.events_copy).setOnClickListener(v -> copy());
-        root.findViewById(R.id.events_clear).setOnClickListener(v -> clear());
-        root.findViewById(R.id.events_export).setOnClickListener(v -> export());
-        filterButton.setOnClickListener(v -> chooseFilter());
+        root.findViewById(R.id.events_refresh).setOnClickListener(view -> refresh());
+        root.findViewById(R.id.events_copy).setOnClickListener(view -> copy());
+        root.findViewById(R.id.events_clear).setOnClickListener(view -> clear());
+        root.findViewById(R.id.events_export).setOnClickListener(view -> export());
+        filterButton.setOnClickListener(view -> chooseFilter());
 
         scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
             boolean wasAtBottom = autoScroll;
-            autoScroll = y + scroll.getHeight() >= entries.getHeight() - activity.getResources().getDimensionPixelSize(R.dimen.spacing_xxl);
-            if (y < oldY && y <= 8 && hasMore && !loadingOlder) loadOlder();
-            else if (!wasAtBottom && autoScroll) refresh();
+            autoScroll = y + scroll.getHeight() >= entries.getHeight()
+                    - activity.getResources().getDimensionPixelSize(R.dimen.spacing_xxl);
+            if (y < oldY && y <= activity.getResources()
+                    .getDimensionPixelSize(R.dimen.events_load_older_threshold)
+                    && hasMore && !loadingOlder) {
+                loadOlder();
+            } else if (!wasAtBottom && autoScroll) {
+                refresh();
+            }
         });
 
         manager.setListener(() -> {
@@ -101,57 +106,76 @@ public final class EventsModuleView {
     }
 
     private static void chooseFilter() {
-        if (activity == null) return;
-        String[] labels = new String[availableModules.size() + 1];
-        boolean[] checked = new boolean[labels.length];
-        labels[0] = "All modules";
-        checked[0] = allModules;
-        for (int i = 0; i < availableModules.size(); i++) {
-            String name = availableModules.get(i);
-            labels[i + 1] = name;
-            checked[i + 1] = !allModules && selectedModules.contains(name);
+        if (activity == null || manager == null) return;
+
+        Dialog dialog = new Dialog(activity);
+        View root = inflater.inflate(R.layout.dialog_events_filter, null, false);
+        CheckBox all = root.findViewById(R.id.events_filter_all);
+        LinearLayout options = root.findViewById(R.id.events_filter_options);
+        Button apply = root.findViewById(R.id.events_filter_apply);
+        Button cancel = root.findViewById(R.id.events_filter_cancel);
+
+        all.setChecked(allModules);
+        List<CheckBox> moduleChecks = new ArrayList<>();
+        for (String module : availableModules) {
+            CheckBox option = (CheckBox) inflater.inflate(
+                    R.layout.item_events_filter, options, false);
+            option.setText(module);
+            option.setChecked(!allModules && selectedModules.contains(module));
+            options.addView(option);
+            moduleChecks.add(option);
         }
 
-        new AlertDialog.Builder(activity)
-                .setTitle("Module filter")
-                .setMultiChoiceItems(labels, checked, (dialog, which, value) -> {
-                    if (which == 0) {
-                        allModules = value;
-                        if (value) selectedModules.clear();
-                    } else {
-                        allModules = false;
-                        if (value) selectedModules.add(availableModules.get(which - 1));
-                        else selectedModules.remove(availableModules.get(which - 1));
-                        if (selectedModules.isEmpty()) allModules = true;
+        all.setOnCheckedChangeListener((button, checked) -> {
+            for (CheckBox option : moduleChecks) option.setEnabled(!checked);
+        });
+        for (CheckBox option : moduleChecks) option.setEnabled(!allModules);
+
+        apply.setOnClickListener(view -> {
+            selectedModules.clear();
+            allModules = all.isChecked();
+            if (!allModules) {
+                for (int i = 0; i < moduleChecks.size(); i++) {
+                    if (moduleChecks.get(i).isChecked()) {
+                        selectedModules.add(availableModules.get(i));
                     }
-                })
-                .setPositiveButton("Apply", (dialog, which) -> {
-                    if (selectedModules.isEmpty()) allModules = true;
-                    filterButton.setText(allModules ? "All modules  ▾"
-                            : String.join(", ", selectedModules) + "  ▾");
-                    manager.logLifecycle("filterChanged", filterButton.getText().toString());
-                    refresh();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+                }
+                if (selectedModules.isEmpty()) allModules = true;
+            }
+            filterButton.setText(allModules ? R.string.events_filter_all
+                    : String.join(", ", selectedModules));
+            if (!allModules) {
+                filterButton.setText(activity.getString(R.string.events_filter_selected,
+                        String.join(", ", selectedModules)));
+            }
+            dialog.dismiss();
+            manager.logLifecycle("filterChanged", filterButton.getText().toString());
+            refresh();
+        });
+        cancel.setOnClickListener(view -> dialog.dismiss());
+
+        showDialog(dialog, root, R.dimen.events_filter_dialog_width,
+                R.dimen.events_filter_dialog_height);
     }
 
     private static void refresh() {
         if (manager == null || !manager.isEnabled() || entries == null) return;
         EventManager current = manager;
         current.readAsync(filter(), PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
-            if (manager != current || entries == null || activity == null || !current.isEnabled()) return;
+            if (manager != current || entries == null || activity == null
+                    || !current.isEnabled()) return;
             entries.removeAllViews();
             hasMore = records.size() > PAGE_SIZE;
             if (hasMore) records.remove(records.size() - 1);
             oldestLoadedId = records.isEmpty() ? Long.MAX_VALUE
                     : records.get(records.size() - 1).id;
             for (int i = records.size() - 1; i >= 0; i--) addRecord(records.get(i));
-            count.setText(records.size() + " loaded · dropped "
-                    + current.getDroppedCount() + " · max "
-                    + EventDatabase.MAX_RECORDS + " · scroll up for older events");
+            count.setText(activity.getString(R.string.events_count_format,
+                    records.size(), current.getDroppedCount(), EventDatabase.MAX_RECORDS));
             autoScroll = true;
-            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+            scroll.post(() -> {
+                if (scroll != null) scroll.fullScroll(View.FOCUS_DOWN);
+            });
         });
     }
 
@@ -172,8 +196,9 @@ public final class EventsModuleView {
                 oldestLoadedId = records.get(records.size() - 1).id;
                 for (int i = 0; i < records.size(); i++) addRecordAtTop(records.get(i));
             }
-            count.setText(entries.getChildCount() + " loaded · dropped "
-                    + current.getDroppedCount() + " · max " + EventDatabase.MAX_RECORDS);
+            count.setText(activity.getString(R.string.events_count_loaded,
+                    entries.getChildCount(), current.getDroppedCount(),
+                    EventDatabase.MAX_RECORDS));
             scroll.post(() -> {
                 if (entries != null && scroll != null) {
                     scroll.scrollTo(0, oldScrollY + entries.getHeight() - oldHeight);
@@ -184,34 +209,25 @@ public final class EventsModuleView {
     }
 
     private static void addRecordAtTop(EventRecord record) {
-        entries.addView(createRecordView(record), 0);
+        addRecord(record, 0);
     }
 
     private static void addRecord(EventRecord record) {
-        entries.addView(createRecordView(record));
+        addRecord(record, -1);
     }
 
-    private static TextView createRecordView(EventRecord record) {
-        TextView line = new TextView(activity);
-        line.setTextColor(activity.getColor(R.color.text_primary));
-        line.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                activity.getResources().getDimension(R.dimen.text_label));
-        int horizontalPadding = activity.getResources().getDimensionPixelSize(R.dimen.spacing_md);
-        int verticalPadding = activity.getResources().getDimensionPixelSize(R.dimen.spacing_sm);
-        line.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding);
-        String date = DATE.format(new Date(record.timestamp));
-        String module = "[" + record.module + "]";
-        String source = "[" + record.source + "]";
-        SpannableStringBuilder text =
-                new SpannableStringBuilder(date + " " + module + source + ": " + record.message);
-        int moduleStart = date.length() + 1;
-        int sourceStart = moduleStart + module.length();
-        text.setSpan(new ForegroundColorSpan(activity.getColor(R.color.neon_red)), moduleStart, sourceStart,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        text.setSpan(new ForegroundColorSpan(activity.getColor(R.color.text_secondary)), sourceStart,
-                sourceStart + source.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        line.setText(text);
-        return line;
+    private static void addRecord(EventRecord record, int index) {
+        View row = inflater.inflate(R.layout.item_event_record, entries, false);
+        ((TextView) row.findViewById(R.id.event_record_date))
+                .setText(DATE.format(new Date(record.timestamp)));
+        ((TextView) row.findViewById(R.id.event_record_module))
+                .setText("[" + record.module + "]");
+        ((TextView) row.findViewById(R.id.event_record_source))
+                .setText("[" + record.source + "]:");
+        ((TextView) row.findViewById(R.id.event_record_message))
+                .setText(record.message);
+        if (index < 0) entries.addView(row);
+        else entries.addView(row, index);
     }
 
     private static String exportText(List<EventRecord> records) {
@@ -234,51 +250,80 @@ public final class EventsModuleView {
             if (manager != current || activity != owner) return;
             String text = exportText(records);
             if (text.isEmpty()) {
-                Toast.makeText(owner, "No events to copy", Toast.LENGTH_SHORT).show();
+                Toast.makeText(owner, R.string.events_nothing_to_copy, Toast.LENGTH_SHORT).show();
                 return;
             }
             ClipboardManager clipboard =
                     (ClipboardManager) owner.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard == null) return;
             clipboard.setPrimaryClip(ClipData.newPlainText("MT8163 Events", text));
-            Toast.makeText(owner, "Event log copied", Toast.LENGTH_SHORT).show();
+            Toast.makeText(owner, R.string.events_copied, Toast.LENGTH_SHORT).show();
         });
     }
 
     private static void clear() {
-        new AlertDialog.Builder(activity)
-                .setTitle("Clear event log?")
-                .setMessage("This will delete the complete event history, not only the visible entries.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Clear", (dialog, which) -> {
-                    autoScroll = true;
-                    manager.clear();
-                    Toast.makeText(activity, "Event history cleared", Toast.LENGTH_SHORT).show();
-                })
-                .show();
+        if (activity == null || manager == null) return;
+        Dialog dialog = new Dialog(activity);
+        View root = inflater.inflate(R.layout.dialog_events_clear, null, false);
+        Button confirm = root.findViewById(R.id.events_clear_confirm);
+        Button cancel = root.findViewById(R.id.events_clear_cancel);
+        confirm.setOnClickListener(view -> {
+            autoScroll = true;
+            manager.clear();
+            dialog.dismiss();
+            Toast.makeText(activity, R.string.events_cleared, Toast.LENGTH_SHORT).show();
+            refresh();
+        });
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        showDialog(dialog, root, R.dimen.events_confirm_dialog_width,
+                R.dimen.events_confirm_dialog_height);
     }
 
     private static void export() {
-        new AlertDialog.Builder(activity)
-                .setTitle("Export event log")
-                .setItems(new String[]{"Current filter", "All history"}, (dialog, which) -> {
-                    exportMode = which == 0 ? "filtered" : "all";
-                    manager.logLifecycle("exportHistory",
-                            which == 0 ? "Filtered export requested" : "Full history export requested");
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType("text/plain");
-                    intent.putExtra(Intent.EXTRA_TITLE, "MT8163Tools_Events_"
-                            + new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
-                            .format(new Date()) + ".txt");
-                    activity.startActivityForResult(intent, EXPORT_REQUEST);
-                })
-                .show();
+        if (activity == null || manager == null) return;
+        Dialog dialog = new Dialog(activity);
+        View root = inflater.inflate(R.layout.dialog_events_export, null, false);
+        Button filtered = root.findViewById(R.id.events_export_filtered);
+        Button all = root.findViewById(R.id.events_export_all);
+        Button cancel = root.findViewById(R.id.events_export_cancel);
+
+        filtered.setOnClickListener(view -> startExport(dialog, true));
+        all.setOnClickListener(view -> startExport(dialog, false));
+        cancel.setOnClickListener(view -> dialog.dismiss());
+        showDialog(dialog, root, R.dimen.events_confirm_dialog_width,
+                R.dimen.events_export_dialog_height);
+    }
+
+    private static void startExport(Dialog dialog, boolean filtered) {
+        exportMode = filtered ? "filtered" : "all";
+        manager.logLifecycle("exportHistory", filtered
+                ? "Filtered export requested" : "Full history export requested");
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, "MT8163Tools_Events_"
+                + new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
+                .format(new Date()) + ".txt");
+        dialog.dismiss();
+        activity.startActivityForResult(intent, EXPORT_REQUEST);
+    }
+
+    private static void showDialog(Dialog dialog, View root, int widthResource,
+                                   int heightResource) {
+        dialog.setContentView(root);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        window.setBackgroundDrawableResource(R.drawable.dialog_window_background);
+        window.setLayout(activity.getResources().getDimensionPixelSize(widthResource),
+                activity.getResources().getDimensionPixelSize(heightResource));
     }
 
     public static void destroy() {
         if (manager != null) manager.setListener(null);
         activity = null;
+        inflater = null;
         entries = null;
         scroll = null;
         count = null;
@@ -302,10 +347,10 @@ public final class EventsModuleView {
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
                 if (output == null) throw new IllegalStateException("Cannot open export destination");
                 output.write(exportText(records).getBytes(StandardCharsets.UTF_8));
-                Toast.makeText(owner, "Export completed", Toast.LENGTH_SHORT).show();
+                Toast.makeText(owner, R.string.events_export_completed, Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
-                Toast.makeText(owner, "Export failed: " + error.getMessage(),
-                        Toast.LENGTH_LONG).show();
+                Toast.makeText(owner, owner.getString(R.string.events_export_failed,
+                        error.getMessage()), Toast.LENGTH_LONG).show();
             }
         });
         return true;

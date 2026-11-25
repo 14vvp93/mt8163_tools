@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/spacing_md"
+    android:paddingTop="@dimen/spacing_sm"
+    android:paddingEnd="@dimen/spacing_md"
+    android:paddingBottom="@dimen/spacing_sm">
+    <TextView android:id="@+id/event_record_date" style="@style/EventRecordDate" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <TextView android:id="@+id/event_record_module" style="@style/EventRecordModule" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="@dimen/spacing_xs" />
+    <TextView android:id="@+id/event_record_source" style="@style/EventRecordSource" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <TextView android:id="@+id/event_record_message" style="@style/EventRecordMessage" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="@dimen/spacing_xs" />
+</LinearLayout>

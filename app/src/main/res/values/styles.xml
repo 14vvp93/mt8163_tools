@@ -17,4 +17,9 @@
 <style name="ProtectionPickerName"><item name="android:textColor">@color/text_primary</item><item name="android:textSize">@dimen/text_button</item><item name="android:singleLine">true</item><item name="android:ellipsize">end</item></style>
 <style name="ProtectionPickerPackage"><item name="android:textColor">@color/text_muted</item><item name="android:textSize">@dimen/text_secondary</item><item name="android:singleLine">true</item><item name="android:ellipsize">end</item></style>
 <style name="ProtectionPickerAddIcon"><item name="android:tint">@color/text_secondary</item><item name="android:scaleType">fitCenter</item></style>
+
+<style name="EventRecordDate"><item name="android:textColor">@color/text_muted</item><item name="android:textSize">@dimen/text_label</item></style>
+<style name="EventRecordModule"><item name="android:textColor">@color/neon_red</item><item name="android:textSize">@dimen/text_label</item></style>
+<style name="EventRecordSource"><item name="android:textColor">@color/text_secondary</item><item name="android:textSize">@dimen/text_label</item></style>
+<style name="EventRecordMessage"><item name="android:textColor">@color/text_primary</item><item name="android:textSize">@dimen/text_label</item></style>
 </resources>

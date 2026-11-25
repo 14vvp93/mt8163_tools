@@ -7,4 +7,13 @@
 <string name="protection_save_failed">Unable to save Protection settings</string><string name="protection_remove_title">Remove application?</string><string name="protection_remove_message">Remove %1$s from the Protection list?</string><string name="protection_remove_failed">Unable to remove application</string>
 <string name="protection_picker_title">Add application</string><string name="protection_search_hint">Search applications</string><string name="protection_show_system_apps">Display system applications</string><string name="protection_picker_empty">No available applications found</string><string name="protection_picker_no_matches">No applications match your search</string><string name="protection_add_failed">Unable to add application</string><string name="protection_load_failed">Unable to load installed applications</string>
 <plurals name="protection_picker_results"><item quantity="one">%1$d of %2$d matching applications</item><item quantity="other">Showing %1$d of %2$d matching applications</item></plurals>
-</resources>
+
+<string name="apply">Apply</string><string name="clear">Clear</string>
+<string name="events_filter_title">Module filter</string><string name="events_filter_all">All modules</string><string name="events_filter_selected">%1$s</string>
+<string name="events_count_format">%1$d loaded · dropped %2$d · max %3$d · scroll up for older events</string>
+<string name="events_count_loaded">%1$d loaded · dropped %2$d · max %3$d</string>
+<string name="events_nothing_to_copy">No events to copy</string><string name="events_copied">Event log copied</string>
+<string name="events_clear_title">Clear event log?</string><string name="events_clear_message">This will delete the complete event history, not only the visible entries.</string><string name="events_cleared">Event history cleared</string>
+<string name="events_export_title">Export event log</string><string name="events_export_filtered_label">Current filter</string><string name="events_export_all_label">All history</string>
+<string name="events_export_completed">Export completed</string><string name="events_export_failed">Export failed: %1$s</string>
+<string name="events_description">View and manage system events recorded by MT8163 Tools.</string><string name="refresh">Refresh</string><string name="copy">Copy</string><string name="export">Export</string></resources>

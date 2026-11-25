@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/dialog_window_background" android:orientation="vertical" android:padding="@dimen/card_padding">
+<TextView style="@style/DialogTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/events_filter_title" />
+<CheckBox android:id="@+id/events_filter_all" style="@style/ProtectionSettingCheckBox" android:text="@string/events_filter_all" />
+<ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:overScrollMode="never"><LinearLayout android:id="@+id/events_filter_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" /></ScrollView>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:orientation="horizontal">
+<Button android:id="@+id/events_filter_cancel" style="@style/DialogSecondaryButton" android:text="@string/cancel" />
+<Button android:id="@+id/events_filter_apply" style="@style/DialogPrimaryButton" android:layout_marginStart="@dimen/spacing_sm" android:text="@string/apply" />
+</LinearLayout></LinearLayout>
