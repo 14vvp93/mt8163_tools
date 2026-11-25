@@ -5,7 +5,9 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.TextView;
+import android.content.res.ColorStateList;
 
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.ModuleContract;
@@ -53,15 +55,16 @@ public final class SidebarAdapter extends BaseAdapter {
 
         ModuleContract module = getItem(position);
         boolean isSelected = position == selected;
-        TextView icon = view.findViewById(R.id.module_icon);
+        ImageView icon = view.findViewById(R.id.module_icon);
         TextView name = view.findViewById(R.id.module_name);
 
         name.setText(module.getName());
         name.setTextColor(context.getColor(isSelected
                 ? R.color.text_primary : R.color.text_secondary));
-        icon.setText(icon(module.getId()));
-        icon.setTextColor(context.getColor(isSelected
-                ? R.color.neon_red : R.color.text_secondary));
+        icon.setImageResource(icon(module.getId()));
+        icon.setImageTintList(ColorStateList.valueOf(context.getColor(isSelected
+                ? R.color.neon_red : R.color.text_secondary)));
+        icon.setContentDescription(module.getName());
 
         view.findViewById(R.id.module_state).setVisibility(
                 module.isEnabled() ? View.VISIBLE : View.INVISIBLE);
@@ -71,14 +74,14 @@ public final class SidebarAdapter extends BaseAdapter {
         return view;
     }
 
-    private String icon(String id) {
+    private int icon(String id) {
         switch (id) {
-            case "media": return "♫";
-            case "protection": return "◇";
-            case "voltage": return "ϟ";
-            case "autorun": return "↗";
-            case "events": return "≋";
-            default: return "•";
+            case "media": return android.R.drawable.ic_media_play;
+            case "protection": return R.drawable.ic_protection_keep;
+            case "voltage": return android.R.drawable.ic_menu_manage;
+            case "autorun": return android.R.drawable.ic_menu_directions;
+            case "events": return android.R.drawable.ic_menu_recent_history;
+            default: return android.R.drawable.ic_menu_help;
         }
     }
 }

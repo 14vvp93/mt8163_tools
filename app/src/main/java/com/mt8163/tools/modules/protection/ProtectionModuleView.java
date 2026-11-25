@@ -134,7 +134,7 @@ public final class ProtectionModuleView {
         card.addView(indicators, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, dp(40)));
 
-        addIndicator(indicators, android.R.drawable.ic_lock_lock,
+        addIndicator(indicators, R.drawable.ic_protection_cleaner,
                 settings.shouldProtectCleaner(), "Protected from Memory Cleaner");
         addHiddenIndicator(indicators, settings.shouldHideRecents());
         addIndicator(indicators, android.R.drawable.ic_menu_close_clear_cancel,
@@ -147,34 +147,23 @@ public final class ProtectionModuleView {
         separatorParams.rightMargin = dp(6);
         card.addView(separator, separatorParams);
 
-        card.addView(createActionButton(android.R.drawable.ic_menu_manage,
+        card.addView(createActionButton(R.drawable.ic_protection_settings,
                 "Application settings", () -> showApplicationSettings(app)));
 
-        card.addView(createActionButton(android.R.drawable.ic_menu_delete,
+        card.addView(createActionButton(R.drawable.ic_protection_delete,
                 "Remove application", () -> confirmRemoveApplication(app)));
 
         return card;
     }
 
     private void addHiddenIndicator(LinearLayout parent, boolean enabled) {
-        int tint = enabled ? RED : MUTED;
-        FrameLayout indicator = new FrameLayout(activity);
+        ImageView indicator = new ImageView(activity);
+        indicator.setImageResource(R.drawable.ic_protection_hide);
+        indicator.setImageTintList(ColorStateList.valueOf(enabled ? RED : MUTED));
         indicator.setContentDescription("Hide application card in Recents");
+        indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-        ImageView eye = new ImageView(activity);
-        eye.setImageResource(android.R.drawable.ic_menu_view);
-        eye.setImageTintList(ColorStateList.valueOf(tint));
-        eye.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        indicator.addView(eye, new FrameLayout.LayoutParams(
-                dp(20), dp(20), Gravity.CENTER));
-
-        View slash = new View(activity);
-        slash.setBackgroundColor(tint);
-        slash.setRotation(45f);
-        indicator.addView(slash, new FrameLayout.LayoutParams(
-                dp(2), dp(26), Gravity.CENTER));
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(30), dp(30));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(20), dp(20));
         params.leftMargin = dp(5);
         params.rightMargin = dp(5);
         parent.addView(indicator, params);
@@ -198,8 +187,8 @@ public final class ProtectionModuleView {
         button.setContentDescription(description);
         button.setFocusable(true);
         button.setClickable(true);
-        button.setMinimumWidth(dp(40));
-        button.setMinimumHeight(dp(40));
+        button.setMinimumWidth(dp(48));
+        button.setMinimumHeight(dp(48));
         button.setOnClickListener(view -> action.run());
 
         ImageView image = new ImageView(activity);
@@ -207,7 +196,7 @@ public final class ProtectionModuleView {
         image.setImageTintList(ColorStateList.valueOf(SECONDARY));
         image.setScaleType(ImageView.ScaleType.CENTER);
         FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(
-                dp(22), dp(22), Gravity.CENTER);
+                dp(24), dp(24), Gravity.CENTER);
         button.addView(image, imageParams);
 
         return button;

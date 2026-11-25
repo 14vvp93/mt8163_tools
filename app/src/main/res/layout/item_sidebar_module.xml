@@ -7,14 +7,13 @@
     android:paddingStart="@dimen/sidebar_item_padding"
     android:paddingEnd="@dimen/sidebar_item_padding">
 
-    <TextView
+    <ImageView
         android:id="@+id/module_icon"
         android:layout_width="@dimen/sidebar_icon_size"
         android:layout_height="@dimen/sidebar_icon_size"
         android:background="@drawable/sidebar_icon_background"
-        android:gravity="center"
-        android:textColor="@color/text_secondary"
-        android:textSize="21sp" />
+        android:padding="8dp"
+        android:scaleType="fitCenter" />
 
     <TextView
         android:id="@+id/module_name"

@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:text="View and manage system events recorded by MT8163 Tools."
         android:textColor="@color/text_muted"
-        android:textSize="16sp" />
+        android:textSize="@dimen/text_body" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -70,10 +70,10 @@
             android:id="@+id/events_count"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="6dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="6dp"
-            android:paddingBottom="10dp"
+            android:paddingStart="@dimen/spacing_sm"
+            android:paddingTop="@dimen/spacing_md"
+            android:paddingEnd="@dimen/spacing_sm"
+            android:paddingBottom="@dimen/spacing_md"
             android:textColor="@color/text_secondary"
             android:textSize="@dimen/text_label" />
 
