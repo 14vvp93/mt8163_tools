@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="60dp"
+    android:layout_height="@dimen/sidebar_item_height"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingStart="12dp"
-    android:paddingEnd="12dp">
+    android:paddingStart="@dimen/sidebar_item_padding"
+    android:paddingEnd="@dimen/sidebar_item_padding">
 
     <TextView
         android:id="@+id/module_icon"
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+        android:layout_width="@dimen/sidebar_icon_size"
+        android:layout_height="@dimen/sidebar_icon_size"
         android:background="@drawable/sidebar_icon_background"
         android:gravity="center"
         android:textColor="@color/text_secondary"
@@ -21,9 +21,9 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:paddingStart="12dp"
+        android:paddingStart="@dimen/sidebar_item_padding"
         android:textColor="@color/text_secondary"
-        android:textSize="15sp"
+        android:textSize="@dimen/text_button"
         android:textStyle="bold" />
 
     <View
