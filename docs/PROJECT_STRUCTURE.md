@@ -7,9 +7,9 @@ This document describes the current repository layout and the responsibilities o
 ```text
 MT8163 Tools/
 ├── .github/
-│   ├── scripts/
-│   │   └── verify_xposed.py
 │   └── workflows/
+│       ├── ci.yml
+│       ├── html-preview.yml
 │       └── manual-build.yml
 ├── README.md
 ├── app/
