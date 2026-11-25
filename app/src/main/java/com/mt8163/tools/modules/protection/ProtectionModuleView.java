@@ -18,7 +18,9 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
+import com.mt8163.tools.core.design.DesignRuntime;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -264,6 +266,8 @@ public final class ProtectionModuleView {
     }
 
     private void showDialog(Dialog dialog, View content) {
+        DesignRuntime.attach(content,
+                ((MainApplication) activity.getApplication()).getDesignStore(), "protection");
         dialog.setContentView(content);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();

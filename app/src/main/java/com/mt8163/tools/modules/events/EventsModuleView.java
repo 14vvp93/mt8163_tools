@@ -16,7 +16,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
+import com.mt8163.tools.core.design.DesignRuntime;
 import com.mt8163.tools.core.ModuleContract;
 
 import java.io.OutputStream;
@@ -305,6 +307,8 @@ public final class EventsModuleView {
     }
 
     private static void showDialog(Dialog dialog, View root) {
+        DesignRuntime.attach(root,
+                ((MainApplication) activity.getApplication()).getDesignStore(), "events");
         dialog.setContentView(root);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
