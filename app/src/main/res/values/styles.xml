@@ -6,6 +6,10 @@
 <style name="AppDialogTheme" parent="@android:style/Theme.Material.Dialog.NoActionBar"><item name="android:windowBackground">@android:color/transparent</item><item name="android:windowNoTitle">true</item><item name="android:windowIsFloating">true</item><item name="android:backgroundDimEnabled">true</item></style>
 <style name="AppAlertDialogTheme" parent="@android:style/Theme.Material.Dialog.Alert"><item name="android:windowBackground">@drawable/dialog_window_background</item><item name="android:colorAccent">@color/neon_red</item><item name="android:textColorPrimary">@color/text_primary</item><item name="android:textColorSecondary">@color/text_secondary</item><item name="android:fontFamily">sans</item></style>
 <style name="AppSwitch" parent="@android:style/Widget.Material.CompoundButton.Switch"><item name="android:thumbTint">@color/switch_thumb</item><item name="android:trackTint">@color/switch_track</item><item name="android:minWidth">@dimen/switch_min_width</item><item name="android:minHeight">@dimen/button_height</item><item name="android:switchMinWidth">@dimen/switch_track_min_width</item></style>
+<style name="ModuleCard"><item name="android:background">@drawable/module_card_background</item><item name="android:orientation">vertical</item><item name="android:padding">@dimen/card_padding</item></style>
+<style name="ModuleSettingRow"><item name="android:orientation">horizontal</item><item name="android:gravity">center_vertical</item></style>
+<style name="ModuleSettingLabel" parent="ModuleBodyText" />
+<style name="ModuleSettingSwitch" parent="AppSwitch" />
 <style name="DialogTitle"><item name="android:textColor">@color/text_primary</item><item name="android:textSize">@dimen/text_section_title</item><item name="android:textStyle">bold</item></style>
 <style name="DialogMessage"><item name="android:textColor">@color/text_secondary</item><item name="android:textSize">@dimen/text_body</item></style>
 <style name="DialogPrimaryButton" parent="ModuleButton"><item name="android:minWidth">@dimen/button_min_width</item></style>
