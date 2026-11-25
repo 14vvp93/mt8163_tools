@@ -258,7 +258,8 @@ public final class ProtectionModuleView {
         CheckBox option = new CheckBox(activity);
         option.setText(title);
         option.setTextColor(PRIMARY);
-        option.setTextSize(TypedValue.COMPLEX_UNIT_PX,\n                activity.getResources().getDimension(R.dimen.text_button));
+        option.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                activity.getResources().getDimension(R.dimen.text_button));
         option.setMinHeight(dp(52));
         option.setPadding(dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs));
         option.setButtonTintList(ColorStateList.valueOf(RED));
@@ -309,7 +310,8 @@ public final class ProtectionModuleView {
 
         EditText search = new EditText(activity);
         search.setSingleLine(true);
-        search.setTextSize(TypedValue.COMPLEX_UNIT_PX,\n                activity.getResources().getDimension(R.dimen.text_button));
+        search.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                activity.getResources().getDimension(R.dimen.text_button));
         search.setTextColor(PRIMARY);
         search.setHintTextColor(MUTED);
         search.setHint("Search applications");
