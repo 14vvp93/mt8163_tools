@@ -268,11 +268,11 @@ public final class DesignRuntime {
         } else if (view.getId() == R.id.sidebar_item_root && params != null) {
             params.height = dp(view, store.getFloat("sidebarItemHeightDp", 60f));
             view.setLayoutParams(params);
-            int padding = dp(view, store.getFloat("sidebarItemPaddingDp", 12f) * spacing);
-            view.setPadding(padding, view.getPaddingTop(), padding, view.getPaddingBottom());
+            int itemPadding = dp(view, store.getFloat("sidebarItemPaddingDp", 12f) * spacing);
+            view.setPadding(itemPadding, view.getPaddingTop(), itemPadding, view.getPaddingBottom());
         } else if (view.getId() == R.id.module_icon) {
-            int padding = dp(view, store.getFloat("sidebarIconPaddingDp", 8f) * spacing);
-            view.setPadding(padding, padding, padding, padding);
+            int iconPadding = dp(view, store.getFloat("sidebarIconPaddingDp", 8f) * spacing);
+            view.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
         } else if (view.getId() == R.id.module_state && params != null) {
             int size = dp(view, store.getFloat("statusDotSizeDp", 8f));
             params.width = size;
