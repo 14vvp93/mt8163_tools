@@ -19,6 +19,13 @@
     <dimen name="radius_card">8dp</dimen>
     <dimen name="radius_control">8dp</dimen>
     <dimen name="header_height">80dp</dimen>
+    <dimen name="sidebar_width">260dp</dimen>
+    <dimen name="sidebar_item_height">60dp</dimen>
+    <dimen name="sidebar_item_padding">12dp</dimen>
+    <dimen name="sidebar_icon_size">36dp</dimen>
+    <dimen name="sidebar_divider_height">6dp</dimen>
+    <dimen name="brand_header_height">72dp</dimen>
+    <dimen name="brand_mark_size">44dp</dimen>
 
     <dimen name="text_page_title">24sp</dimen>
     <dimen name="text_section_title">16sp</dimen>
