@@ -16,7 +16,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="@dimen/spacing_section"
+        android:layout_marginTop="@dimen/spacing_lg"
         android:background="@drawable/module_card_background"
         android:gravity="center_vertical"
         android:orientation="vertical"
@@ -50,11 +50,11 @@
         <SeekBar
             android:id="@+id/voltage_offset"
             android:layout_width="match_parent"
-            android:layout_height="24dp"
+            android:layout_height="@dimen/seekbar_height"
             android:layout_marginTop="@dimen/spacing_md"
             android:max="40"
-            android:maxHeight="24dp"
-            android:minHeight="24dp"
+            android:maxHeight="@dimen/seekbar_height"
+            android:minHeight="@dimen/seekbar_height"
             android:progress="20"
             android:progressBackgroundTint="@color/line"
             android:progressTint="@color/neon_red"
@@ -64,7 +64,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_marginTop="@dimen/spacing_xs"
             android:orientation="horizontal">
 
             <TextView
@@ -101,7 +101,7 @@
             android:layout_height="@dimen/button_height"
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="@dimen/spacing_lg"
-            android:minWidth="120dp"
+            android:minWidth="@dimen/button_min_width"
             android:text="Reset" />
     </LinearLayout>
 </LinearLayout>

@@ -84,7 +84,7 @@ public final class EventsModuleView {
 
         scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
             boolean wasAtBottom = autoScroll;
-            autoScroll = y + scroll.getHeight() >= entries.getHeight() - 24;
+            autoScroll = y + scroll.getHeight() >= entries.getHeight() - activity.getResources().getDimensionPixelSize(R.dimen.spacing_xxl);
             if (y < oldY && y <= 8 && hasMore && !loadingOlder) loadOlder();
             else if (!wasAtBottom && autoScroll) refresh();
         });

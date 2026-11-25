@@ -12,7 +12,7 @@
         android:layout_width="@dimen/sidebar_icon_size"
         android:layout_height="@dimen/sidebar_icon_size"
         android:background="@drawable/sidebar_icon_background"
-        android:padding="8dp"
+        android:padding="@dimen/sidebar_icon_padding"
         android:scaleType="fitCenter" />
 
     <TextView
@@ -27,7 +27,7 @@
 
     <View
         android:id="@+id/module_state"
-        android:layout_width="8dp"
-        android:layout_height="8dp"
+        android:layout_width="@dimen/status_dot_size"
+        android:layout_height="@dimen/status_dot_size"
         android:background="@drawable/status_dot" />
 </LinearLayout>
