@@ -23,12 +23,12 @@ public final class VoltageModuleView {
         int progress = Math.max(0, Math.min(40,
                 Math.round(VoltageSettingsStore.getOffset(context) * 10.0f) + 20));
         offsetBar.setProgress(progress);
-        valueText.setText(formatOffset((progress - 20) / 10.0f));
+        valueText.setText(formatOffset(context, (progress - 20) / 10.0f));
 
         offsetBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int value, boolean fromUser) {
-                valueText.setText(formatOffset((value - 20) / 10.0f));
+                valueText.setText(formatOffset(context, (value - 20) / 10.0f));
             }
 
             @Override
@@ -43,7 +43,7 @@ public final class VoltageModuleView {
 
         resetButton.setOnClickListener(view -> {
             offsetBar.setProgress(20);
-            valueText.setText(formatOffset(0.0f));
+            valueText.setText(formatOffset(context, 0.0f));
             saveAndPublish(context, 20);
         });
     }
@@ -60,7 +60,7 @@ public final class VoltageModuleView {
         }
     }
 
-    private static String formatOffset(float offset) {
+    private static String formatOffset(Context context, float offset) {
         return String.format(Locale.US, context.getString(R.string.voltage_offset_format), offset);
     }
 }
