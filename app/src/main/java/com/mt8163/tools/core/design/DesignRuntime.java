@@ -110,12 +110,9 @@ public final class DesignRuntime {
                                                int header, int surface, int accent,
                                                int primary, int secondary, int muted,
                                                DesignStore store) {
-        int[] colors = base.getColors().clone();
-        for (int i = 0; i < colors.length; i++) {
-            colors[i] = mapColor(colors[i], app, sidebar, header, surface,
-                    accent, primary, secondary, muted, store);
-        }
-        return new ColorStateList(base.getStates(), colors);
+        int color = mapColor(base.getDefaultColor(), app, sidebar, header, surface,
+                accent, primary, secondary, muted, store);
+        return ColorStateList.valueOf(color);
     }
 
     private static int mapColor(int color, int app, int sidebar, int header, int surface,
