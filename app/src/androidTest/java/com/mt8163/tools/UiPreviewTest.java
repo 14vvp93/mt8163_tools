@@ -44,8 +44,14 @@ public final class UiPreviewTest {
         assertNotNull("Application launcher activity is missing", launch);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         target.startActivity(launch);
-        assertTrue("Main screen did not appear",
-                device.wait(Until.hasObject(By.text("Events")), UI_TIMEOUT));
+        boolean mainScreenAppeared =
+                device.wait(Until.hasObject(By.text("Events")), UI_TIMEOUT);
+        if (!mainScreenAppeared) {
+            device.waitForIdle();
+            device.takeScreenshot(new File(output, "launch-failure.png"));
+            device.dumpWindowHierarchy(new File(output, "launch-failure.xml"));
+        }
+        assertTrue("Main screen did not appear", mainScreenAppeared);
         device.waitForIdle();
     }
 
