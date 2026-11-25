@@ -63,12 +63,12 @@ public final class DesignRuntime {
 
         if (view instanceof TextView) {
             TextView text = (TextView) view;
-            Integer base = (Integer) view.getTag(R.id.design_base_text_color);
+            ColorStateList base = (ColorStateList) view.getTag(R.id.design_base_text_color);
             if (base == null) {
-                base = text.getCurrentTextColor();
+                base = text.getTextColors();
                 view.setTag(R.id.design_base_text_color, base);
             }
-            text.setTextColor(mapColor(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
+            text.setTextColor(mapColors(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
         }
 
         if (view instanceof ImageView) {
@@ -78,8 +78,8 @@ public final class DesignRuntime {
                 base = image.getImageTintList();
                 view.setTag(R.id.design_base_image_tint, base);
             }
-            if (base != null) image.setImageTintList(ColorStateList.valueOf(
-                    mapColor(base.getDefaultColor(), app, sidebar, header, surface, accent, primary, secondary, muted, store)));
+            if (base != null) image.setImageTintList(
+                    mapColors(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
         }
 
         ColorStateList baseTint = (ColorStateList) view.getTag(R.id.design_base_background_tint);
@@ -104,6 +104,18 @@ public final class DesignRuntime {
             shape.setTintList(ColorStateList.valueOf(store.getColor("surfaceColor", surface)));
             view.setBackground(shape);
         }
+    }
+
+    private static ColorStateList mapColors(ColorStateList base, int app, int sidebar,
+                                               int header, int surface, int accent,
+                                               int primary, int secondary, int muted,
+                                               DesignStore store) {
+        int[] colors = base.getColors().clone();
+        for (int i = 0; i < colors.length; i++) {
+            colors[i] = mapColor(colors[i], app, sidebar, header, surface,
+                    accent, primary, secondary, muted, store);
+        }
+        return new ColorStateList(base.getStates(), colors);
     }
 
     private static int mapColor(int color, int app, int sidebar, int header, int surface,
