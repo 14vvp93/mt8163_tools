@@ -10,104 +10,104 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="@dimen/page_padding">
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Monitor audio playback and configure background media restoration."
             android:textColor="@color/text_muted"
-            android:textSize="16sp" />
+            android:textSize="@dimen/text_body" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="@dimen/spacing_section"
             android:background="@drawable/module_card_background"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="@dimen/card_padding">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Source package"
                 android:textColor="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_label" />
 
             <TextView
                 android:id="@+id/media_source_package"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:text="Unknown"
                 android:textColor="@color/text_primary"
-                android:textSize="20sp" />
+                android:textSize="@dimen/text_section_title" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/spacing_section"
                 android:text="Playback state"
                 android:textColor="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_label" />
 
             <TextView
                 android:id="@+id/media_playback_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:text="UNKNOWN"
                 android:textColor="@color/text_primary"
-                android:textSize="24sp"
+                android:textSize="@dimen/text_page_title"
                 android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/media_raw_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:text="Raw state: unavailable"
                 android:textColor="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_label" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
+                android:layout_marginTop="@dimen/spacing_lg"
                 android:text="Window focus"
                 android:textColor="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="@dimen/text_label" />
 
             <TextView
                 android:id="@+id/media_foreground_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="@dimen/spacing_xs"
                 android:text="NOT FOREGROUND"
                 android:textColor="@color/text_primary"
-                android:textSize="20sp"
+                android:textSize="@dimen/text_section_title"
                 android:textStyle="bold" />
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="@dimen/spacing_section"
                 android:background="@color/line" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/spacing_lg"
                 android:text="BACKGROUND RESTORE"
                 android:textColor="@color/neon_red"
-                android:textSize="13sp"
+                android:textSize="@dimen/text_label"
                 android:textStyle="bold"
                 android:letterSpacing="0.08" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/spacing_md"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -122,15 +122,15 @@
                         android:layout_height="wrap_content"
                         android:text="Restore background media player"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp" />
+                        android:textSize="@dimen/text_body" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="@dimen/spacing_xs"
                         android:text="Open the media app when it was in the background"
                         android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
+                        android:textSize="@dimen/text_secondary" />
                 </LinearLayout>
 
                 <Switch
@@ -143,13 +143,13 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/spacing_md"
                 android:background="@color/line" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="@dimen/spacing_md"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
@@ -164,15 +164,15 @@
                         android:layout_height="wrap_content"
                         android:text="Restore background Bluetooth player"
                         android:textColor="@color/text_primary"
-                        android:textSize="16sp" />
+                        android:textSize="@dimen/text_body" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="@dimen/spacing_xs"
                         android:text="Open Bluetooth music when it was in the background"
                         android:textColor="@color/text_muted"
-                        android:textSize="12sp" />
+                        android:textSize="@dimen/text_secondary" />
                 </LinearLayout>
 
                 <Switch
