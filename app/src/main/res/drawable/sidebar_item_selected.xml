@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="@dimen/radius_control" />
+    <corners android:radius="@dimen/radius_card" />
     <solid android:color="@color/accent_overlay" />
     <stroke android:width="@dimen/border_width" android:color="@color/accent_stroke" />
 </shape>
