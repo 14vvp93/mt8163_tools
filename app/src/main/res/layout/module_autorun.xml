@@ -9,9 +9,9 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Модуль керування автоматичним запуском."
+        android:text="Manage automatic application startup."
         android:textColor="@color/text_muted"
-        android:textSize="17sp" />
+        android:textSize="16sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,13 +19,13 @@
         android:layout_marginTop="20dp"
         android:background="@drawable/module_card_background"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="20dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Налаштування модуля будуть доступні пізніше."
+            android:text="Module settings will be available later."
             android:textColor="@color/text_muted"
-            android:textSize="16sp" />
+            android:textSize="15sp" />
     </LinearLayout>
 </LinearLayout>
