@@ -87,8 +87,8 @@ public final class DesignRuntime {
             baseTint = view.getBackgroundTintList();
             view.setTag(R.id.design_base_background_tint, baseTint);
         }
-        if (baseTint != null) view.setBackgroundTintList(ColorStateList.valueOf(
-                mapColor(baseTint.getDefaultColor(), app, sidebar, header, surface, accent, primary, secondary, muted, store)));
+        if (baseTint != null) view.setBackgroundTintList(
+                mapColors(baseTint, app, sidebar, header, surface, accent, primary, secondary, muted, store));
 
         Drawable background = view.getBackground();
         if (background instanceof ColorDrawable) {
