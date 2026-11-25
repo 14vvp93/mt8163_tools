@@ -126,7 +126,7 @@ public final class EventsModuleView {
                 })
                 .setPositiveButton("Apply", (dialog, which) -> {
                     if (selectedModules.isEmpty()) allModules = true;
-                    filterButton.setText(allModules ? "Усі модулі  ▾"
+                    filterButton.setText(allModules ? "All modules  ▾"
                             : String.join(", ", selectedModules) + "  ▾");
                     manager.logLifecycle("filterChanged", filterButton.getText().toString());
                     refresh();
@@ -171,8 +171,8 @@ public final class EventsModuleView {
                 oldestLoadedId = records.get(records.size() - 1).id;
                 for (int i = 0; i < records.size(); i++) addRecordAtTop(records.get(i));
             }
-            count.setText(entries.getChildCount() + " завантажено · втрачено "
-                    + current.getDroppedCount() + " · максимум " + EventDatabase.MAX_RECORDS);
+            count.setText(entries.getChildCount() + " loaded · dropped "
+                    + current.getDroppedCount() + " · max " + EventDatabase.MAX_RECORDS);
             scroll.post(() -> {
                 if (entries != null && scroll != null) {
                     scroll.scrollTo(0, oldScrollY + entries.getHeight() - oldHeight);
@@ -245,8 +245,8 @@ public final class EventsModuleView {
         new AlertDialog.Builder(activity)
                 .setTitle("Clear event log?")
                 .setMessage("This will delete the complete event history, not only the visible entries.")
-                .setNegativeButton("Скасувати", null)
-                .setPositiveButton("Очистити", (dialog, which) -> {
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Clear", (dialog, which) -> {
                     autoScroll = true;
                     manager.clear();
                     Toast.makeText(activity, "Event history cleared", Toast.LENGTH_SHORT).show();
