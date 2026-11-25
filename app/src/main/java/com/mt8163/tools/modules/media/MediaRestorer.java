@@ -36,8 +36,7 @@ public final class MediaRestorer {
             "com.hcn.bluetooth.service.BluetoothMusicService";
     private static final String BLUETOOTH_DESCRIPTOR =
             "com.hcn.bluetooth.service.IBluetoothMusicService";
-    private static final String SESSION_TAG_A2DP = "A2dpMediaBrowserService";
-    private static final String SESSION_TAG_BLUETOOTH = "BluetoothMediaBrowserService";
+    private static final String BLUETOOTH_MEDIA_SESSION_PACKAGE = "com.android.bluetooth";
     private static final int TRANSACTION_SEND_AVRCP_COMMAND = 5;
     private static final long MEDIA_TIMEOUT_MS = 5000L;
     private static final long BLUETOOTH_TIMEOUT_MS = 30_000L;
@@ -107,10 +106,8 @@ public final class MediaRestorer {
     }
 
     private static boolean isVendorSession(MediaController controller) {
-        if (controller == null) return false;
-        String tag = controller.getTag();
-        return tag != null && (tag.contains(SESSION_TAG_A2DP)
-                || tag.contains(SESSION_TAG_BLUETOOTH));
+        return controller != null
+                && BLUETOOTH_MEDIA_SESSION_PACKAGE.equals(controller.getPackageName());
     }
 
     private static final class StandardRestore implements Cancellable {
