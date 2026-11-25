@@ -550,7 +550,7 @@ public final class ProtectionModuleView {
         GradientDrawable background = new GradientDrawable();
         background.setColor(activity.getColor(R.color.sidebar_background));
         background.setCornerRadius(dimen(R.dimen.radius_card));
-        background.setStroke(dp(focused ? 2 : 1), focused ? RED : LINE);
+        background.setStroke(dimen(focused ? R.dimen.border_width_emphasis : R.dimen.border_width), focused ? RED : LINE);
         return background;
     }
 
