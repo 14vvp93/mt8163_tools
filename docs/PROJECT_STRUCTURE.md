@@ -36,9 +36,19 @@ MT8163 Tools/
 │       │           ├── media/MediaHook.java
 │       │           └── voltage/VoltageHook.java
 │       └── res/
+│           ├── color/
 │           ├── drawable/
 │           ├── layout/
+│           │   ├── activity_main.xml
+│           │   ├── dialog_*.xml
+│           │   ├── item_*.xml
+│           │   ├── module_*.xml
+│           │   └── view_module_header.xml
 │           └── values/
+│               ├── colors.xml
+│               ├── dimens.xml
+│               ├── strings.xml
+│               └── styles.xml
 ├── docs/
 │   ├── PROJECT_STRUCTURE.md
 │   ├── modules/
@@ -63,8 +73,9 @@ The tree lists the current tracked project files and directories. The repository
 ### `.github/`
 
 Contains GitHub automation:
-- `scripts/verify_xposed.py` — validates Xposed-related project configuration.
-- `workflows/manual-build.yml` — builds the debug APK only when manually dispatched.
+- `.github/workflows/ci.yml` — runs lint and unit tests without building an APK.
+- `.github/workflows/html-preview.yml` — handles the HTML preview workflow.
+- `.github/workflows/manual-build.yml` — builds the debug APK only when manually dispatched.
 
 ### `app/`
 
