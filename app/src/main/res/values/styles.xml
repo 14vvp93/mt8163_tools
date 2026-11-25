@@ -2,6 +2,7 @@
     <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/neon_red</item>
+        <item name="android:alertDialogTheme">@style/AppAlertDialogTheme</item>
         <item name="android:buttonStyle">@style/ModuleButton</item>
         <item name="android:editTextStyle">@style/ModuleEditText</item>
         <item name="android:switchStyle">@style/AppSwitch</item>
@@ -29,6 +30,14 @@
         <item name="android:textSize">15sp</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/neon_red</item>
+    </style>
+
+    <style name="AppAlertDialogTheme" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@color/dialog_background</item>
+        <item name="android:colorAccent">@color/neon_red</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">sans</item>
     </style>
 
     <style name="AppSwitch" parent="@android:style/Widget.Material.CompoundButton.Switch">
