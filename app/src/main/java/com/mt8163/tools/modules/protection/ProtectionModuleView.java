@@ -163,7 +163,7 @@ public final class ProtectionModuleView {
         indicator.setContentDescription("Hide application card in Recents");
         indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.protection_indicator_size), dimen(R.dimen.protection_indicator_size));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small));
         params.leftMargin = dimen(R.dimen.spacing_xs);
         params.rightMargin = dimen(R.dimen.spacing_xs);
         parent.addView(indicator, params);
@@ -175,7 +175,7 @@ public final class ProtectionModuleView {
         indicator.setImageTintList(ColorStateList.valueOf(enabled ? RED : MUTED));
         indicator.setContentDescription(description);
         indicator.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.protection_indicator_size), dimen(R.dimen.protection_indicator_size));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small));
         params.leftMargin = dimen(R.dimen.spacing_xs);
         params.rightMargin = dimen(R.dimen.spacing_xs);
         parent.addView(indicator, params);
@@ -187,8 +187,8 @@ public final class ProtectionModuleView {
         button.setContentDescription(description);
         button.setFocusable(true);
         button.setClickable(true);
-        button.setMinimumWidth(dimen(R.dimen.action_button_size));
-        button.setMinimumHeight(dimen(R.dimen.action_button_size));
+        button.setMinimumWidth(dimen(R.dimen.button_height));
+        button.setMinimumHeight(dimen(R.dimen.button_height));
         button.setOnClickListener(view -> action.run());
 
         ImageView image = new ImageView(activity);
@@ -196,7 +196,7 @@ public final class ProtectionModuleView {
         image.setImageTintList(ColorStateList.valueOf(SECONDARY));
         image.setScaleType(ImageView.ScaleType.CENTER);
         FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(
-                dimen(R.dimen.action_icon_size), dimen(R.dimen.action_icon_size), Gravity.CENTER);
+                dimen(R.dimen.icon_size), dimen(R.dimen.icon_size), Gravity.CENTER);
         button.addView(image, imageParams);
 
         return button;
@@ -249,7 +249,7 @@ public final class ProtectionModuleView {
         option.setTextColor(PRIMARY);
         option.setTextSize(TypedValue.COMPLEX_UNIT_PX,
                 activity.getResources().getDimension(R.dimen.text_button));
-        option.setMinHeight(dimen(R.dimen.setting_option_min_height));
+        option.setMinHeight(dimen(R.dimen.button_height));
         option.setPadding(dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs), dimen(R.dimen.spacing_xs));
         option.setButtonTintList(ColorStateList.valueOf(RED));
         option.setChecked(checked);
@@ -277,7 +277,7 @@ public final class ProtectionModuleView {
         Dialog dialog = new Dialog(activity);
         LinearLayout root = new LinearLayout(activity);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dimen(R.dimen.dialog_horizontal_padding), dimen(R.dimen.card_padding), dimen(R.dimen.dialog_horizontal_padding), dimen(R.dimen.card_padding));
+        root.setPadding(dimen(R.dimen.spacing_xl), dimen(R.dimen.card_padding), dimen(R.dimen.spacing_xl), dimen(R.dimen.card_padding));
         root.setBackground(createPanelBackground());
 
         LinearLayout titleRow = new LinearLayout(activity);
@@ -418,7 +418,7 @@ public final class ProtectionModuleView {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm), dimen(R.dimen.spacing_sm));
-        row.setMinimumHeight(dimen(R.dimen.picker_row_min_height));
+        row.setMinimumHeight(dimen(R.dimen.sidebar_item_height));
         row.setBackgroundResource(R.drawable.module_row_background);
         row.setClickable(true);
         row.setFocusable(true);
@@ -429,7 +429,7 @@ public final class ProtectionModuleView {
         } catch (RuntimeException error) {
             icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
-        row.addView(icon, new LinearLayout.LayoutParams(dimen(R.dimen.picker_app_icon_size), dimen(R.dimen.picker_app_icon_size)));
+        row.addView(icon, new LinearLayout.LayoutParams(dimen(R.dimen.sidebar_icon_size), dimen(R.dimen.sidebar_icon_size)));
 
         LinearLayout text = new LinearLayout(activity);
         text.setOrientation(LinearLayout.VERTICAL);
@@ -452,7 +452,7 @@ public final class ProtectionModuleView {
         ImageView add = new ImageView(activity);
         add.setImageResource(android.R.drawable.ic_input_add);
         add.setImageTintList(ColorStateList.valueOf(SECONDARY));
-        row.addView(add, new LinearLayout.LayoutParams(dimen(R.dimen.picker_add_icon_size), dimen(R.dimen.picker_add_icon_size)));
+        row.addView(add, new LinearLayout.LayoutParams(dimen(R.dimen.icon_size_small), dimen(R.dimen.icon_size_small)));
 
         row.setOnClickListener(view -> {
             boolean saved = ProtectionSettingsStore.setApplicationSettings(
