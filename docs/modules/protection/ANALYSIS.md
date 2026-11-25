@@ -366,4 +366,105 @@ Target framework bytecode references:
 - `services.vdex`: `com.android.server.am.RecentTasks`, `ActivityStackSupervisor`, `TaskRecord`, and related task persistence classes.
 - `boot-framework.vdex`: `android.app.ActivityManager`.
 
-**Final research status** — broad firmware reverse engineering is complete for the module's current scope. Further work should be limited to resolving implementation-specific method details and validating the implementation on the target head unit; unrelated Android framework internals are out of scope.
+**Final research status** — the Recents and MTK Memory Cleaner paths in the current Protection scope have been reverse-engineered. The supplemental audit in Sections 15–17 identifies additional vendor power-off/source-switch and work-profile cleanup paths that can terminate processes or remove tasks, but they remain outside the agreed Protection scope and are not proposed hook targets. Remaining work is target-device validation of the in-scope implementation and the specific vendor lifecycle questions listed in Section 17.
+
+
+## 15. Additional task-removal and Recents model paths
+
+Source snapshot: [`14vvp93/public_worker` commit `01650ab579c5215bdc30a19e94b73b0f59f4d8e1`](https://github.com/14vvp93/public_worker/commit/01650ab579c5215bdc30a19e94b73b0f59f4d8e1).
+
+### Work-profile lock failure cleanup
+
+Sources:
+- [`WorkLockActivityController.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/MtkSystemUI/jadx/sources/com/android/systemui/keyguard/WorkLockActivityController.java)
+- [`KeyguardViewMediator.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/MtkSystemUI/jadx/sources/com/android/systemui/keyguard/KeyguardViewMediator.java)
+
+**Confirmed:**
+- `KeyguardViewMediator` constructs `WorkLockActivityController`; its constructor registers a task-stack listener.
+- `onTaskProfileLocked(taskId, userId)` starts the work-profile credential challenge in the existing task. The intent carries `userId`, and the launch options carry `taskId`.
+- If `startActivityAsUser(..., -2)` returns an unsuccessful result, the controller calls `IActivityManager.removeTask(taskId)`.
+
+This is actual **system task removal**, not a Recents-only model update. The path does not call `forceStopPackage()` or `Process.killProcess()`; it does not resolve the task's package name before removal. It is a work-profile credential/security cleanup path and is outside Protection scope. Do not suppress it to retain a card.
+
+### Recents model-only removal
+
+Sources:
+- [`RecentsView.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/MtkSystemUI/jadx/sources/com/android/systemui/recents/views/RecentsView.java)
+- [`TaskStack.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/MtkSystemUI/jadx/sources/com/android/systemui/shared/recents/model/TaskStack.java)
+
+**Confirmed:**
+- After a Recents drag-to-dock operation successfully starts the task with split-screen options, the transition callback calls `TaskStack.removeTask(task, null, true)`.
+- `TaskStack.removeTask()` removes the item from the in-memory `mStackTaskList` and `mRawTaskList`, then notifies the view callback. It does not call `IActivityManager.removeTask()` and does not dispatch `DeleteTaskDataEvent`. This is a model update for a task moved into split-screen, not task deletion.
+- `TaskStack.setTasks()` also reconciles the local model against the supplied list: keys absent from the new list are removed from the local stack and reported through `onStackTaskRemoved()`. This method does not dispatch `DeleteTaskDataEvent` or call the system task-removal API.
+
+A missing card after a model refresh or successful dock transition is therefore not, by itself, evidence that Android removed the system task or terminated its process. The existing `DeleteTaskDataEvent` path remains the separate Recents dismissal cleanup path described in Sections 5–9.
+
+## 16. Vendor process-termination paths outside current Protection scope
+
+The following findings come from the decompiled target `boot-carservices.vdex` classes in `artifacts/CarServises` (one extracted DEX; JADX output). They are vendor power/source lifecycle behavior, not Recents dismissal or MTK Memory Cleaner. No Protection hook is proposed for these paths.
+
+### ACC-off wake-lock cleanup — `CarStatusService`
+
+Source: [`CarStatusService.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/carstatus/CarStatusService.java).
+
+**Confirmed call chain:**
+1. `onAccStatusInner(0)` sets `mAcc = 0` and schedules `goingToSleep()` after `power_down_afteraccoff` (default 30,000 ms).
+2. `goingToSleep()` calls `LinkManager.sendAccState(0)` and schedules the wake-lock check after 5 seconds.
+3. While `mAcc == 0`, handler message 7 repeats every 5 seconds, increments `mCheckWakeLockTimes`, and calls `checkWakeLock(mCheckWakeLockTimes > 15)`. The destructive pass therefore starts on the 16th check, approximately 80 seconds after `goingToSleep()`.
+4. `checkWakeLock()` reads the vendor `PowerManager.getWakeLockList()` output. For entries matching `uid=... pid=...`, it calls `Process.killProcess(pid)` for every PID other than its own. There is no package, task, or background-state check on this PID branch.
+5. For entries without a matching PID, or entries attributed to the service's own PID, `findAndkillbyUid()` parses `WorkSource.<uid>`; when UID is greater than 10000 it resolves a package string through `PackageManager.getNameForUid(uid)` and calls `Util.forceStopPackage(packageName)`. The utility invokes `ActivityManager.getService().forceStopPackage(packageName, -1)`.
+
+This is a **PID process kill** or **package force-stop**, depending on the wake-lock record. Neither branch explicitly calls `removeTask()` or mutates the Recents model. The PID branch can target a process without first resolving its package; the WorkSource branch uses UID-to-package resolution and passes user ID `-1` to the force-stop API. This vendor ACC-off/suspend watchdog is outside Protection scope and can terminate a protected app independently of the Memory Cleaner setting.
+
+### Source/audio switching — `SourceService`
+
+Source: [`SourceService.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/sourceservice/SourceService.java).
+
+**Confirmed call chain:**
+- Binder transaction 101 posts activity-status handling to `onActivityStatus()`.
+- Binder transactions 201 and 401 can post media-status handling to `onMediaStatus()`.
+- When an activity/source transition changes `CurrentSource`, `onActivityStatus()` records the previous source package and schedules handler message 4 after 1,500 ms, unless the transition is a process-death event or the new package is the previous source.
+- When a media-status event has duration greater than 20,000 ms, `onMediaStatus()` can call `muxMediaPlayer()`. If that changes `CurrentSource`, it also schedules the previous source package for handler message 4 after 1,500 ms.
+- Handler message 4 skips values contained in `SYSTEM_PACKAGES` and the package still equal to `CurrentSource`; otherwise it calls `SourceService.forceStopPackage()`.
+- That method resolves the supplied source/component string to an installed package using `Util.findPackageName()` (package-name prefix matching), then calls `forceStopPackage(resolvedPackage, -1)`.
+
+This is a **vendor source-switch force-stop** of the previous selected audio/source package. It is not a Recents dismissal and contains no explicit system task-removal or Recents model operation. The Binder transaction entrypoints and internal trigger conditions are confirmed; the external process sending the activity-status transactions is not identified in the extracted Java sources. This path is outside Protection scope.
+
+### Phone-link shutdown and locale restart
+
+Sources:
+- [`LinkManager.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/link/LinkManager.java)
+- [`CarletterInterface.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/link/CarletterInterface.java)
+- [`CarZlinkInterface.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/link/CarZlinkInterface.java)
+- [`McuService.java`](https://github.com/14vvp93/public_worker/blob/01650ab579c5215bdc30a19e94b73b0f59f4d8e1/artifacts/CarServises/jadx/boot-carservices_classes/sources/android/carsource/McuService.java)
+
+**Confirmed:**
+- `McuService` registers a `PackageMonitor` and also scans installed packages. Both paths call `LinkManager.initLinkByPackageManager()`.
+- `LinkManager` selects `CarletterInterface` for `com.carletter.car` or `CarZlinkInterface` for `com.zjinnova.zlink`, provided no link interface is already selected.
+- The ACC-off path in `CarStatusService.goingToSleep()` calls `LinkManager.sendAccState(0)`.
+- With `CarletterInterface` selected, `sendAccState(0)` schedules handler message 2 after 500 ms. The handler calls `stopCarletter()`, which force-stops `com.carletter.car`, `com.huawei.nearby`, `com.huawei.dmsdpdevice`, `com.huawei.hisight`, and `com.huawei.hiviewlite`.
+- With `CarZlinkInterface` selected, `sendAccState(0)` sends its power-off broadcast and force-stops `com.zjinnova.zlink`.
+- The LinkManager receiver forwards `android.intent.action.LOCALE_CHANGED` to `localeChange(true)`. The Zlink implementation force-stops `com.zjinnova.zlink` when restart is true; the Carletter implementation's locale callback is empty.
+
+These are **fixed-package force-stop** paths, using the vendor utility that passes user ID `-1`. They do not explicitly remove a system task or mutate Recents. Only the currently selected link interface receives these calls. ACC-off and phone-link restart behavior is outside Protection scope.
+
+### Process-kill helpers without verified call sites
+
+- `HProcessUtils.killAllBackgroundProcesses()` and `HProcessUtils.killBackgroundProcesses(String)` exist in both the AutoBtClient and BluetoothService decompilations and call `ActivityManager.killBackgroundProcesses(packageName)`. Repository-wide searches of the checked source set found no call sites for either helper. Treat them as **unreferenced helper definitions**, not confirmed active kill paths.
+- `McuService.forceStopPackage(String)` is also present only as a private helper definition; no call site was found in that class.
+- Other inspected `Process.killProcess(Process.myPid())` calls in crash handlers, `HAppUtils`, and `SysuiRestartReceiver` terminate their own process, not a selected third-party app.
+
+No additional vendor `removeTask()` call site was found in the checked CarServices classes. The active CarServices paths above perform process termination, not explicit Recents task deletion.
+
+## 17. Scope boundary and remaining runtime validation
+
+The Protection scope remains unchanged: implicit Keep for the documented Recents dismissal actions, display-only Hide, the X-button exception, and the MTK Memory Cleaner exclusion. The new vendor paths are not additional Protection features and must not be hooked or suppressed without an explicit scope decision. They can nevertheless terminate an application while it remains in the Protection list during ACC-off, audio-source switching, or phone-link shutdown/restart. Protection does not promise process survival across those vendor lifecycle operations.
+
+**Remaining runtime-validation questions:**
+1. Confirm that the target build invokes the `carservices.startup(Context)` entrypoint and identify the runtime process hosting these boot-carservices services; the extracted Java source shows service registration but not the startup caller.
+2. On ACC-off, record the effective `power_down_afteraccoff` value, wake-lock list formats, the 16th-check timing, and which PID/WorkSource UID records are actually killed or force-stopped.
+3. Identify the Binder caller(s) for SourceService transactions 101, 201, and 401 on the target device. Verify which previous-source packages can reach handler message 4 and how `sys.navi.packages` affects the `SYSTEM_PACKAGES` exclusion.
+4. Determine which phone-link interface is selected on the target unit and verify its ACC-off and locale-change force-stop behavior.
+5. Confirm whether a managed/work profile exists and whether `onTaskProfileLocked()` is ever delivered. Verify the credential-launch failure path before drawing conclusions about its practical reachability.
+6. After vendor `forceStopPackage()` or PID termination, observe whether the target Android build retains, removes, or rebuilds the corresponding Recents task. The vendor call sites do not explicitly request task removal, so this remains a framework/runtime question.
+7. The AutoBtClient/BluetoothService background-kill helpers have no source call sites in the checked artifacts; only investigate reflective or native invocation if runtime evidence suggests they are used.
