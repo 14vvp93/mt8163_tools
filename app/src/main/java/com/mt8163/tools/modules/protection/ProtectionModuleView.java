@@ -5,12 +5,9 @@ import android.app.Dialog;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -135,8 +132,7 @@ public final class ProtectionModuleView {
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
-        showDialog(dialog, root, R.dimen.protection_settings_dialog_width,
-                R.dimen.protection_settings_dialog_height);
+        showDialog(dialog, root);
     }
 
     private void confirmRemoveApplication(AppEntry app) {
@@ -158,8 +154,7 @@ public final class ProtectionModuleView {
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
-        showDialog(dialog, root, R.dimen.protection_settings_dialog_width,
-                R.dimen.protection_confirm_dialog_height);
+        showDialog(dialog, root);
     }
 
     private void showApplicationPicker() {
@@ -194,8 +189,7 @@ public final class ProtectionModuleView {
         });
         systemApps.setOnCheckedChangeListener((button, checked) -> render.run());
 
-        showDialog(dialog, root, R.dimen.picker_dialog_max_width,
-                R.dimen.picker_dialog_max_height);
+        showDialog(dialog, root);
         Window window = dialog.getWindow();
         if (window != null) {
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
@@ -267,23 +261,10 @@ public final class ProtectionModuleView {
         list.addView(row);
     }
 
-    private void showDialog(Dialog dialog, View content, int widthResource,
-                            int heightResource) {
+    private void showDialog(Dialog dialog, View content) {
         dialog.setContentView(content);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
-
-        Window window = dialog.getWindow();
-        if (window == null) return;
-
-        window.setBackgroundDrawableResource(R.drawable.dialog_window_background);
-        int maxWidth = activity.getResources().getDisplayMetrics().widthPixels
-                - activity.getResources().getDimensionPixelSize(R.dimen.button_height);
-        int maxHeight = activity.getResources().getDisplayMetrics().heightPixels
-                - activity.getResources().getDimensionPixelSize(R.dimen.button_height);
-        int width = Math.min(activity.getResources().getDimensionPixelSize(widthResource), maxWidth);
-        int height = Math.min(activity.getResources().getDimensionPixelSize(heightResource), maxHeight);
-        window.setLayout(width, height);
     }
 
     private List<AppEntry> loadInstalledApplications() {

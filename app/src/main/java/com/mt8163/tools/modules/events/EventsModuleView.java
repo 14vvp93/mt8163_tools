@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.Window;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
@@ -154,8 +153,7 @@ public final class EventsModuleView {
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
-        showDialog(dialog, root, R.dimen.events_filter_dialog_width,
-                R.dimen.events_filter_dialog_height);
+        showDialog(dialog, root);
     }
 
     private static void refresh() {
@@ -275,8 +273,7 @@ public final class EventsModuleView {
             refresh();
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
-        showDialog(dialog, root, R.dimen.events_confirm_dialog_width,
-                R.dimen.events_confirm_dialog_height);
+        showDialog(dialog, root);
     }
 
     private static void export() {
@@ -290,8 +287,7 @@ public final class EventsModuleView {
         filtered.setOnClickListener(view -> startExport(dialog, true));
         all.setOnClickListener(view -> startExport(dialog, false));
         cancel.setOnClickListener(view -> dialog.dismiss());
-        showDialog(dialog, root, R.dimen.events_confirm_dialog_width,
-                R.dimen.events_export_dialog_height);
+        showDialog(dialog, root);
     }
 
     private static void startExport(Dialog dialog, boolean filtered) {
@@ -308,16 +304,10 @@ public final class EventsModuleView {
         activity.startActivityForResult(intent, EXPORT_REQUEST);
     }
 
-    private static void showDialog(Dialog dialog, View root, int widthResource,
-                                   int heightResource) {
+    private static void showDialog(Dialog dialog, View root) {
         dialog.setContentView(root);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
-        Window window = dialog.getWindow();
-        if (window == null) return;
-        window.setBackgroundDrawableResource(R.drawable.dialog_window_background);
-        window.setLayout(activity.getResources().getDimensionPixelSize(widthResource),
-                activity.getResources().getDimensionPixelSize(heightResource));
     }
 
     public static void destroy() {
