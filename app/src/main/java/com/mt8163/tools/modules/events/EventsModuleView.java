@@ -142,9 +142,9 @@ public final class EventsModuleView {
                 }
                 if (selectedModules.isEmpty()) allModules = true;
             }
-            filterButton.setText(allModules ? R.string.events_filter_all
-                    : String.join(", ", selectedModules));
-            if (!allModules) {
+            if (allModules) {
+                filterButton.setText(R.string.events_filter_all);
+            } else {
                 filterButton.setText(activity.getString(R.string.events_filter_selected,
                         String.join(", ", selectedModules)));
             }
