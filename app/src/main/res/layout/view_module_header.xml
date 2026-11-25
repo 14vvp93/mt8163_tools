@@ -12,7 +12,7 @@
             android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_xs"
  />
     </LinearLayout>
-    <Switch android:id="@+id/header_switch" android:layout_width="wrap_content"
-        android:layout_height="wrap_content" android:minWidth="@dimen/switch_min_width"
-        android:minHeight="@dimen/button_height" android:showText="false" />
+    <Switch style="@style/ModuleSettingSwitch" android:id="@+id/header_switch"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:showText="false" />
 </LinearLayout>
