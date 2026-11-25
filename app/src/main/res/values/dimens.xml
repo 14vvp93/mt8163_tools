@@ -16,6 +16,7 @@
     <dimen name="icon_size">24dp</dimen>
     <dimen name="icon_size_small">20dp</dimen>
     <dimen name="border_width">1dp</dimen>
+    <dimen name="border_width_emphasis">2dp</dimen>
     <dimen name="radius_card">8dp</dimen>
     <dimen name="radius_control">8dp</dimen>
     <dimen name="header_height">80dp</dimen>
