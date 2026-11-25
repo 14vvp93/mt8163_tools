@@ -15,6 +15,6 @@
     <color name="text_secondary">#AEB2BA</color>
     <color name="text_muted">#858A94</color>
     <color name="switch_thumb">#FFFFFFFF</color>
-    <color name="module_status_active">#FFFF0000</color>
+    <color name="module_status_active">@color/neon_red</color>
     <color name="module_status_inactive">#FFFFB45C</color>
 </resources>
