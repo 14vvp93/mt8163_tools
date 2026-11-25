@@ -107,7 +107,7 @@
                 android:minWidth="120dp"
                 android:background="@drawable/module_button_background"
                 android:minHeight="48dp"
-                android:text="Reset to 0.0 V"
+                android:text="Reset"
                 android:textAllCaps="false"
                 android:textColor="@color/text_primary"
                 android:textSize="15sp" />
