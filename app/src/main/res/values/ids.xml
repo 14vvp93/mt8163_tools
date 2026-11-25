@@ -9,4 +9,5 @@
     <item name="design_base_dimensions" type="id" />
     <item name="design_base_margins" type="id" />
     <item name="design_base_text_size" type="id" />
+    <item name="design_base_gradient_color" type="id" />
 </resources>

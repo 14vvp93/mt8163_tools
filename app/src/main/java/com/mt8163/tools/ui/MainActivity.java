@@ -65,10 +65,14 @@ public final class MainActivity extends Activity {
 
         designListener = () -> {
             DesignRuntime.applyTree(appRoot, designStore);
+            int appColor = designStore.getColor("appColor", getColor(R.color.app_background));
+            getWindow().setStatusBarColor(appColor);
+            getWindow().setNavigationBarColor(appColor);
             adapter.notifyDataSetChanged();
         };
         designStore.addListener(designListener);
         DesignRuntime.attach(appRoot, designStore, "global");
+        designListener.run();
         showModule(selected);
     }
 

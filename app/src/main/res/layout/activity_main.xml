@@ -6,10 +6,10 @@
         android:layout_height="match_parent" android:background="@color/sidebar_background"
         android:orientation="vertical" android:paddingStart="@dimen/card_padding"
         android:paddingTop="@dimen/spacing_xl" android:paddingEnd="@dimen/card_padding">
-        <LinearLayout android:layout_width="match_parent"
+        <LinearLayout android:id="@+id/brand_header_container" android:layout_width="match_parent"
             android:layout_height="@dimen/brand_header_height" android:gravity="center_vertical"
             android:orientation="horizontal" android:paddingStart="@dimen/spacing_sm">
-            <TextView style="@style/BrandMark" android:layout_width="@dimen/brand_mark_size"
+            <TextView android:id="@+id/brand_mark_view" style="@style/BrandMark" android:layout_width="@dimen/brand_mark_size"
                 android:layout_height="@dimen/brand_mark_size" android:background="@drawable/brand_mark"
                 android:gravity="center" android:text="@string/brand_mark"
                 />

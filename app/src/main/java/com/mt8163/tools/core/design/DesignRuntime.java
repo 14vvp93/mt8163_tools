@@ -4,11 +4,16 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
+
 import com.mt8163.tools.R;
 
 public final class DesignRuntime {
@@ -47,94 +52,161 @@ public final class DesignRuntime {
 
     private static void applyView(View view, DesignStore store) {
         applyColors(view, store);
-        applyDimensions(view, store.getFloat("spacingScale", 1f),
-                store.getFloat("sizeScale", 1f), store.getFloat("cornerRadiusDp", 8f));
+        applyDimensions(view, store);
     }
 
     private static void applyColors(View view, DesignStore store) {
-        int app = view.getContext().getColor(R.color.app_background);
-        int sidebar = view.getContext().getColor(R.color.sidebar_background);
-        int header = view.getContext().getColor(R.color.header_background);
-        int surface = view.getContext().getColor(R.color.panel_background);
-        int accent = view.getContext().getColor(R.color.neon_red);
-        int primary = view.getContext().getColor(R.color.text_primary);
-        int secondary = view.getContext().getColor(R.color.text_secondary);
-        int muted = view.getContext().getColor(R.color.text_muted);
+        int[] base = {
+            color(view, R.color.app_background), color(view, R.color.sidebar_background),
+            color(view, R.color.header_background), color(view, R.color.panel_background),
+            color(view, R.color.dialog_background), color(view, R.color.neon_red),
+            color(view, R.color.text_primary), color(view, R.color.text_secondary),
+            color(view, R.color.text_muted), color(view, R.color.line),
+            color(view, R.color.button_background), color(view, R.color.button_pressed_background),
+            color(view, R.color.button_stroke), color(view, R.color.button_disabled),
+            color(view, R.color.sidebar_icon_background), color(view, R.color.module_status_active),
+            color(view, R.color.module_status_inactive), color(view, R.color.switch_thumb),
+            color(view, R.color.switch_track_default), color(view, R.color.switch_track_checked),
+            color(view, R.color.switch_track_disabled)
+        };
+        String[] keys = {
+            "appColor", "sidebarColor", "headerColor", "surfaceColor", "dialogColor",
+            "accentColor", "primaryTextColor", "secondaryTextColor", "mutedTextColor",
+            "lineColor", "buttonColor", "buttonPressedColor", "buttonStrokeColor",
+            "buttonDisabledColor", "iconSurfaceColor", "statusActiveColor",
+            "statusInactiveColor", "switchThumbColor", "switchTrackColor",
+            "switchCheckedColor", "switchDisabledColor"
+        };
+
+        if (view instanceof Button && !(view instanceof Switch)) applyButtonColors((Button) view, store);
+        if (view instanceof Switch) applySwitchColors((Switch) view, store);
 
         if (view instanceof TextView) {
             TextView text = (TextView) view;
-            ColorStateList base = (ColorStateList) view.getTag(R.id.design_base_text_color);
-            if (base == null) {
-                base = text.getTextColors();
-                view.setTag(R.id.design_base_text_color, base);
+            ColorStateList original = (ColorStateList) view.getTag(R.id.design_base_text_color);
+            if (original == null) {
+                original = text.getTextColors();
+                view.setTag(R.id.design_base_text_color, original);
             }
-            text.setTextColor(mapColors(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
+            text.setTextColor(map(original.getDefaultColor(), base, keys, store));
         }
 
         if (view instanceof ImageView) {
             ImageView image = (ImageView) view;
-            ColorStateList base = (ColorStateList) view.getTag(R.id.design_base_image_tint);
-            if (base == null && image.getImageTintList() != null) {
-                base = image.getImageTintList();
-                view.setTag(R.id.design_base_image_tint, base);
+            ColorStateList original = (ColorStateList) view.getTag(R.id.design_base_image_tint);
+            if (original == null && image.getImageTintList() != null) {
+                original = image.getImageTintList();
+                view.setTag(R.id.design_base_image_tint, original);
             }
-            if (base != null) image.setImageTintList(
-                    mapColors(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
+            if (original != null) image.setImageTintList(ColorStateList.valueOf(
+                    map(original.getDefaultColor(), base, keys, store)));
         }
 
-        ColorStateList baseTint = (ColorStateList) view.getTag(R.id.design_base_background_tint);
-        if (baseTint == null && view.getBackgroundTintList() != null) {
-            baseTint = view.getBackgroundTintList();
-            view.setTag(R.id.design_base_background_tint, baseTint);
+        ColorStateList tint = (ColorStateList) view.getTag(R.id.design_base_background_tint);
+        if (tint == null && view.getBackgroundTintList() != null) {
+            tint = view.getBackgroundTintList();
+            view.setTag(R.id.design_base_background_tint, tint);
         }
-        if (baseTint != null) view.setBackgroundTintList(
-                mapColors(baseTint, app, sidebar, header, surface, accent, primary, secondary, muted, store));
+        if (tint != null) view.setBackgroundTintList(ColorStateList.valueOf(
+                map(tint.getDefaultColor(), base, keys, store)));
 
         Drawable background = view.getBackground();
         if (background instanceof ColorDrawable) {
-            ColorDrawable color = (ColorDrawable) background.mutate();
-            Integer base = (Integer) view.getTag(R.id.design_base_background_color);
-            if (base == null) {
-                base = color.getColor();
-                view.setTag(R.id.design_base_background_color, base);
+            ColorDrawable drawable = (ColorDrawable) background.mutate();
+            Integer original = (Integer) view.getTag(R.id.design_base_background_color);
+            if (original == null) {
+                original = drawable.getColor();
+                view.setTag(R.id.design_base_background_color, original);
             }
-            color.setColor(mapColor(base, app, sidebar, header, surface, accent, primary, secondary, muted, store));
-        } else if (background instanceof GradientDrawable && view instanceof ViewGroup) {
-            Drawable shape = background.mutate();
-            shape.setTintList(ColorStateList.valueOf(store.getColor("surfaceColor", surface)));
+            drawable.setColor(map(original, base, keys, store));
+        } else if (background instanceof GradientDrawable) {
+            GradientDrawable shape = (GradientDrawable) background.mutate();
+            ColorStateList fill = shape.getColor();
+            if (fill != null) {
+                Integer original = (Integer) view.getTag(R.id.design_base_gradient_color);
+                if (original == null) {
+                    original = fill.getDefaultColor();
+                    view.setTag(R.id.design_base_gradient_color, original);
+                }
+                shape.setColor(map(original, base, keys, store));
+            }
+            shape.setCornerRadius(dp(view, store.getFloat("cornerRadiusDp", 8f)));
+            int border = dp(view, store.getFloat("borderWidthDp", 1f));
+            int borderColor = store.getColor("lineColor", color(view, R.color.line));
+            shape.setStroke(border, borderColor);
             view.setBackground(shape);
         }
     }
 
-    private static ColorStateList mapColors(ColorStateList base, int app, int sidebar,
-                                               int header, int surface, int accent,
-                                               int primary, int secondary, int muted,
-                                               DesignStore store) {
-        int color = mapColor(base.getDefaultColor(), app, sidebar, header, surface,
-                accent, primary, secondary, muted, store);
-        return ColorStateList.valueOf(color);
+
+    private static void applyButtonColors(Button button, DesignStore store) {
+        int normal = store.getColor("buttonColor", color(button, R.color.button_background));
+        int pressed = store.getColor("buttonPressedColor", color(button, R.color.button_pressed_background));
+        int disabled = store.getColor("buttonDisabledColor", color(button, R.color.button_disabled));
+        int stroke = store.getColor("buttonStrokeColor", color(button, R.color.button_stroke));
+        int accent = store.getColor("accentColor", color(button, R.color.neon_red));
+        int border = dp(button, store.getFloat("borderWidthDp", 1f));
+        float radius = dp(button, store.getFloat("cornerRadiusDp", 8f));
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                buttonShape(disabled, stroke, border, radius));
+        states.addState(new int[]{android.R.attr.state_pressed},
+                buttonShape(pressed, accent, border, radius));
+        states.addState(new int[]{android.R.attr.state_focused},
+                buttonShape(pressed, accent, border, radius));
+        states.addState(new int[0], buttonShape(normal, stroke, border, radius));
+        button.setBackground(states);
     }
 
-    private static int mapColor(int color, int app, int sidebar, int header, int surface,
-                                int accent, int primary, int secondary, int muted, DesignStore store) {
-        if (color == app) return store.getColor("appColor", app);
-        if (color == sidebar) return store.getColor("sidebarColor", sidebar);
-        if (color == header) return store.getColor("headerColor", header);
-        if (color == surface) return store.getColor("surfaceColor", surface);
-        if (color == accent) return store.getColor("accentColor", accent);
-        if (color == primary) return store.getColor("primaryTextColor", primary);
-        if (color == secondary || color == muted) return store.getColor("secondaryTextColor", secondary);
+    private static GradientDrawable buttonShape(int fill, int stroke, int width, float radius) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(fill);
+        shape.setCornerRadius(radius);
+        shape.setStroke(width, stroke);
+        return shape;
+    }
+
+    private static void applySwitchColors(Switch toggle, DesignStore store) {
+        int thumb = store.getColor("switchThumbColor", color(toggle, R.color.switch_thumb));
+        int normal = store.getColor("switchTrackColor", color(toggle, R.color.switch_track_default));
+        int checked = store.getColor("switchCheckedColor", color(toggle, R.color.switch_track_checked));
+        int disabled = store.getColor("switchDisabledColor", color(toggle, R.color.switch_track_disabled));
+        toggle.setThumbTintList(ColorStateList.valueOf(thumb));
+        toggle.setTrackTintList(new ColorStateList(
+                new int[][]{
+                    new int[]{-android.R.attr.state_enabled},
+                    new int[]{android.R.attr.state_checked},
+                    new int[0]
+                },
+                new int[]{disabled, checked, normal}
+        ));
+    }
+
+    private static int map(int color, int[] base, String[] keys, DesignStore store) {
+        for (int i = 0; i < base.length; i++) {
+            if (color == base[i]) return store.getColor(keys[i], base[i]);
+        }
         return color;
     }
 
-    private static void applyDimensions(View view, float spacingScale, float sizeScale, float radiusDp) {
+    private static int color(View view, int resource) {
+        return view.getContext().getColor(resource);
+    }
+
+    private static void applyDimensions(View view, DesignStore store) {
+        float spacing = store.getFloat("spacingScale", 1f);
+        float elements = store.getFloat("sizeScale", 1f);
+        float textScale = store.getFloat("textScale", elements);
+        float iconScale = store.getFloat("iconScale", elements);
+
         int[] padding = (int[]) view.getTag(R.id.design_base_padding);
         if (padding == null) {
-            padding = new int[]{view.getPaddingLeft(), view.getPaddingTop(), view.getPaddingRight(), view.getPaddingBottom()};
+            padding = new int[]{view.getPaddingLeft(), view.getPaddingTop(),
+                    view.getPaddingRight(), view.getPaddingBottom()};
             view.setTag(R.id.design_base_padding, padding);
         }
-        view.setPadding(scale(padding[0], spacingScale), scale(padding[1], spacingScale),
-                scale(padding[2], spacingScale), scale(padding[3], spacingScale));
+        view.setPadding(scale(padding[0], spacing), scale(padding[1], spacing),
+                scale(padding[2], spacing), scale(padding[3], spacing));
 
         ViewGroup.LayoutParams params = view.getLayoutParams();
         if (params != null) {
@@ -143,36 +215,83 @@ public final class DesignRuntime {
                 dimensions = new int[]{params.width, params.height};
                 view.setTag(R.id.design_base_dimensions, dimensions);
             }
-            params.width = scaleLayout(dimensions[0], sizeScale);
-            params.height = scaleLayout(dimensions[1], sizeScale);
+            float dimensionScale = view instanceof ImageView ? iconScale : elements;
+            params.width = scaleLayout(dimensions[0], dimensionScale);
+            params.height = scaleLayout(dimensions[1], dimensionScale);
+            if (view instanceof ImageView && dimensions[0] > 0 && dimensions[1] > 0) {
+                float baseMax = Math.max(dimensions[0], dimensions[1]);
+                float iconSize = dp(view, store.getFloat("iconSizeDp", 24f));
+                params.width = Math.round(dimensions[0] * iconSize / baseMax * iconScale);
+                params.height = Math.round(dimensions[1] * iconSize / baseMax * iconScale);
+            }
+            if (view instanceof Button && !(view instanceof Switch)) {
+                params.height = dp(view, store.getFloat("buttonHeightDp", 48f));
+            }
             if (params instanceof ViewGroup.MarginLayoutParams) {
                 ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
-                int[] base = (int[]) view.getTag(R.id.design_base_margins);
-                if (base == null) {
-                    base = new int[]{margins.leftMargin, margins.topMargin, margins.rightMargin, margins.bottomMargin};
-                    view.setTag(R.id.design_base_margins, base);
+                int[] original = (int[]) view.getTag(R.id.design_base_margins);
+                if (original == null) {
+                    original = new int[]{margins.leftMargin, margins.topMargin,
+                            margins.rightMargin, margins.bottomMargin};
+                    view.setTag(R.id.design_base_margins, original);
                 }
-                margins.setMargins(scale(base[0], spacingScale), scale(base[1], spacingScale),
-                        scale(base[2], spacingScale), scale(base[3], spacingScale));
+                margins.setMargins(scale(original[0], spacing), scale(original[1], spacing),
+                        scale(original[2], spacing), scale(original[3], spacing));
             }
             view.setLayoutParams(params);
         }
 
         if (view instanceof TextView) {
             TextView text = (TextView) view;
-            Float base = (Float) view.getTag(R.id.design_base_text_size);
-            if (base == null) {
-                base = text.getTextSize();
-                view.setTag(R.id.design_base_text_size, base);
+            Float original = (Float) view.getTag(R.id.design_base_text_size);
+            if (original == null) {
+                original = text.getTextSize();
+                view.setTag(R.id.design_base_text_size, original);
             }
-            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, base * sizeScale);
+            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, original * textScale);
         }
 
-        Drawable background = view.getBackground();
-        if (background instanceof GradientDrawable) {
-            GradientDrawable shape = (GradientDrawable) background.mutate();
-            shape.setCornerRadius(Math.round(radiusDp * view.getResources().getDisplayMetrics().density));
-            view.setBackground(shape);
+        if (view.getId() == R.id.sidebar_container && params != null) {
+            params.width = dp(view, store.getFloat("sidebarWidthDp", 260f));
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.header_container && params != null) {
+            params.height = dp(view, store.getFloat("headerHeightDp", 80f));
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.brand_header_container && params != null) {
+            params.height = dp(view, store.getFloat("brandHeaderHeightDp", 72f));
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.brand_mark_view && params != null) {
+            int mark = dp(view, store.getFloat("brandMarkSizeDp", 44f));
+            params.width = mark;
+            params.height = mark;
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.sidebar_item_root && params != null) {
+            params.height = dp(view, store.getFloat("sidebarItemHeightDp", 60f));
+            view.setLayoutParams(params);
+            int padding = dp(view, store.getFloat("sidebarItemPaddingDp", 12f) * spacing);
+            view.setPadding(padding, view.getPaddingTop(), padding, view.getPaddingBottom());
+        } else if (view.getId() == R.id.module_icon) {
+            int padding = dp(view, store.getFloat("sidebarIconPaddingDp", 8f) * spacing);
+            view.setPadding(padding, padding, padding, padding);
+        } else if (view.getId() == R.id.module_state && params != null) {
+            int size = dp(view, store.getFloat("statusDotSizeDp", 8f));
+            params.width = size;
+            params.height = size;
+            view.setLayoutParams(params);
+        } else if (view instanceof Button && !(view instanceof Switch) && params != null) {
+            ((Button) view).setMinWidth(dp(view, store.getFloat("buttonMinWidthDp", 120f)));
+        } else if (view instanceof Switch) {
+            ((Switch) view).setMinWidth(dp(view, store.getFloat("switchMinWidthDp", 72f)));
+        }
+
+        if (view.getParent() instanceof ScrollView) {
+            int page = dp(view, store.getFloat("pagePaddingDp", 24f) * spacing);
+            view.setPadding(page, page, page, page);
+        }
+
+        if (view instanceof ViewGroup && view.getBackground() instanceof GradientDrawable) {
+            int card = dp(view, store.getFloat("cardPaddingDp", 16f) * spacing);
+            view.setPadding(card, card, card, card);
         }
     }
 
@@ -182,5 +301,9 @@ public final class DesignRuntime {
 
     private static int scale(int value, float scale) {
         return Math.round(value * scale);
+    }
+
+    private static int dp(View view, float value) {
+        return Math.round(value * view.getResources().getDisplayMetrics().density);
     }
 }

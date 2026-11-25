@@ -70,7 +70,7 @@ public final class SidebarAdapter extends BaseAdapter {
 
         state.setVisibility(View.VISIBLE);
         state.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
-                enabled ? R.color.module_status_active : R.color.neon_red)));
+                enabled ? R.color.module_status_active : R.color.module_status_inactive)));
         DesignRuntime.attach(view, designStore, "shell");
         return view;
     }
