@@ -35,18 +35,30 @@
 
         <ImageView
             android:id="@+id/protection_indicator_cleaner"
+            android:layout_width="@dimen/icon_size_small"
+            android:layout_height="@dimen/icon_size_small"
+            android:layout_marginStart="@dimen/spacing_xs"
+            android:layout_marginEnd="@dimen/spacing_xs"
             style="@style/ProtectionIndicator"
             android:contentDescription="@string/protection_indicator_cleaner"
             android:src="@drawable/ic_protection_cleaner" />
 
         <ImageView
             android:id="@+id/protection_indicator_hide"
+            android:layout_width="@dimen/icon_size_small"
+            android:layout_height="@dimen/icon_size_small"
+            android:layout_marginStart="@dimen/spacing_xs"
+            android:layout_marginEnd="@dimen/spacing_xs"
             style="@style/ProtectionIndicator"
             android:contentDescription="@string/protection_indicator_hide"
             android:src="@drawable/ic_protection_hide" />
 
         <ImageView
             android:id="@+id/protection_indicator_close"
+            android:layout_width="@dimen/icon_size_small"
+            android:layout_height="@dimen/icon_size_small"
+            android:layout_marginStart="@dimen/spacing_xs"
+            android:layout_marginEnd="@dimen/spacing_xs"
             style="@style/ProtectionIndicator"
             android:contentDescription="@string/protection_indicator_close"
             android:src="@drawable/ic_protection_keep" />
@@ -62,12 +74,16 @@
     <ImageButton
         android:id="@+id/protection_app_settings"
         style="@style/ProtectionActionButton"
+        android:layout_width="@dimen/button_height"
+        android:layout_height="@dimen/button_height"
         android:contentDescription="@string/protection_application_settings"
         android:src="@drawable/ic_protection_settings" />
 
     <ImageButton
         android:id="@+id/protection_app_remove"
         style="@style/ProtectionActionButton"
+        android:layout_width="@dimen/button_height"
+        android:layout_height="@dimen/button_height"
         android:contentDescription="@string/protection_remove_application"
         android:src="@drawable/ic_protection_delete" />
 </LinearLayout>

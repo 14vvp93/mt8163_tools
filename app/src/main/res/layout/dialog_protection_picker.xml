@@ -22,6 +22,8 @@
         <ImageButton
             android:id="@+id/protection_picker_close"
             style="@style/ProtectionActionButton"
+            android:layout_width="@dimen/button_height"
+            android:layout_height="@dimen/button_height"
             android:contentDescription="@string/close"
             android:src="@android:drawable/ic_menu_close_clear_cancel" />
     </LinearLayout>
@@ -43,6 +45,8 @@
     <CheckBox
         android:id="@+id/protection_picker_system_apps"
         style="@style/ProtectionSettingCheckBox"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/button_height"
         android:layout_marginTop="@dimen/spacing_xs"
         android:text="@string/protection_show_system_apps" />
 
