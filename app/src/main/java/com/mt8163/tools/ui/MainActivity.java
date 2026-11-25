@@ -67,8 +67,6 @@ public final class MainActivity extends Activity {
             adapter.notifyDataSetChanged();
         };
         designStore.addListener(designListener);
-        DesignRuntime.attach(header, designStore);
-        DesignRuntime.attach(content, designStore);
         showModule(selected);
     }
 
@@ -112,13 +110,15 @@ public final class MainActivity extends Activity {
             else updateState();
         });
         header.addView(headerView);
-        DesignRuntime.attach(headerView, designStore);
+        DesignRuntime.attach(headerView, designStore, "shell");
 
         EventsModuleView.destroy();
         content.removeAllViews();
         if ("events".equals(module.getId())) {
             if (module.isEnabled()) {
-                content.addView(EventsModuleView.create(this, modules));
+                View eventsView = EventsModuleView.create(this, modules);
+                content.addView(eventsView);
+                DesignRuntime.attach(eventsView, designStore, module.getId());
             }
         } else {
             View view = LayoutInflater.from(this)
@@ -133,7 +133,7 @@ public final class MainActivity extends Activity {
             } else if ("design".equals(module.getId())) {
                 new DesignModuleView(view, this, registry, designStore);
             }
-            DesignRuntime.attach(view, designStore);
+            DesignRuntime.attach(view, designStore, module.getId());
         }
         updateState();
     }

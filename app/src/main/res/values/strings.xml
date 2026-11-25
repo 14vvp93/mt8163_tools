@@ -42,4 +42,7 @@
     <string name="design_reset_all">Reset all</string>
     <string name="design_invalid_value">Invalid property value</string>
     <string name="design_applied">Changes applied and saved</string>
+    <string name="design_image_tint_hint">Image tint #HEX</string>
+    <string name="design_rotation_hint">Rotation °</string>
+    <string name="design_elevation_hint">Elevation dp</string>
 </resources>

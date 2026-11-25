@@ -1,3 +1,4 @@
 <resources>
     <item name="design_listener_attached" type="id" />
+    <item name="design_runtime_key" type="id" />
 </resources>

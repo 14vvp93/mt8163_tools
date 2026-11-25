@@ -83,6 +83,15 @@
                     android:hint="@string/design_text_color_hint"
                     android:inputType="text" />
                 <EditText
+                    android:id="@+id/design_image_tint"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_image_tint_hint"
+                    android:inputType="text" />
+                <EditText
                     android:id="@+id/design_text_size"
                     style="@style/ModuleEditText"
                     android:layout_width="0dp"
@@ -155,6 +164,29 @@
                     android:layout_weight="1"
                     android:hint="@string/design_alpha_hint"
                     android:inputType="numberDecimal" />
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_xs"
+                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/design_rotation"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_weight="1"
+                    android:hint="@string/design_rotation_hint"
+                    android:inputType="numberSigned|numberDecimal" />
+                <EditText
+                    android:id="@+id/design_elevation"
+                    style="@style/ModuleEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/button_height"
+                    android:layout_marginStart="@dimen/spacing_sm"
+                    android:layout_weight="1"
+                    android:hint="@string/design_elevation_hint"
+                    android:inputType="number" />
             </LinearLayout>
             <LinearLayout
                 android:layout_width="match_parent"

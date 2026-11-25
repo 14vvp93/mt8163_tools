@@ -19,11 +19,13 @@ import java.util.List;
 public final class SidebarAdapter extends BaseAdapter {
     private final LayoutInflater inflater;
     private final List<ModuleContract> modules;
+    private final com.mt8163.tools.core.design.DesignStore designStore;
     private int selected;
 
     public SidebarAdapter(Context context, List<ModuleContract> modules) {
         inflater = LayoutInflater.from(context);
         this.modules = modules;
+        designStore = ((MainApplication) context.getApplicationContext()).getDesignStore();
         selected = modules.size() - 1;
     }
 
@@ -69,8 +71,7 @@ public final class SidebarAdapter extends BaseAdapter {
         state.setVisibility(View.VISIBLE);
         state.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
                 enabled ? R.color.module_status_active : R.color.neon_red)));
-        DesignRuntime.applyTree(view,
-                ((MainApplication) parent.getContext().getApplicationContext()).getDesignStore());
+        DesignRuntime.attach(view, designStore, "shell");
         return view;
     }
 

@@ -9,16 +9,24 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.mt8163.tools.R;
+
 import org.json.JSONObject;
 
 public final class DesignRuntime {
     private DesignRuntime() {
     }
 
-    public static void attach(View root, DesignStore store) {
+    public static void attach(View root, DesignStore store, String scope) {
         if (root == null || store == null) return;
+        assignKeys(root, scope == null ? "global" : scope, "root");
         applyTree(root, store);
-        attachHierarchy(root, store);
+        attachHierarchy(root, store, scope == null ? "global" : scope);
+    }
+
+    public static String getViewKey(View view) {
+        Object key = view == null ? null : view.getTag(R.id.design_runtime_key);
+        return key instanceof String ? (String) key : null;
     }
 
     public static void applyTree(View root, DesignStore store) {
@@ -32,16 +40,33 @@ public final class DesignRuntime {
         }
     }
 
-    private static void attachHierarchy(View view, DesignStore store) {
+    private static void assignKeys(View view, String scope, String path) {
+        String key = resourceKey(view);
+        view.setTag(R.id.design_runtime_key,
+                key == null ? "path:" + scope + ":" + path : key);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                assignKeys(group.getChildAt(i), scope, path + "/" + i);
+            }
+        }
+    }
+
+    private static void attachHierarchy(View view, DesignStore store, String scope) {
         if (!(view instanceof ViewGroup)) return;
         ViewGroup group = (ViewGroup) view;
-        if (!Boolean.TRUE.equals(group.getTag(com.mt8163.tools.R.id.design_listener_attached))) {
-            group.setTag(com.mt8163.tools.R.id.design_listener_attached, Boolean.TRUE);
+        if (!Boolean.TRUE.equals(group.getTag(R.id.design_listener_attached))) {
+            group.setTag(R.id.design_listener_attached, Boolean.TRUE);
             group.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
                 @Override
                 public void onChildViewAdded(View parent, View child) {
+                    int index = ((ViewGroup) parent).indexOfChild(child);
+                    Object parentPath = parent.getTag(R.id.design_runtime_key);
+                    String path = parentPath instanceof String
+                            ? parentPath.substring(parentPath.lastIndexOf(':') + 1) : "root";
+                    assignKeys(child, scope, path + "/" + index);
                     applyTree(child, store);
-                    attachHierarchy(child, store);
+                    attachHierarchy(child, store, scope);
                 }
 
                 @Override
@@ -50,26 +75,28 @@ public final class DesignRuntime {
             });
         }
         for (int i = 0; i < group.getChildCount(); i++) {
-            attachHierarchy(group.getChildAt(i), store);
+            attachHierarchy(group.getChildAt(i), store, scope);
+        }
+    }
+
+    private static String resourceKey(View view) {
+        if (view.getId() == View.NO_ID) return null;
+        try {
+            return "id:" + view.getResources().getResourceEntryName(view.getId());
+        } catch (RuntimeException error) {
+            return null;
         }
     }
 
     private static void applyView(View view, DesignStore store) {
-        if (view.getId() == View.NO_ID) return;
-
-        String name;
-        try {
-            name = view.getResources().getResourceEntryName(view.getId());
-        } catch (RuntimeException error) {
-            return;
-        }
-
-        JSONObject style = store.getStyle(name);
+        String key = getViewKey(view);
+        if (key == null) return;
+        JSONObject style = store.getStyle(key);
         if (style.length() == 0) return;
 
         if (style.has("backgroundColor")) {
-            int color = style.optInt("backgroundColor", Color.TRANSPARENT);
-            view.setBackgroundTintList(ColorStateList.valueOf(color));
+            view.setBackgroundTintList(ColorStateList.valueOf(
+                    style.optInt("backgroundColor", Color.TRANSPARENT)));
         }
 
         if (view instanceof TextView) {
@@ -92,7 +119,12 @@ public final class DesignRuntime {
             float alpha = (float) style.optDouble("alpha", 1);
             view.setAlpha(Math.max(0f, Math.min(1f, alpha)));
         }
-
+        if (style.has("rotation")) {
+            view.setRotation((float) style.optDouble("rotation", 0));
+        }
+        if (style.has("elevationDp")) {
+            view.setElevation(dp(view, style.optInt("elevationDp", 0)));
+        }
         if (style.has("paddingDp")) {
             int padding = dp(view, style.optInt("paddingDp", 0));
             view.setPadding(padding, padding, padding, padding);
@@ -122,8 +154,7 @@ public final class DesignRuntime {
             Drawable background = view.getBackground();
             if (background instanceof GradientDrawable) {
                 GradientDrawable shape = (GradientDrawable) background.mutate();
-                shape.setCornerRadius(dp(view,
-                        style.optInt("cornerRadiusDp", 0)));
+                shape.setCornerRadius(dp(view, style.optInt("cornerRadiusDp", 0)));
                 view.setBackground(shape);
             }
         }

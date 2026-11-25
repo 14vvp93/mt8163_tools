@@ -35,6 +35,7 @@ public final class DesignModuleView {
     private final FrameLayout preview;
     private final EditText backgroundColor;
     private final EditText textColor;
+    private final EditText imageTintColor;
     private final EditText textSize;
     private final EditText width;
     private final EditText height;
@@ -42,9 +43,11 @@ public final class DesignModuleView {
     private final EditText margin;
     private final EditText radius;
     private final EditText alpha;
+    private final EditText rotation;
+    private final EditText elevation;
     private final List<ModuleContract> targetModules = new ArrayList<>();
     private final List<ViewEntry> targetViews = new ArrayList<>();
-    private String selectedViewName;
+    private String selectedViewKey;
 
     public DesignModuleView(View root, Activity activity,
                             ModuleRegistry registry, DesignStore store) {
@@ -56,6 +59,7 @@ public final class DesignModuleView {
         preview = root.findViewById(R.id.design_preview);
         backgroundColor = root.findViewById(R.id.design_background_color);
         textColor = root.findViewById(R.id.design_text_color);
+        imageTintColor = root.findViewById(R.id.design_image_tint);
         textSize = root.findViewById(R.id.design_text_size);
         width = root.findViewById(R.id.design_width);
         height = root.findViewById(R.id.design_height);
@@ -63,6 +67,8 @@ public final class DesignModuleView {
         margin = root.findViewById(R.id.design_margin);
         radius = root.findViewById(R.id.design_radius);
         alpha = root.findViewById(R.id.design_alpha);
+        rotation = root.findViewById(R.id.design_rotation);
+        elevation = root.findViewById(R.id.design_elevation);
 
         for (ModuleContract module : registry.getModules()) {
             if (!"design".equals(module.getId()) && module.getLayoutRes() != 0) {
@@ -78,16 +84,12 @@ public final class DesignModuleView {
                 android.R.layout.simple_spinner_dropdown_item, moduleNames));
         moduleSpinner.setOnItemSelectedListener(new SelectionListener(
                 position -> loadModule(position)));
-
         viewSpinner.setOnItemSelectedListener(new SelectionListener(
-                position -> selectView(position)));
+                this::selectView));
 
-        Button apply = root.findViewById(R.id.design_apply);
-        Button reset = root.findViewById(R.id.design_reset);
-        Button resetAll = root.findViewById(R.id.design_reset_all);
-        apply.setOnClickListener(view -> applyChanges());
-        reset.setOnClickListener(view -> resetSelected());
-        resetAll.setOnClickListener(view -> {
+        root.findViewById(R.id.design_apply).setOnClickListener(view -> applyChanges());
+        root.findViewById(R.id.design_reset).setOnClickListener(view -> resetSelected());
+        root.findViewById(R.id.design_reset_all).setOnClickListener(view -> {
             store.resetAll();
             loadSelectedStyle();
         });
@@ -104,7 +106,7 @@ public final class DesignModuleView {
         preview.addView(target, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
-        DesignRuntime.attach(target, store);
+        DesignRuntime.attach(target, store, module.getId());
 
         targetViews.clear();
         collectViews(target);
@@ -116,13 +118,12 @@ public final class DesignModuleView {
     }
 
     private void collectViews(View view) {
-        if (view.getId() != View.NO_ID) {
-            try {
-                String name = view.getResources().getResourceEntryName(view.getId());
-                targetViews.add(new ViewEntry(view, name,
-                        name + " · " + view.getClass().getSimpleName()));
-            } catch (RuntimeException ignored) {
-            }
+        String key = DesignRuntime.getViewKey(view);
+        if (key != null) {
+            String label = key.startsWith("id:")
+                    ? key.substring(3) : key.substring(key.lastIndexOf(':') + 1);
+            targetViews.add(new ViewEntry(key,
+                    label + " · " + view.getClass().getSimpleName()));
         }
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -134,15 +135,16 @@ public final class DesignModuleView {
 
     private void selectView(int position) {
         if (position < 0 || position >= targetViews.size()) return;
-        selectedViewName = targetViews.get(position).name;
+        selectedViewKey = targetViews.get(position).key;
         loadSelectedStyle();
     }
 
     private void loadSelectedStyle() {
-        if (selectedViewName == null) return;
-        JSONObject style = store.getStyle(selectedViewName);
+        if (selectedViewKey == null) return;
+        JSONObject style = store.getStyle(selectedViewKey);
         backgroundColor.setText(colorText(style, "backgroundColor"));
         textColor.setText(colorText(style, "textColor"));
+        imageTintColor.setText(colorText(style, "imageTintColor"));
         textSize.setText(numberText(style, "textSizeSp"));
         width.setText(numberText(style, "widthDp"));
         height.setText(numberText(style, "heightDp"));
@@ -150,61 +152,60 @@ public final class DesignModuleView {
         margin.setText(numberText(style, "marginDp"));
         radius.setText(numberText(style, "cornerRadiusDp"));
         alpha.setText(numberText(style, "alpha"));
+        rotation.setText(numberText(style, "rotation"));
+        elevation.setText(numberText(style, "elevationDp"));
         DesignRuntime.applyTree(preview, store);
     }
 
     private void applyChanges() {
-        if (selectedViewName == null) return;
+        if (selectedViewKey == null) return;
         JSONObject values = new JSONObject();
         try {
             putColor(values, "backgroundColor", backgroundColor);
             putColor(values, "textColor", textColor);
-            putNumber(values, "textSizeSp", textSize, true);
-            putNumber(values, "widthDp", width, false);
-            putNumber(values, "heightDp", height, false);
-            putNumber(values, "paddingDp", padding, false);
-            putNumber(values, "marginDp", margin, false);
-            putNumber(values, "cornerRadiusDp", radius, false);
-            putNumber(values, "alpha", alpha, true);
+            putColor(values, "imageTintColor", imageTintColor);
+            putNumber(values, "textSizeSp", textSize, 1, 200, true);
+            putNumber(values, "widthDp", width, -2, 2000, false);
+            putNumber(values, "heightDp", height, -2, 2000, false);
+            putNumber(values, "paddingDp", padding, 0, 500, false);
+            putNumber(values, "marginDp", margin, 0, 500, false);
+            putNumber(values, "cornerRadiusDp", radius, 0, 500, false);
+            putNumber(values, "alpha", alpha, 0, 1, true);
+            putNumber(values, "rotation", rotation, -360, 360, true);
+            putNumber(values, "elevationDp", elevation, 0, 100, false);
         } catch (IllegalArgumentException | JSONException error) {
             Toast.makeText(activity, R.string.design_invalid_value,
                     Toast.LENGTH_SHORT).show();
             return;
         }
-        store.updateStyle(selectedViewName, values);
+        store.updateStyle(selectedViewKey, values);
         Toast.makeText(activity, R.string.design_applied, Toast.LENGTH_SHORT).show();
     }
 
     private void resetSelected() {
-        if (selectedViewName == null) return;
-        store.resetView(selectedViewName);
+        if (selectedViewKey == null) return;
+        store.resetView(selectedViewKey);
         loadSelectedStyle();
     }
 
     private static void putColor(JSONObject values, String key, EditText field)
             throws JSONException {
         String value = field.getText().toString().trim();
-        if (value.isEmpty()) return;
-        values.put(key, Color.parseColor(value));
+        if (!value.isEmpty()) values.put(key, Color.parseColor(value));
     }
 
     private static void putNumber(JSONObject values, String key, EditText field,
-                                  boolean decimal) throws JSONException {
+                                  float minimum, float maximum, boolean decimal)
+            throws JSONException {
         String value = field.getText().toString().trim();
         if (value.isEmpty()) return;
-        if ("alpha".equals(key)) {
-            float parsed = Float.parseFloat(value);
-            if (parsed < 0f || parsed > 1f) throw new IllegalArgumentException();
-            values.put(key, parsed);
-        } else if (decimal) {
-            float parsed = Float.parseFloat(value);
-            if (parsed <= 0f || parsed > 200f) throw new IllegalArgumentException();
-            values.put(key, parsed);
-        } else {
-            int parsed = Integer.parseInt(value);
-            if (parsed < -2 || parsed > 2000) throw new IllegalArgumentException();
-            values.put(key, parsed);
+        float parsed = Float.parseFloat(value);
+        if (parsed < minimum || parsed > maximum
+                || (!decimal && parsed != Math.round(parsed))) {
+            throw new IllegalArgumentException();
         }
+        if (decimal) values.put(key, parsed);
+        else values.put(key, (int) parsed);
     }
 
     private static String colorText(JSONObject style, String key) {
@@ -219,13 +220,11 @@ public final class DesignModuleView {
     }
 
     private static final class ViewEntry {
-        final View view;
-        final String name;
+        final String key;
         final String label;
 
-        ViewEntry(View view, String name, String label) {
-            this.view = view;
-            this.name = name;
+        ViewEntry(String key, String label) {
+            this.key = key;
             this.label = label;
         }
     }
