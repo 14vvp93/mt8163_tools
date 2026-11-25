@@ -14,11 +14,10 @@
         android:padding="@dimen/sidebar_icon_padding"
         android:scaleType="fitCenter"
         android:tint="@color/sidebar_icon_tint" />
-    <TextView android:id="@+id/module_name"
+    <TextView style="@style/SidebarModuleName" android:id="@+id/module_name"
         android:layout_width="0dp" android:layout_height="wrap_content"
         android:layout_weight="1" android:paddingStart="@dimen/sidebar_item_padding"
-        android:textColor="@color/sidebar_text_tint"
-        android:textSize="@dimen/text_button" android:textStyle="bold" />
+ />
     <View android:id="@+id/module_state"
         android:layout_width="@dimen/status_dot_size"
         android:layout_height="@dimen/status_dot_size"
