@@ -1,9 +1,7 @@
 package com.mt8163.tools.ui;
 
 import android.app.Activity;
-import android.content.BroadcastReceiver;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -35,9 +33,6 @@ public final class MainActivity extends Activity {
     private FrameLayout header;
     private FrameLayout content;
     private View overlay;
-    private MediaModuleView mediaView;
-    private BroadcastReceiver mediaReceiver;
-    private boolean mediaReceiverRegistered;
     private int selected;
 
     @Override
@@ -60,31 +55,6 @@ public final class MainActivity extends Activity {
         selected = modules.size() - 1;
         list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
         showModule(selected);
-        createMediaReceiver();
-    }
-
-    private void createMediaReceiver() {
-        mediaReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(android.content.Context context, Intent intent) {
-                if (intent == null
-                        || !MediaSettingsStore.ACTION_STATE_CHANGED.equals(intent.getAction())) {
-                    return;
-                }
-
-                String packageName = intent.getStringExtra(
-                        MediaSettingsStore.EXTRA_SOURCE_PACKAGE);
-                String playbackState = intent.getStringExtra(
-                        MediaSettingsStore.EXTRA_PLAYBACK_STATE);
-                boolean isForeground = intent.getBooleanExtra(
-                        MediaSettingsStore.EXTRA_IS_FOREGROUND, false);
-
-                if (mediaView == null || selected < 0
-                        || !"media".equals(modules.get(selected).getId())) return;
-
-                mediaView.update(packageName, playbackState, isForeground);
-            }
-        };
     }
 
     private void showModule(int position) {
@@ -94,7 +64,6 @@ public final class MainActivity extends Activity {
         ModuleContract module = modules.get(position);
         adapter.setSelectedPosition(position);
         header.removeAllViews();
-        mediaView = null;
 
         ModuleHeaderView headerView = new ModuleHeaderView(this);
         headerView.bind(module, enabled -> {
@@ -138,11 +107,7 @@ public final class MainActivity extends Activity {
             if ("voltage".equals(module.getId())) {
                 VoltageModuleView.bind(view, this);
             } else if ("media".equals(module.getId())) {
-                mediaView = new MediaModuleView(view, this);
-                mediaView.update(
-                        MediaSettingsStore.getSourcePackage(this),
-                        MediaSettingsStore.getPlaybackState(this),
-                        MediaSettingsStore.isForeground(this));
+                new MediaModuleView(view, this);
             } else if ("protection".equals(module.getId())) {
                 new ProtectionModuleView(view, this);
             }
@@ -157,31 +122,8 @@ public final class MainActivity extends Activity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        if (!mediaReceiverRegistered && mediaReceiver != null) {
-            registerReceiver(mediaReceiver,
-                    new IntentFilter(MediaSettingsStore.ACTION_STATE_CHANGED));
-            mediaReceiverRegistered = true;
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        if (mediaReceiverRegistered) {
-            try {
-                unregisterReceiver(mediaReceiver);
-            } catch (RuntimeException ignored) {
-            }
-            mediaReceiverRegistered = false;
-        }
-        super.onPause();
-    }
-
-    @Override
     protected void onDestroy() {
         EventsModuleView.destroy();
-        mediaView = null;
         super.onDestroy();
     }
 

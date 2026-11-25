@@ -15,7 +15,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Monitor audio playback and configure background media restoration."
+            android:text="Restore background media and Bluetooth players when switching between apps."
             android:textColor="@color/text_muted"
             android:textSize="@dimen/text_body" />
 
@@ -27,111 +27,19 @@
             android:orientation="vertical"
             android:padding="@dimen/card_padding">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Source package"
-                android:textColor="@color/text_muted"
-                android:textSize="@dimen/text_label" />
-
-            <TextView
-                android:id="@+id/media_source_package"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:text="Unknown"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_section_title" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_section"
-                android:text="Playback state"
-                android:textColor="@color/text_muted"
-                android:textSize="@dimen/text_label" />
-
-            <TextView
-                android:id="@+id/media_playback_state"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:text="UNKNOWN"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_page_title"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/media_raw_state"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:text="Raw state: unavailable"
-                android:textColor="@color/text_muted"
-                android:textSize="@dimen/text_label" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:text="Window focus"
-                android:textColor="@color/text_muted"
-                android:textSize="@dimen/text_label" />
-
-            <TextView
-                android:id="@+id/media_foreground_state"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_xs"
-                android:text="NOT FOREGROUND"
-                android:textColor="@color/text_primary"
-                android:textSize="@dimen/text_section_title"
-                android:textStyle="bold" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="@dimen/spacing_section"
-                android:background="@color/line" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:text="BACKGROUND RESTORE"
-                android:textColor="@color/neon_red"
-                android:textSize="@dimen/text_label"
-                android:textStyle="bold"
-                android:letterSpacing="0.08" />
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_md"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Restore background media player"
-                        android:textColor="@color/text_primary"
-                        android:textSize="@dimen/text_body" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_xs"
-                        android:text="Open the media app when it was in the background"
-                        android:textColor="@color/text_muted"
-                        android:textSize="@dimen/text_secondary" />
-                </LinearLayout>
+                    android:text="Restore background media player"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_body" />
 
                 <Switch
                     android:id="@+id/media_restore_background_media"
@@ -153,27 +61,13 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Restore background Bluetooth player"
-                        android:textColor="@color/text_primary"
-                        android:textSize="@dimen/text_body" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="@dimen/spacing_xs"
-                        android:text="Open Bluetooth music when it was in the background"
-                        android:textColor="@color/text_muted"
-                        android:textSize="@dimen/text_secondary" />
-                </LinearLayout>
+                    android:text="Restore background Bluetooth player"
+                    android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_body" />
 
                 <Switch
                     android:id="@+id/media_restore_background_bluetooth"
