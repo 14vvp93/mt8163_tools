@@ -4,28 +4,28 @@
     android:layout_height="match_parent"
     android:background="@color/app_background"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="@dimen/page_padding">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Manage automatic application startup."
         android:textColor="@color/text_muted"
-        android:textSize="16sp" />
+        android:textSize="@dimen/text_body" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="@dimen/spacing_section"
         android:background="@drawable/module_card_background"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="@dimen/card_padding">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Module settings will be available later."
             android:textColor="@color/text_muted"
-            android:textSize="15sp" />
+            android:textSize="@dimen/text_button" />
     </LinearLayout>
 </LinearLayout>
