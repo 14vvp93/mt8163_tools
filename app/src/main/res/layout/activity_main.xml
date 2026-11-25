@@ -1,121 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/app_background"
-    android:orientation="horizontal">
-
-    <LinearLayout
-        android:layout_width="@dimen/sidebar_width"
-        android:layout_height="match_parent"
-        android:background="@color/sidebar_background"
-        android:orientation="vertical"
-        android:paddingStart="@dimen/card_padding"
-        android:paddingTop="@dimen/spacing_xl"
-        android:paddingEnd="@dimen/card_padding">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/brand_header_height"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="@dimen/spacing_sm">
-
-            <TextView
-                android:layout_width="@dimen/brand_mark_size"
-                android:layout_height="@dimen/brand_mark_size"
-                android:background="@drawable/brand_mark"
-                android:gravity="center"
-                android:text="MT"
-                android:textColor="@color/white"
-                android:textSize="@dimen/text_section_title"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/app_background" android:orientation="horizontal">
+    <LinearLayout android:layout_width="@dimen/sidebar_width"
+        android:layout_height="match_parent" android:background="@color/sidebar_background"
+        android:orientation="vertical" android:paddingStart="@dimen/card_padding"
+        android:paddingTop="@dimen/spacing_xl" android:paddingEnd="@dimen/card_padding">
+        <LinearLayout android:layout_width="match_parent"
+            android:layout_height="@dimen/brand_header_height" android:gravity="center_vertical"
+            android:orientation="horizontal" android:paddingStart="@dimen/spacing_sm">
+            <TextView android:layout_width="@dimen/brand_mark_size"
+                android:layout_height="@dimen/brand_mark_size" android:background="@drawable/brand_mark"
+                android:gravity="center" android:text="@string/brand_mark"
+                android:textColor="@color/white" android:textSize="@dimen/text_section_title"
                 android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
+            <LinearLayout android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:orientation="vertical"
                 android:paddingStart="@dimen/spacing_md">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MT8163 TOOLS"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/text_section_title"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="@dimen/spacing_xs"
-                    android:text="SYSTEM CONTROL PANEL"
-                    android:textColor="@color/text_muted"
-                    android:textSize="@dimen/text_secondary" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="@string/brand_title" android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_section_title" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_xs" android:text="@string/brand_subtitle"
+                    android:textColor="@color/text_muted" android:textSize="@dimen/text_secondary" />
             </LinearLayout>
         </LinearLayout>
-
-        <ListView
-            android:id="@+id/sidebar_list"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+        <ListView android:id="@+id/sidebar_list" android:layout_width="match_parent"
+            android:layout_height="0dp" android:layout_weight="1"
             android:background="@android:color/transparent"
             android:cacheColorHint="@android:color/transparent"
             android:divider="@android:color/transparent"
             android:dividerHeight="@dimen/sidebar_divider_height"
             android:listSelector="@android:color/transparent"
-            android:overScrollMode="never"
-            android:scrollbars="none" />
+            android:overScrollMode="never" android:scrollbars="none" />
     </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <FrameLayout
-            android:id="@+id/header_container"
-            android:layout_width="match_parent"
+    <LinearLayout android:layout_width="0dp" android:layout_height="match_parent"
+        android:layout_weight="1" android:orientation="vertical">
+        <FrameLayout android:id="@+id/header_container" android:layout_width="match_parent"
             android:layout_height="@dimen/header_height" />
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/app_background">
-
-            <FrameLayout
-                android:id="@+id/content_container"
-                android:layout_width="match_parent"
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1" android:background="@color/app_background">
+            <FrameLayout android:id="@+id/content_container" android:layout_width="match_parent"
                 android:layout_height="match_parent" />
-
-            <LinearLayout
-                android:id="@+id/disabled_overlay"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:background="@drawable/disabled_panel"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="@dimen/page_padding"
+            <LinearLayout android:id="@+id/disabled_overlay" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_gravity="center"
+                android:background="@drawable/disabled_panel" android:gravity="center"
+                android:orientation="vertical" android:padding="@dimen/page_padding"
                 android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="MODULE DISABLED"
-                    android:textColor="@color/text_primary"
-                    android:textSize="@dimen/text_section_title"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="@string/module_disabled_title" android:textColor="@color/text_primary"
+                    android:textSize="@dimen/text_section_title" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:layout_marginTop="@dimen/spacing_sm"
-                    android:text="Enable this module using the switch above"
-                    android:textColor="@color/text_muted"
+                    android:text="@string/module_disabled_hint" android:textColor="@color/text_muted"
                     android:textSize="@dimen/text_body" />
             </LinearLayout>
         </FrameLayout>

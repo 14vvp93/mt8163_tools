@@ -1,5 +1,1 @@
-<?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <corners android:radius="@dimen/radius_card" />
-    <solid android:color="@android:color/transparent" />
-</shape>
+<?xml version="1.0" encoding="utf-8"?><selector xmlns:android="http://schemas.android.com/apk/res/android"><item android:state_activated="true" android:drawable="@drawable/sidebar_item_selected" /><item android:drawable="@drawable/sidebar_item_unselected" /></selector>

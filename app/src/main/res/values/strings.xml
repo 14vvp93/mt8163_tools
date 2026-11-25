@@ -16,4 +16,9 @@
 <string name="events_clear_title">Clear event log?</string><string name="events_clear_message">This will delete the complete event history, not only the visible entries.</string><string name="events_cleared">Event history cleared</string>
 <string name="events_export_title">Export event log</string><string name="events_export_filtered_label">Current filter</string><string name="events_export_all_label">All history</string>
 <string name="events_export_completed">Export completed</string><string name="events_export_failed">Export failed: %1$s</string>
-<string name="events_description">View and manage system events recorded by MT8163 Tools.</string><string name="refresh">Refresh</string><string name="copy">Copy</string><string name="export">Export</string></resources>
+<string name="events_description">View and manage system events recorded by MT8163 Tools.</string><string name="refresh">Refresh</string><string name="copy">Copy</string><string name="export">Export</string>
+<string name="brand_mark">MT</string><string name="brand_title">MT8163 TOOLS</string><string name="brand_subtitle">SYSTEM CONTROL PANEL</string><string name="module_disabled_title">MODULE DISABLED</string><string name="module_disabled_hint">Enable this module using the switch above</string>
+<string name="media_description">Restore background media and Bluetooth players when switching between apps.</string><string name="media_restore_background_media">Restore background media player</string><string name="media_restore_background_bluetooth">Restore background Bluetooth player</string>
+<string name="voltage_description">Adjust the voltage reported by the MCU</string><string name="voltage_current_correction">CURRENT CORRECTION</string><string name="voltage_zero">0.0 V</string><string name="voltage_minimum">−2.0 V</string><string name="voltage_maximum">+2.0 V</string><string name="voltage_initial_offset">+0.0 V</string><string name="voltage_reset">Reset</string>
+<string name="autorun_description">Manage automatic application startup.</string><string name="autorun_placeholder">Module settings will be available later.</string>
+</resources>

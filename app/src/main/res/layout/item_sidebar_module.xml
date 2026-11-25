@@ -2,31 +2,24 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="@dimen/sidebar_item_height"
+    android:background="@drawable/sidebar_item_background"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="@dimen/sidebar_item_padding"
     android:paddingEnd="@dimen/sidebar_item_padding">
-
-    <ImageView
-        android:id="@+id/module_icon"
+    <ImageView android:id="@+id/module_icon"
         android:layout_width="@dimen/sidebar_icon_size"
         android:layout_height="@dimen/sidebar_icon_size"
         android:background="@drawable/sidebar_icon_background"
         android:padding="@dimen/sidebar_icon_padding"
-        android:scaleType="fitCenter" />
-
-    <TextView
-        android:id="@+id/module_name"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:paddingStart="@dimen/sidebar_item_padding"
-        android:textColor="@color/text_secondary"
-        android:textSize="@dimen/text_button"
-        android:textStyle="bold" />
-
-    <View
-        android:id="@+id/module_state"
+        android:scaleType="fitCenter"
+        android:tint="@color/sidebar_icon_tint" />
+    <TextView android:id="@+id/module_name"
+        android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:paddingStart="@dimen/sidebar_item_padding"
+        android:textColor="@color/sidebar_text_tint"
+        android:textSize="@dimen/text_button" android:textStyle="bold" />
+    <View android:id="@+id/module_state"
         android:layout_width="@dimen/status_dot_size"
         android:layout_height="@dimen/status_dot_size"
         android:background="@drawable/status_dot" />

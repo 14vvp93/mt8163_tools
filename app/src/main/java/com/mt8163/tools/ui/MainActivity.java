@@ -65,8 +65,9 @@ public final class MainActivity extends Activity {
         adapter.setSelectedPosition(position);
         header.removeAllViews();
 
-        ModuleHeaderView headerView = new ModuleHeaderView(this);
-        headerView.bind(module, enabled -> {
+        View headerView = LayoutInflater.from(this)
+                .inflate(R.layout.view_module_header, header, false);
+        ModuleHeaderView.bind(headerView, module, enabled -> {
             registry.saveState(module, preferences);
 
             if ("events".equals(module.getId())) {
@@ -102,7 +103,8 @@ public final class MainActivity extends Activity {
         if ("events".equals(module.getId())) {
             if (module.isEnabled()) content.addView(EventsModuleView.create(this, modules));
         } else {
-            View view = LayoutInflater.from(this).inflate(module.getLayoutRes(), content, false);
+            View view = LayoutInflater.from(this)
+                    .inflate(module.getLayoutRes(), content, false);
             content.addView(view);
             if ("voltage".equals(module.getId())) {
                 VoltageModuleView.bind(view, this);
