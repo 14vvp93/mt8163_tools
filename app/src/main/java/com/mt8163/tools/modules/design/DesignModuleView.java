@@ -341,8 +341,7 @@ public final class DesignModuleView {
         final int[] selected = {initial};
         final boolean[] updating = {false};
         final boolean[] applied = {false};
-        Runnable applyLiveColor = () -> {
-            store.setColor(setting.key, selected[0]);
+        Runnable updateSwatch = () -> {
             swatch.setText(colorText(selected[0]));
             swatch.setTextColor(contrast(selected[0]));
             swatch.setBackground(shape(selected[0], context.getColor(R.color.line), dp(1), dp(6)));
@@ -357,7 +356,6 @@ public final class DesignModuleView {
             hex.setText(colorText(selected[0]));
             hex.setSelection(hex.length());
             updating[0] = false;
-            applyLiveColor.run();
         };
         SeekBar.OnSeekBarChangeListener sliderListener = new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
@@ -390,7 +388,6 @@ public final class DesignModuleView {
                     value.setProgress(Math.round(hsvValue[2] * 100));
                     alpha.setProgress(Color.alpha(parsed));
                     updating[0] = false;
-                    applyLiveColor.run();
                 } catch (IllegalArgumentException ignored) { }
             }
             @Override public void afterTextChanged(Editable s) { }
@@ -421,7 +418,6 @@ public final class DesignModuleView {
                 hex.setSelection(hex.length());
                 updating[0] = false;
                 preview.setBackgroundColor(preset);
-                applyLiveColor.run();
             });
         }
         body.addView(palette);
@@ -435,23 +431,12 @@ public final class DesignModuleView {
         apply.setOnClickListener(v -> {
             applied[0] = true;
             store.setColor(setting.key, selected[0]);
+            updateSwatch.run();
             picker.dismiss();
-            if (dialog != null && dialog.isShowing()) {
-                dialog.dismiss();
-                show();
-            }
         });
         actions.addView(cancel);
         actions.addView(apply);
         body.addView(actions);
-        picker.setOnDismissListener(ignored -> {
-            if (!applied[0]) {
-                store.setColor(setting.key, initial);
-                swatch.setText(colorText(initial));
-                swatch.setTextColor(contrast(initial));
-                swatch.setBackground(shape(initial, context.getColor(R.color.line), dp(1), dp(6)));
-            }
-        });
         picker.setCancelable(true);
         picker.setCanceledOnTouchOutside(false);
         picker.setContentView(body);
