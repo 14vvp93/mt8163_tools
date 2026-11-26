@@ -82,6 +82,8 @@ public final class DesignStore {
 
         boolean imported = false;
         synchronized (this) {
+            if (externalStorageEnabled) return true;
+
             File file = getExternalFile();
             if (file.exists()) {
                 try {
