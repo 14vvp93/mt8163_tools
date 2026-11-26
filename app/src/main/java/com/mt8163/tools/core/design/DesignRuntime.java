@@ -255,13 +255,23 @@ public final class DesignRuntime {
 
     private static ColorStateList map(ColorStateList source, int[] base,
                                       String[] keys, DesignStore store) {
-        int[][] states = source.getStates();
-        int[] colors = source.getColors();
-        int[] mapped = new int[colors.length];
-        for (int i = 0; i < colors.length; i++) mapped[i] = map(colors[i], base, keys, store);
-        return new ColorStateList(states, mapped);
+        int[][] states = {
+            {android.R.attr.state_enabled, android.R.attr.state_checked},
+            {android.R.attr.state_enabled, android.R.attr.state_pressed},
+            {android.R.attr.state_enabled, android.R.attr.state_focused},
+            {-android.R.attr.state_enabled},
+            {android.R.attr.state_checked},
+            {android.R.attr.state_selected},
+            {android.R.attr.state_activated},
+            {}
+        };
+        int[] colors = new int[states.length];
+        int fallback = source.getDefaultColor();
+        for (int i = 0; i < states.length; i++) {
+            colors[i] = map(source.getColorForState(states[i], fallback), base, keys, store);
+        }
+        return new ColorStateList(states, colors);
     }
-
     private static int map(int color, int[] base, String[] keys, DesignStore store) {
         for (int i = 0; i < base.length; i++) {
             if (color == base[i]) return store.getColor(keys[i], base[i]);
