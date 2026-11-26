@@ -177,6 +177,7 @@ public final class MainActivity extends Activity {
             if (designStore.syncExternalFile()) {
                 Toast.makeText(this, "Design parameters saved to "
                         + designStore.getExternalFilePath(), Toast.LENGTH_LONG).show();
+                showModule(selected);
             } else {
                 Toast.makeText(this, "Cannot read or write design_parameters.json",
                         Toast.LENGTH_LONG).show();
