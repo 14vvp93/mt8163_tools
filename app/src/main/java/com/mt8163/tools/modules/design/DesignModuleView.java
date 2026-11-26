@@ -55,8 +55,7 @@ public final class DesignModuleView {
         new ColorSetting("Switch checked", "switchCheckedColor", R.color.switch_track_checked),
         new ColorSetting("Switch disabled", "switchDisabledColor", R.color.switch_track_disabled),
         new ColorSetting("Accent overlay", "accentOverlayColor", R.color.accent_overlay),
-        new ColorSetting("Accent stroke", "accentStrokeColor", R.color.accent_stroke),
-        new ColorSetting("White", "whiteColor", R.color.white)
+        new ColorSetting("Accent stroke", "accentStrokeColor", R.color.accent_stroke)
     };
 
     private static final NumberSetting[] NUMBERS = {
