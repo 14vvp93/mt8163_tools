@@ -54,7 +54,7 @@
             android:layout_marginEnd="@dimen/spacing_xs"
             style="@style/ProtectionIndicator"
             android:contentDescription="@string/protection_indicator_close"
-            android:src="@drawable/ic_protection_keep" />
+            android:src="@drawable/ic_protection_close" />
     </LinearLayout>
 
     <View
