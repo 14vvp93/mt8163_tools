@@ -89,6 +89,9 @@ public final class MainActivity extends Activity {
             }
 
             if ("protection".equals(module.getId())) {
+                EventLogger.log(this, "Protection",
+                        enabled ? "moduleEnabled" : "moduleDisabled",
+                        enabled ? "Protection module enabled" : "Protection module disabled");
                 ProtectionSettingsStore.publish(this);
             }
 
