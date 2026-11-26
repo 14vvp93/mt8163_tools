@@ -180,20 +180,6 @@ public final class MainActivity extends Activity {
                 REQUEST_DESIGN_STORAGE);
     }
 
-    private void requestDesignStorageAccess() {
-        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                == PackageManager.PERMISSION_GRANTED) {
-            if (!designStore.syncExternalFile()) {
-                Toast.makeText(this, "Cannot read or write design_parameters.json",
-                        Toast.LENGTH_LONG).show();
-            }
-            return;
-        }
-
-        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                REQUEST_DESIGN_STORAGE);
-    }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -203,7 +189,7 @@ public final class MainActivity extends Activity {
             if (designStore.syncExternalFile()) {
                 Toast.makeText(this, "Design parameters saved to "
                         + designStore.getExternalFilePath(), Toast.LENGTH_LONG).show();
-                showModule(selected);
+                designPanel.show();
             } else {
                 Toast.makeText(this, "Cannot read or write design_parameters.json",
                         Toast.LENGTH_LONG).show();
