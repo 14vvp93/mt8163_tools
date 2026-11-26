@@ -41,6 +41,7 @@ public final class DesignModuleView {
         new ColorSetting("Panel surface", "surfaceColor", R.color.panel_background),
         new ColorSetting("Dialog surface", "dialogColor", R.color.dialog_background),
         new ColorSetting("Accent", "accentColor", R.color.neon_red),
+        new ColorSetting("SeekBar thumb", "seekbarThumbColor", R.color.white),
         new ColorSetting("Primary text", "primaryTextColor", R.color.text_primary),
         new ColorSetting("Secondary text", "secondaryTextColor", R.color.text_secondary),
         new ColorSetting("Muted text", "mutedTextColor", R.color.text_muted),
@@ -102,6 +103,7 @@ public final class DesignModuleView {
         new NumberSetting("Sidebar divider height", "sidebarDividerHeightDp", 1f, 12f, 44, 6f, " dp"),
         new NumberSetting("Emphasis border width", "borderWidthEmphasisDp", 1f, 4f, 30, 2f, " dp"),
         new NumberSetting("SeekBar height", "seekbarHeightDp", 16f, 40f, 48, 24f, " dp"),
+        new NumberSetting("SeekBar track height", "seekbarTrackHeightDp", 1f, 12f, 44, 4f, " dp"),
         new NumberSetting("Large control size", "controlSizeLargeDp", 28f, 56f, 56, 40f, " dp"),
         new NumberSetting("Protection card minimum height", "protectionCardMinHeightDp", 48f, 96f, 96, 64f, " dp"),
         new NumberSetting("Protection separator height", "protectionSeparatorHeightDp", 12f, 44f, 64, 28f, " dp"),
@@ -299,10 +301,19 @@ public final class DesignModuleView {
                         context.getColor(R.color.dialog_background)),
                 store.getColor("lineColor", context.getColor(R.color.line)), dp(1),
                 dp(store.getFloat("cornerRadiusDp", 8f))));
+        LinearLayout headingRow = new LinearLayout(context);
+        headingRow.setGravity(Gravity.CENTER_VERTICAL);
         TextView heading = label(setting.label);
         heading.setTextSize(17);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        body.addView(heading);
+        headingRow.addView(heading, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        Button close = new Button(context);
+        close.setText("×");
+        close.setTextSize(22);
+        close.setMinWidth(dp(44));
+        close.setOnClickListener(v -> picker.dismiss());
+        headingRow.addView(close, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        body.addView(headingRow);
         View preview = new View(context);
         LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(-1, dp(48));
         previewParams.topMargin = dp(10);
@@ -420,6 +431,7 @@ public final class DesignModuleView {
         actions.addView(cancel);
         actions.addView(apply);
         body.addView(actions);
+        picker.setCancelable(true);
         picker.setCanceledOnTouchOutside(false);
         picker.setContentView(body);
         picker.show();

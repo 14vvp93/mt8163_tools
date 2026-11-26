@@ -2,6 +2,9 @@ package com.mt8163.tools.core.design;
 
 import android.content.res.ColorStateList;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.ClipDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.view.Gravity;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -69,7 +72,7 @@ public final class DesignRuntime {
             color(view, R.color.module_status_inactive), color(view, R.color.switch_thumb),
             color(view, R.color.switch_track_default), color(view, R.color.switch_track_checked),
             color(view, R.color.switch_track_disabled), color(view, R.color.accent_overlay),
-            color(view, R.color.accent_stroke)
+            color(view, R.color.accent_stroke), color(view, R.color.white)
         };
         String[] keys = {
             "appColor", "sidebarColor", "headerColor", "surfaceColor", "dialogColor",
@@ -78,7 +81,7 @@ public final class DesignRuntime {
             "buttonDisabledColor", "iconSurfaceColor", "statusActiveColor",
             "statusInactiveColor", "switchThumbColor", "switchTrackColor",
             "switchCheckedColor", "switchDisabledColor", "accentOverlayColor",
-            "accentStrokeColor"
+            "accentStrokeColor", "seekbarThumbColor"
         };
 
         if (view.getId() == R.id.sidebar_item_root) {
@@ -95,6 +98,7 @@ public final class DesignRuntime {
             }
             view.setBackground(item);
         }
+        if (view instanceof SeekBar) applySeekBarColors((SeekBar) view, store);
         if (view instanceof Button && !(view instanceof Switch)) applyButtonColors((Button) view, store);
         if (view instanceof Switch) applySwitchColors((Switch) view, store);
 
@@ -155,6 +159,41 @@ public final class DesignRuntime {
         }
     }
 
+
+    private static void applySeekBarColors(SeekBar bar, DesignStore store) {
+        int trackHeight = Math.max(1, dp(bar, store.getFloat("seekbarTrackHeightDp", 4f)));
+        int trackColor = store.getColor("lineColor", color(bar, R.color.line));
+        int progressColor = store.getColor("accentColor", color(bar, R.color.neon_red));
+        int thumbColor = store.getColor("seekbarThumbColor", color(bar, R.color.white));
+
+        GradientDrawable background = track(trackColor, trackHeight);
+        GradientDrawable secondary = track(trackColor, trackHeight);
+        GradientDrawable progress = track(progressColor, trackHeight);
+        ClipDrawable clippedProgress = new ClipDrawable(progress, Gravity.START,
+                ClipDrawable.HORIZONTAL);
+        LayerDrawable layers = new LayerDrawable(
+                new Drawable[]{background, secondary, clippedProgress});
+
+        int[] ids = {android.R.id.background, android.R.id.secondaryProgress,
+                android.R.id.progress};
+        for (int i = 0; i < ids.length; i++) {
+            layers.setId(i, ids[i]);
+            layers.setLayerWidth(i, -1);
+            layers.setLayerHeight(i, trackHeight);
+            layers.setLayerGravity(i, Gravity.CENTER_VERTICAL);
+        }
+
+        bar.setProgressDrawable(layers);
+        bar.setThumbTintList(ColorStateList.valueOf(thumbColor));
+        bar.setSplitTrack(false);
+    }
+
+    private static GradientDrawable track(int color, int height) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(height / 2f);
+        return drawable;
+    }
 
     private static void applyButtonColors(Button button, DesignStore store) {
         int normal = store.getColor("buttonColor", color(button, R.color.button_background));
