@@ -31,6 +31,8 @@ public final class DesignModuleView {
     private final DesignStore store;
     private Dialog dialog;
     private LinearLayout controls;
+    private View dialogContent;
+    private boolean minimized;
 
     private static final ColorSetting[] COLORS = {
         new ColorSetting("App background", "appColor", R.color.app_background),
@@ -88,7 +90,31 @@ public final class DesignModuleView {
         new NumberSetting("Label text", "textLabelSp", 10f, 18f, 40, 13f, " sp"),
         new NumberSetting("Button text", "textButtonSp", 11f, 21f, 50, 15f, " sp"),
         new NumberSetting("Large value", "textLargeValueSp", 28f, 56f, 56, 44f, " sp"),
-        new NumberSetting("Icon button text", "textIconButtonSp", 18f, 36f, 54, 28f, " sp")
+        new NumberSetting("Icon button text", "textIconButtonSp", 18f, 36f, 54, 28f, " sp"),
+        new NumberSetting("Extra small spacing", "spacingXsDp", 2f, 8f, 60, 4f, " dp"),
+        new NumberSetting("Small spacing", "spacingSmDp", 4f, 12f, 80, 8f, " dp"),
+        new NumberSetting("Medium spacing", "spacingMdDp", 6f, 18f, 120, 12f, " dp"),
+        new NumberSetting("Large spacing", "spacingLgDp", 8f, 24f, 160, 16f, " dp"),
+        new NumberSetting("Extra large spacing", "spacingXlDp", 10f, 30f, 200, 20f, " dp"),
+        new NumberSetting("XXL spacing", "spacingXxlDp", 12f, 36f, 240, 24f, " dp"),
+        new NumberSetting("Small icon size", "iconSizeSmallDp", 12f, 32f, 80, 20f, " dp"),
+        new NumberSetting("Sidebar icon size", "sidebarIconSizeDp", 24f, 48f, 96, 36f, " dp"),
+        new NumberSetting("Sidebar divider height", "sidebarDividerHeightDp", 1f, 12f, 44, 6f, " dp"),
+        new NumberSetting("Emphasis border width", "borderWidthEmphasisDp", 1f, 4f, 30, 2f, " dp"),
+        new NumberSetting("SeekBar height", "seekbarHeightDp", 16f, 40f, 48, 24f, " dp"),
+        new NumberSetting("Large control size", "controlSizeLargeDp", 28f, 56f, 56, 40f, " dp"),
+        new NumberSetting("Protection card minimum height", "protectionCardMinHeightDp", 48f, 96f, 96, 64f, " dp"),
+        new NumberSetting("Protection separator height", "protectionSeparatorHeightDp", 12f, 44f, 64, 28f, " dp"),
+        new NumberSetting("Picker dialog maximum width", "pickerDialogMaxWidthDp", 420f, 720f, 120, 640f, " dp"),
+        new NumberSetting("Picker dialog maximum height", "pickerDialogMaxHeightDp", 300f, 560f, 104, 430f, " dp"),
+        new NumberSetting("Protection settings dialog width", "protectionSettingsDialogWidthDp", 360f, 600f, 96, 520f, " dp"),
+        new NumberSetting("Protection settings dialog height", "protectionSettingsDialogHeightDp", 180f, 340f, 80, 260f, " dp"),
+        new NumberSetting("Protection confirmation height", "protectionConfirmDialogHeightDp", 140f, 280f, 70, 200f, " dp"),
+        new NumberSetting("Events filter dialog width", "eventsFilterDialogWidthDp", 320f, 560f, 96, 480f, " dp"),
+        new NumberSetting("Events filter dialog height", "eventsFilterDialogHeightDp", 360f, 640f, 112, 560f, " dp"),
+        new NumberSetting("Events confirmation width", "eventsConfirmDialogWidthDp", 320f, 560f, 96, 480f, " dp"),
+        new NumberSetting("Events confirmation height", "eventsConfirmDialogHeightDp", 160f, 300f, 70, 220f, " dp"),
+        new NumberSetting("Events export dialog height", "eventsExportDialogHeightDp", 220f, 400f, 90, 300f, " dp")
     };
 
     public DesignModuleView(View root, DesignStore store) {
@@ -121,22 +147,39 @@ public final class DesignModuleView {
         title.setTextSize(17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        Button minimize = new Button(context);
+        minimize.setText("—");
+        minimize.setTextSize(18);
+        minimize.setMinWidth(dp(44));
+        minimize.setOnClickListener(v -> {
+            minimized = !minimized;
+            dialogContent.setVisibility(minimized ? View.GONE : View.VISIBLE);
+            minimize.setText(minimized ? "□" : "—");
+            Window current = dialog.getWindow();
+            if (current != null) current.setLayout(
+                    Math.min(dp(900), context.getResources().getDisplayMetrics().widthPixels - dp(64)),
+                    minimized ? dp(58) : Math.min(dp(500),
+                            context.getResources().getDisplayMetrics().heightPixels - dp(64)));
+        });
+        header.addView(minimize, new LinearLayout.LayoutParams(dp(44), dp(42)));
         Button close = new Button(context);
         close.setText("×");
         close.setTextSize(22);
-        close.setMinWidth(dp(48));
+        close.setMinWidth(dp(44));
         close.setOnClickListener(v -> dialog.dismiss());
-        header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(42)));
+        header.addView(close, new LinearLayout.LayoutParams(dp(44), dp(42)));
         panel.addView(header);
         makeDraggable(header);
 
+        dialogContent = new LinearLayout(context);
+        dialogContent.setOrientation(LinearLayout.VERTICAL);
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(false);
         controls = new LinearLayout(context);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(18), dp(8), dp(18), dp(12));
         scroll.addView(controls);
-        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        dialogContent.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         buildColors();
         buildNumbers();
 
@@ -155,7 +198,9 @@ public final class DesignModuleView {
         done.setOnClickListener(v -> dialog.dismiss());
         footer.addView(reset);
         footer.addView(done);
-        panel.addView(footer);
+        dialogContent.addView(footer);
+        panel.addView(dialogContent, new LinearLayout.LayoutParams(-1, 0, 1f));
+        minimized = false;
 
         dialog.setContentView(panel);
         Window window = dialog.getWindow();
@@ -166,8 +211,8 @@ public final class DesignModuleView {
         }
         dialog.show();
         if (window != null) {
-            int width = Math.min(dp(1120), context.getResources().getDisplayMetrics().widthPixels - dp(48));
-            int height = Math.min(dp(640), context.getResources().getDisplayMetrics().heightPixels - dp(48));
+            int width = Math.min(dp(900), context.getResources().getDisplayMetrics().widthPixels - dp(64));
+            int height = Math.min(dp(500), context.getResources().getDisplayMetrics().heightPixels - dp(64));
             window.setLayout(width, height);
             WindowManager.LayoutParams params = window.getAttributes();
             params.gravity = Gravity.CENTER;
@@ -200,12 +245,16 @@ public final class DesignModuleView {
                     float dy = event.getRawY() - downRawY;
                     if (Math.abs(dx) + Math.abs(dy) > dp(4)) dragging = true;
                     if (dragging) {
-                        int maxX = Math.max(0, root.getResources().getDisplayMetrics().widthPixels
-                                - window.getDecorView().getWidth());
-                        int maxY = Math.max(0, root.getResources().getDisplayMetrics().heightPixels
-                                - window.getDecorView().getHeight());
+                        int screenWidth = root.getResources().getDisplayMetrics().widthPixels;
+                        int screenHeight = root.getResources().getDisplayMetrics().heightPixels;
+                        int windowWidth = window.getDecorView().getWidth();
+                        int windowHeight = window.getDecorView().getHeight();
+                        int visibleHandle = dp(72);
+                        int maxX = Math.max(0, screenWidth - visibleHandle);
+                        int minX = Math.min(0, visibleHandle - windowWidth);
+                        int maxY = Math.max(0, screenHeight - dp(48));
                         params.gravity = Gravity.TOP | Gravity.LEFT;
-                        params.x = Math.max(0, Math.min(maxX, startX + Math.round(dx)));
+                        params.x = Math.max(minX, Math.min(maxX, startX + Math.round(dx)));
                         params.y = Math.max(0, Math.min(maxY, startY + Math.round(dy)));
                         window.setAttributes(params);
                     }
