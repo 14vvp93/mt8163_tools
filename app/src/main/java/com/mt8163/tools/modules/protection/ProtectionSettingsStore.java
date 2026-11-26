@@ -94,9 +94,15 @@ public final class ProtectionSettingsStore {
             settings.put("allow_close_via_x", allowCloseViaX);
             applications.put(ProtectionConfig.key(packageName), settings);
 
+            String key = ProtectionConfig.key(packageName);
+            boolean existed = applications.has(key);
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
             publish(app);
+            EventLogger.log(app, "Protection",
+                    existed ? "applicationSettingsUpdated" : "applicationAdded",
+                    (existed ? "Application settings updated: " : "Application added: ")
+                            + packageName);
             return true;
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(app, "Protection", "configurationSave",
@@ -114,10 +120,15 @@ public final class ProtectionSettingsStore {
         try {
             JSONObject applications = new JSONObject(
                     preferences.getString(KEY_APPLICATIONS, "{}"));
-            applications.remove(ProtectionConfig.key(packageName));
+            String key = ProtectionConfig.key(packageName);
+            boolean existed = applications.has(key);
+            if (!existed) return true;
+            applications.remove(key);
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
             publish(app);
+            EventLogger.log(app, "Protection", "applicationRemoved",
+                    "Application removed: " + packageName);
             return true;
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(app, "Protection", "configurationSave",
