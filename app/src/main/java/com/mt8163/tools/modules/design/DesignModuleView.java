@@ -31,7 +31,7 @@ public final class DesignModuleView {
     private final DesignStore store;
     private Dialog dialog;
     private LinearLayout controls;
-    private View dialogContent;
+    private LinearLayout dialogContent;
     private boolean minimized;
 
     private static final ColorSetting[] COLORS = {
