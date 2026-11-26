@@ -1,12 +1,15 @@
 package com.mt8163.tools.ui;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
@@ -29,6 +32,8 @@ import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
 import java.util.List;
 
 public final class MainActivity extends Activity {
+    private static final int REQUEST_DESIGN_STORAGE = 4101;
+
     private ModuleRegistry registry;
     private PreferencesManager preferences;
     private DesignStore designStore;
@@ -81,6 +86,8 @@ public final class MainActivity extends Activity {
 
         selected = position;
         ModuleContract module = modules.get(position);
+        if ("design".equals(module.getId())) requestDesignStorageAccess();
+
         adapter.setSelectedPosition(position);
         header.removeAllViews();
 
@@ -145,6 +152,39 @@ public final class MainActivity extends Activity {
             }
         }
         updateState();
+    }
+
+    private void requestDesignStorageAccess() {
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED) {
+            if (!designStore.syncExternalFile()) {
+                Toast.makeText(this, "Cannot read or write design_parameters.json",
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
+        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                REQUEST_DESIGN_STORAGE);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_DESIGN_STORAGE) return;
+
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (designStore.syncExternalFile()) {
+                Toast.makeText(this, "Design parameters saved to "
+                        + designStore.getExternalFilePath(), Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, "Cannot read or write design_parameters.json",
+                        Toast.LENGTH_LONG).show();
+            }
+        } else {
+            Toast.makeText(this, "Storage permission is required to export design parameters",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private void updateState() {
