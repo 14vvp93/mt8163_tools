@@ -11,7 +11,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.CheckBox;
+import android.widget.Switch;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -110,9 +110,9 @@ public final class ProtectionModuleView {
         Dialog dialog = new Dialog(activity);
         View root = inflater.inflate(R.layout.dialog_protection_settings, null, false);
         TextView title = root.findViewById(R.id.protection_settings_title);
-        CheckBox cleaner = root.findViewById(R.id.protection_setting_cleaner);
-        CheckBox hide = root.findViewById(R.id.protection_setting_hide);
-        CheckBox allowClose = root.findViewById(R.id.protection_setting_allow_close);
+        Switch cleaner = root.findViewById(R.id.protection_setting_cleaner);
+        Switch hide = root.findViewById(R.id.protection_setting_hide);
+        Switch allowClose = root.findViewById(R.id.protection_setting_allow_close);
         Button save = root.findViewById(R.id.protection_settings_save);
         Button cancel = root.findViewById(R.id.protection_settings_cancel);
 
@@ -165,7 +165,7 @@ public final class ProtectionModuleView {
         View root = inflater.inflate(R.layout.dialog_protection_picker, null, false);
 
         EditText search = root.findViewById(R.id.protection_picker_search);
-        CheckBox systemApps = root.findViewById(R.id.protection_picker_system_apps);
+        Switch systemApps = root.findViewById(R.id.protection_picker_system_apps);
         TextView results = root.findViewById(R.id.protection_picker_results);
         LinearLayout list = root.findViewById(R.id.protection_picker_list);
 
