@@ -10,23 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />
 
-    <CheckBox
+    <Switch
         android:id="@+id/protection_setting_cleaner"
-        style="@style/ProtectionSettingCheckBox"
+        style="@style/ProtectionSettingSwitch"
         android:layout_width="match_parent"
         android:layout_height="@dimen/button_height"
         android:text="@string/protection_setting_cleaner" />
 
-    <CheckBox
+    <Switch
         android:id="@+id/protection_setting_hide"
-        style="@style/ProtectionSettingCheckBox"
+        style="@style/ProtectionSettingSwitch"
         android:layout_width="match_parent"
         android:layout_height="@dimen/button_height"
         android:text="@string/protection_setting_hide" />
 
-    <CheckBox
+    <Switch
         android:id="@+id/protection_setting_allow_close"
-        style="@style/ProtectionSettingCheckBox"
+        style="@style/ProtectionSettingSwitch"
         android:layout_width="match_parent"
         android:layout_height="@dimen/button_height"
         android:text="@string/protection_setting_allow_close" />
