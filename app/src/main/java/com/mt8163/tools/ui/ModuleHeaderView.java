@@ -33,6 +33,8 @@ public final class ModuleHeaderView {
         status.setText(enabled ? R.string.module_enabled : R.string.module_disabled);
         status.setTextColor(status.getContext().getColor(
                 enabled ? R.color.module_status_active : R.color.module_status_inactive));
+        status.setShadowLayer(enabled ? 4f : 0f, 0f, 0f,
+                status.getContext().getColor(R.color.neon_glow_mid));
     }
 
     public interface OnCheckedChangeListener {
