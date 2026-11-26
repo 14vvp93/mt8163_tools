@@ -58,6 +58,7 @@
     </LinearLayout>
 
     <View
+        android:id="@+id/protection_separator"
         android:layout_width="@dimen/border_width"
         android:layout_height="@dimen/protection_separator_height"
         android:layout_marginStart="@dimen/spacing_sm"

@@ -274,7 +274,15 @@ public final class DesignRuntime {
             text.setTextSize(TypedValue.COMPLEX_UNIT_SP, adjustedSp * textScale);
         }
 
-        if (view.getId() == R.id.sidebar_container && params != null) {
+        if (view.getId() == R.id.protection_app_icon && params != null) {
+            int size = dp(view, store.getFloat("controlSizeLargeDp", 40f));
+            params.width = size;
+            params.height = size;
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.protection_separator && params != null) {
+            params.height = dp(view, store.getFloat("protectionSeparatorHeightDp", 28f));
+            view.setLayoutParams(params);
+        } else if (view.getId() == R.id.sidebar_container && params != null) {
             params.width = dp(view, store.getFloat("sidebarWidthDp", 260f));
             view.setLayoutParams(params);
         } else if (view.getId() == R.id.header_container && params != null) {

@@ -318,8 +318,7 @@ public final class EventsModuleView {
             com.mt8163.tools.core.design.DesignStore store =
                     ((MainApplication) activity.getApplication()).getDesignStore();
             float density = activity.getResources().getDisplayMetrics().density;
-            float widthDp = contentDimension(root, R.id.events_filter_all) ? 480f
-                    : store.getFloat("eventsConfirmDialogWidthDp", 480f);
+            float widthDp = store.getFloat("eventsConfirmDialogWidthDp", 480f);
             float heightDp;
             if (root.findViewById(R.id.events_filter_all) != null) {
                 widthDp = store.getFloat("eventsFilterDialogWidthDp", 480f);
@@ -335,10 +334,6 @@ public final class EventsModuleView {
                     activity.getResources().getDisplayMetrics().heightPixels - 48);
             window.setLayout(width, height);
         }
-    }
-
-    private static boolean contentDimension(View root, int id) {
-        return root.findViewById(id) != null;
     }
 
     public static void destroy() {

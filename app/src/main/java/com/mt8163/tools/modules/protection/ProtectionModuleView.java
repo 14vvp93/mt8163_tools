@@ -76,6 +76,10 @@ public final class ProtectionModuleView {
                 applicationsContainer, false);
         ProtectionConfig.ApplicationSettings settings =
                 ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
+        float density = activity.getResources().getDisplayMetrics().density;
+        float minimumHeight = ((MainApplication) activity.getApplication()).getDesignStore()
+                .getFloat("protectionCardMinHeightDp", 64f);
+        card.setMinimumHeight(Math.round(minimumHeight * density));
 
         ImageView icon = card.findViewById(R.id.protection_app_icon);
         try {
