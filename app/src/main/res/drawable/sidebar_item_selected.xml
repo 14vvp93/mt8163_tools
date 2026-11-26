@@ -1,23 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:left="-3dp" android:top="-3dp" android:right="-3dp" android:bottom="-3dp">
-        <shape android:shape="rectangle">
-            <corners android:radius="@dimen/radius_card" />
-            <solid android:color="@android:color/transparent" />
-            <stroke android:width="3dp" android:color="@color/neon_glow_outer" />
-        </shape>
-    </item>
-    <item android:left="-1dp" android:top="-1dp" android:right="-1dp" android:bottom="-1dp">
-        <shape android:shape="rectangle">
-            <corners android:radius="@dimen/radius_card" />
-            <solid android:color="@android:color/transparent" />
-            <stroke android:width="2dp" android:color="@color/neon_glow_mid" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <corners android:radius="@dimen/radius_card" />
-            <solid android:color="@color/accent_overlay" />
-        </shape>
-    </item>
-</layer-list>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/accent_overlay" />
+    <corners android:radius="@dimen/radius_card" />
+</shape>
