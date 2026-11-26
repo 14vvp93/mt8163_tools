@@ -250,7 +250,17 @@ public final class DesignRuntime {
                 original = text.getTextSize();
                 view.setTag(R.id.design_base_text_size, original);
             }
-            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, original * textScale);
+            float baseSp = original / view.getResources().getDisplayMetrics().scaledDensity;
+            float adjustedSp = baseSp;
+            if (near(baseSp, 24f)) adjustedSp = store.getFloat("textPageTitleSp", 24f);
+            else if (near(baseSp, 16f)) adjustedSp = store.getFloat("textSectionTitleSp", 16f);
+            else if (near(baseSp, 14f)) adjustedSp = store.getFloat("textBodySp", 14f);
+            else if (near(baseSp, 12f)) adjustedSp = store.getFloat("textSecondarySp", 12f);
+            else if (near(baseSp, 13f)) adjustedSp = store.getFloat("textLabelSp", 13f);
+            else if (near(baseSp, 15f)) adjustedSp = store.getFloat("textButtonSp", 15f);
+            else if (near(baseSp, 44f)) adjustedSp = store.getFloat("textLargeValueSp", 44f);
+            else if (near(baseSp, 28f)) adjustedSp = store.getFloat("textIconButtonSp", 28f);
+            text.setTextSize(TypedValue.COMPLEX_UNIT_SP, adjustedSp * textScale);
         }
 
         if (view.getId() == R.id.sidebar_container && params != null) {
@@ -267,6 +277,10 @@ public final class DesignRuntime {
             params.width = mark;
             params.height = mark;
             view.setLayoutParams(params);
+            if (view.getBackground() instanceof GradientDrawable) {
+                ((GradientDrawable) view.getBackground().mutate()).setCornerRadius(
+                        dp(view, store.getFloat("brandMarkRadiusDp", 6f)));
+            }
         } else if (view.getId() == R.id.sidebar_item_root && params != null) {
             params.height = dp(view, store.getFloat("sidebarItemHeightDp", 60f));
             view.setLayoutParams(params);
@@ -283,7 +297,9 @@ public final class DesignRuntime {
         } else if (view instanceof Button && !(view instanceof Switch) && params != null) {
             ((Button) view).setMinWidth(dp(view, store.getFloat("buttonMinWidthDp", 120f)));
         } else if (view instanceof Switch) {
-            ((Switch) view).setMinWidth(dp(view, store.getFloat("switchMinWidthDp", 72f)));
+            Switch toggle = (Switch) view;
+            toggle.setMinWidth(dp(view, store.getFloat("switchMinWidthDp", 72f)));
+            toggle.setSwitchMinWidth(dp(view, store.getFloat("switchTrackMinWidthDp", 56f)));
         }
 
         if (view.getParent() instanceof ScrollView) {
@@ -295,6 +311,10 @@ public final class DesignRuntime {
             int card = dp(view, store.getFloat("cardPaddingDp", 16f) * spacing);
             view.setPadding(card, card, card, card);
         }
+    }
+
+    private static boolean near(float value, float target) {
+        return Math.abs(value - target) < 0.35f;
     }
 
     private static int scaleLayout(int value, float scale) {

@@ -79,7 +79,17 @@ public final class DesignModuleView {
         new NumberSetting("Sidebar item height", "sidebarItemHeightDp", 44f, 80f, 72, 60f, " dp"),
         new NumberSetting("Sidebar item padding", "sidebarItemPaddingDp", 4f, 24f, 40, 12f, " dp"),
         new NumberSetting("Sidebar icon padding", "sidebarIconPaddingDp", 2f, 16f, 28, 8f, " dp"),
-        new NumberSetting("Status indicator size", "statusDotSizeDp", 4f, 16f, 24, 8f, " dp")
+        new NumberSetting("Status indicator size", "statusDotSizeDp", 4f, 16f, 24, 8f, " dp"),
+        new NumberSetting("Switch track minimum width", "switchTrackMinWidthDp", 40f, 80f, 40, 56f, " dp"),
+        new NumberSetting("Brand mark corner radius", "brandMarkRadiusDp", 0f, 20f, 40, 6f, " dp"),
+        new NumberSetting("Page title", "textPageTitleSp", 18f, 32f, 56, 24f, " sp"),
+        new NumberSetting("Section title", "textSectionTitleSp", 12f, 22f, 50, 16f, " sp"),
+        new NumberSetting("Body text", "textBodySp", 10f, 20f, 50, 14f, " sp"),
+        new NumberSetting("Secondary text", "textSecondarySp", 9f, 18f, 45, 12f, " sp"),
+        new NumberSetting("Label text", "textLabelSp", 10f, 18f, 40, 13f, " sp"),
+        new NumberSetting("Button text", "textButtonSp", 11f, 21f, 50, 15f, " sp"),
+        new NumberSetting("Large value", "textLargeValueSp", 28f, 56f, 56, 44f, " sp"),
+        new NumberSetting("Icon button text", "textIconButtonSp", 18f, 36f, 54, 28f, " sp")
     };
 
     public DesignModuleView(View root, DesignStore store) {
