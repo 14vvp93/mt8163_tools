@@ -64,19 +64,23 @@
         android:layout_marginEnd="@dimen/spacing_xs"
         android:background="@color/line" />
 
-    <ImageButton
+    <ImageView
         android:id="@+id/protection_app_settings"
         style="@style/ProtectionActionButton"
         android:layout_width="@dimen/button_height"
         android:layout_height="@dimen/button_height"
+        android:clickable="true"
+        android:focusable="true"
         android:contentDescription="@string/protection_application_settings"
         android:src="@drawable/ic_protection_settings" />
 
-    <ImageButton
+    <ImageView
         android:id="@+id/protection_app_remove"
         style="@style/ProtectionActionButton"
         android:layout_width="@dimen/button_height"
         android:layout_height="@dimen/button_height"
+        android:clickable="true"
+        android:focusable="true"
         android:contentDescription="@string/protection_remove_application"
         android:src="@drawable/ic_protection_delete" />
 </LinearLayout>
