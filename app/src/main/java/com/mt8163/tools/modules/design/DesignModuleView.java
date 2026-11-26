@@ -1,12 +1,23 @@
 package com.mt8163.tools.modules.design;
 
+import android.app.Dialog;
+import android.content.Context;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -18,19 +29,20 @@ import java.util.Locale;
 public final class DesignModuleView {
     private final View root;
     private final DesignStore store;
-    private final LinearLayout controls;
+    private Dialog dialog;
+    private LinearLayout controls;
 
     private static final ColorSetting[] COLORS = {
         new ColorSetting("App background", "appColor", R.color.app_background),
         new ColorSetting("Sidebar", "sidebarColor", R.color.sidebar_background),
         new ColorSetting("Header", "headerColor", R.color.header_background),
-        new ColorSetting("Surface", "surfaceColor", R.color.panel_background),
-        new ColorSetting("Dialog", "dialogColor", R.color.dialog_background),
+        new ColorSetting("Panel surface", "surfaceColor", R.color.panel_background),
+        new ColorSetting("Dialog surface", "dialogColor", R.color.dialog_background),
         new ColorSetting("Accent", "accentColor", R.color.neon_red),
         new ColorSetting("Primary text", "primaryTextColor", R.color.text_primary),
         new ColorSetting("Secondary text", "secondaryTextColor", R.color.text_secondary),
         new ColorSetting("Muted text", "mutedTextColor", R.color.text_muted),
-        new ColorSetting("Divider and border", "lineColor", R.color.line),
+        new ColorSetting("Divider", "lineColor", R.color.line),
         new ColorSetting("Button", "buttonColor", R.color.button_background),
         new ColorSetting("Button pressed", "buttonPressedColor", R.color.button_pressed_background),
         new ColorSetting("Button border", "buttonStrokeColor", R.color.button_stroke),
@@ -41,139 +53,396 @@ public final class DesignModuleView {
         new ColorSetting("Switch thumb", "switchThumbColor", R.color.switch_thumb),
         new ColorSetting("Switch track", "switchTrackColor", R.color.switch_track_default),
         new ColorSetting("Switch checked", "switchCheckedColor", R.color.switch_track_checked),
-        new ColorSetting("Switch disabled", "switchDisabledColor", R.color.switch_track_disabled)
+        new ColorSetting("Switch disabled", "switchDisabledColor", R.color.switch_track_disabled),
+        new ColorSetting("Accent overlay", "accentOverlayColor", R.color.accent_overlay),
+        new ColorSetting("Accent stroke", "accentStrokeColor", R.color.accent_stroke),
+        new ColorSetting("White", "whiteColor", R.color.white)
     };
 
     private static final NumberSetting[] NUMBERS = {
-        new NumberSetting("Spacing scale", "spacingScale", 0.50f, 1.50f, 100, 1f, "x"),
-        new NumberSetting("Element scale", "sizeScale", 0.60f, 1.40f, 80, 1f, "x"),
-        new NumberSetting("Text scale", "textScale", 0.70f, 1.50f, 80, 1f, "x"),
-        new NumberSetting("Icon scale", "iconScale", 0.60f, 1.60f, 100, 1f, "x"),
+        new NumberSetting("Spacing scale", "spacingScale", .50f, 1.50f, 100, 1f, "x"),
+        new NumberSetting("Element scale", "sizeScale", .60f, 1.40f, 80, 1f, "x"),
+        new NumberSetting("Text scale", "textScale", .70f, 1.50f, 80, 1f, "x"),
+        new NumberSetting("Icon scale", "iconScale", .60f, 1.60f, 100, 1f, "x"),
         new NumberSetting("Corner radius", "cornerRadiusDp", 0f, 24f, 48, 8f, " dp"),
+        new NumberSetting("Border width", "borderWidthDp", 0f, 4f, 40, 1f, " dp"),
         new NumberSetting("Sidebar width", "sidebarWidthDp", 180f, 340f, 160, 260f, " dp"),
         new NumberSetting("Header height", "headerHeightDp", 56f, 112f, 56, 80f, " dp"),
-        new NumberSetting("Card padding", "cardPaddingDp", 4f, 32f, 56, 16f, " dp"),
         new NumberSetting("Page padding", "pagePaddingDp", 4f, 40f, 72, 24f, " dp"),
+        new NumberSetting("Card padding", "cardPaddingDp", 4f, 32f, 56, 16f, " dp"),
         new NumberSetting("Button height", "buttonHeightDp", 32f, 64f, 64, 48f, " dp"),
+        new NumberSetting("Button minimum width", "buttonMinWidthDp", 80f, 180f, 100, 120f, " dp"),
         new NumberSetting("Icon size", "iconSizeDp", 16f, 48f, 64, 24f, " dp"),
-        new NumberSetting("Border width", "borderWidthDp", 0f, 4f, 40, 1f, " dp"),
+        new NumberSetting("Switch minimum width", "switchMinWidthDp", 48f, 100f, 52, 72f, " dp"),
         new NumberSetting("Brand header height", "brandHeaderHeightDp", 48f, 100f, 52, 72f, " dp"),
         new NumberSetting("Brand mark size", "brandMarkSizeDp", 28f, 56f, 56, 44f, " dp"),
         new NumberSetting("Sidebar item height", "sidebarItemHeightDp", 44f, 80f, 72, 60f, " dp"),
         new NumberSetting("Sidebar item padding", "sidebarItemPaddingDp", 4f, 24f, 40, 12f, " dp"),
         new NumberSetting("Sidebar icon padding", "sidebarIconPaddingDp", 2f, 16f, 28, 8f, " dp"),
-        new NumberSetting("Status indicator size", "statusDotSizeDp", 4f, 16f, 24, 8f, " dp"),
-        new NumberSetting("Button minimum width", "buttonMinWidthDp", 80f, 180f, 100, 120f, " dp"),
-        new NumberSetting("Switch minimum width", "switchMinWidthDp", 48f, 100f, 52, 72f, " dp")
+        new NumberSetting("Status indicator size", "statusDotSizeDp", 4f, 16f, 24, 8f, " dp")
     };
 
     public DesignModuleView(View root, DesignStore store) {
         this.root = root;
         this.store = store;
-        controls = root.findViewById(R.id.design_controls);
+        Button open = new Button(root.getContext());
+        open.setText("Open Design Lab");
+        open.setOnClickListener(view -> show());
+        LinearLayout host = root.findViewById(R.id.design_controls);
+        host.removeAllViews();
+        host.addView(open, new LinearLayout.LayoutParams(-1, dp(48)));
+        root.findViewById(R.id.design_reset_all).setVisibility(View.GONE);
+        open.performClick();
+    }
+
+    private void show() {
+        if (dialog != null && dialog.isShowing()) return;
+        Context context = root.getContext();
+        dialog = new Dialog(context);
+        LinearLayout panel = new LinearLayout(context);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackground(shape(context.getColor(R.color.dialog_background),
+                context.getColor(R.color.line), dp(1), dp(10)));
+
+        LinearLayout header = new LinearLayout(context);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(18), dp(8), dp(10), dp(8));
+        header.setBackgroundColor(context.getColor(R.color.header_background));
+        TextView title = label("DESIGN LAB");
+        title.setTextSize(17);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        Button close = new Button(context);
+        close.setText("×");
+        close.setTextSize(22);
+        close.setMinWidth(dp(48));
+        close.setOnClickListener(v -> dialog.dismiss());
+        header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(42)));
+        panel.addView(header);
+        makeDraggable(header);
+
+        ScrollView scroll = new ScrollView(context);
+        scroll.setFillViewport(false);
+        controls = new LinearLayout(context);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setPadding(dp(18), dp(8), dp(18), dp(12));
+        scroll.addView(controls);
+        panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         buildColors();
         buildNumbers();
-        root.findViewById(R.id.design_reset_all).setOnClickListener(view -> reset());
+
+        LinearLayout footer = new LinearLayout(context);
+        footer.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        footer.setPadding(dp(12), dp(6), dp(12), dp(6));
+        Button reset = new Button(context);
+        reset.setText("Reset");
+        reset.setOnClickListener(v -> {
+            store.reset();
+            dialog.dismiss();
+            show();
+        });
+        Button done = new Button(context);
+        done.setText("Done");
+        done.setOnClickListener(v -> dialog.dismiss());
+        footer.addView(reset);
+        footer.addView(done);
+        panel.addView(footer);
+
+        dialog.setContentView(panel);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setDimAmount(.35f);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        }
+        dialog.show();
+        if (window != null) {
+            int width = Math.min(dp(1120), context.getResources().getDisplayMetrics().widthPixels - dp(48));
+            int height = Math.min(dp(640), context.getResources().getDisplayMetrics().heightPixels - dp(48));
+            window.setLayout(width, height);
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.gravity = Gravity.CENTER;
+            window.setAttributes(params);
+        }
+    }
+
+    private void makeDraggable(View handle) {
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            float downRawX, downRawY;
+            int startX, startY;
+            boolean dragging;
+
+            @Override public boolean onTouch(View view, MotionEvent event) {
+                Window window = dialog.getWindow();
+                if (window == null) return false;
+                WindowManager.LayoutParams params = window.getAttributes();
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    startX = params.x;
+                    startY = params.y;
+                    dragging = false;
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    float dx = event.getRawX() - downRawX;
+                    float dy = event.getRawY() - downRawY;
+                    if (Math.abs(dx) + Math.abs(dy) > dp(4)) dragging = true;
+                    if (dragging) {
+                        int maxX = Math.max(0, root.getResources().getDisplayMetrics().widthPixels
+                                - window.getDecorView().getWidth());
+                        int maxY = Math.max(0, root.getResources().getDisplayMetrics().heightPixels
+                                - window.getDecorView().getHeight());
+                        params.gravity = Gravity.TOP | Gravity.LEFT;
+                        params.x = Math.max(0, Math.min(maxX, startX + Math.round(dx)));
+                        params.y = Math.max(0, Math.min(maxY, startY + Math.round(dy)));
+                        window.setAttributes(params);
+                    }
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    if (!dragging && event.getX() > view.getWidth() - dp(60)) dialog.dismiss();
+                    return true;
+                }
+                return true;
+            }
+        });
     }
 
     private void buildColors() {
-        addSection("GLOBAL COLORS");
-        LinearLayout row = null;
-        for (int i = 0; i < COLORS.length; i++) {
-            if (i % 3 == 0) {
-                row = new LinearLayout(root.getContext());
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setGravity(Gravity.CENTER_VERTICAL);
-                addView(row, new LinearLayout.LayoutParams(-1, -2));
+        section("COLORS");
+        for (ColorSetting setting : COLORS) {
+            int fallback = root.getContext().getColor(setting.resource);
+            int color = store.getColor(setting.key, fallback);
+            LinearLayout row = new LinearLayout(root.getContext());
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(4), 0, dp(4));
+            TextView name = label(setting.label);
+            row.addView(name, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            Button swatch = new Button(root.getContext());
+            swatch.setText(colorText(color));
+            swatch.setTextSize(11);
+            swatch.setTextColor(contrast(color));
+            swatch.setBackground(shape(color, root.getContext().getColor(R.color.line), dp(1), dp(6)));
+            swatch.setOnClickListener(v -> showColorPicker(setting, fallback));
+            row.addView(swatch, new LinearLayout.LayoutParams(dp(150), dp(40)));
+            controls.addView(row);
+        }
+    }
+
+    private void showColorPicker(ColorSetting setting, int fallback) {
+        Context context = root.getContext();
+        int initial = store.getColor(setting.key, fallback);
+        Dialog picker = new Dialog(context);
+        LinearLayout body = new LinearLayout(context);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(18), dp(14), dp(18), dp(14));
+        body.setBackground(shape(context.getColor(R.color.dialog_background),
+                context.getColor(R.color.line), dp(1), dp(10)));
+        TextView heading = label(setting.label);
+        heading.setTextSize(17);
+        heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        body.addView(heading);
+        View preview = new View(context);
+        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(-1, dp(48));
+        previewParams.topMargin = dp(10);
+        body.addView(preview, previewParams);
+        EditText hex = new EditText(context);
+        hex.setSingleLine(true);
+        hex.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        hex.setHint("#AARRGGBB");
+        hex.setText(colorText(initial));
+        body.addView(hex, new LinearLayout.LayoutParams(-1, dp(44)));
+
+        float[] hsv = new float[3];
+        Color.colorToHSV(initial, hsv);
+        SeekBar hue = slider(360, Math.round(hsv[0]));
+        SeekBar saturation = slider(100, Math.round(hsv[1] * 100));
+        SeekBar value = slider(100, Math.round(hsv[2] * 100));
+        SeekBar alpha = slider(255, Color.alpha(initial));
+        addSlider(body, "Hue", hue);
+        addSlider(body, "Saturation", saturation);
+        addSlider(body, "Brightness", value);
+        addSlider(body, "Opacity", alpha);
+
+        final int[] selected = {initial};
+        final boolean[] updating = {false};
+        Runnable updateFromSliders = () -> {
+            if (updating[0]) return;
+            float[] nextHsv = {hue.getProgress(), saturation.getProgress() / 100f,
+                    value.getProgress() / 100f};
+            selected[0] = Color.HSVToColor(alpha.getProgress(), nextHsv);
+            preview.setBackgroundColor(selected[0]);
+            updating[0] = true;
+            hex.setText(colorText(selected[0]));
+            hex.setSelection(hex.length());
+            updating[0] = false;
+        };
+        SeekBar.OnSeekBarChangeListener sliderListener = new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                if (fromUser) updateFromSliders.run();
             }
-            ColorSetting setting = COLORS[i];
-            LinearLayout cell = new LinearLayout(root.getContext());
-            cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setPadding(dp(4), dp(4), dp(4), dp(4));
-            TextView label = label(setting.label);
-            EditText input = new EditText(root.getContext());
-            input.setSingleLine(true);
-            input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-            input.setTextSize(13);
-            input.setHint("#AARRGGBB");
-            input.setText(colorText(store.getColor(setting.key, root.getContext().getColor(setting.resource))));
-            input.setPadding(dp(8), 0, dp(8), 0);
-            input.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-                    root.getContext().getColor(R.color.line)));
-            input.addTextChangedListener(new android.text.TextWatcher() {
-                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    String value = s.toString().trim();
-                    if (value.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) {
-                        try { store.setColor(setting.key, Color.parseColor(value)); }
-                        catch (IllegalArgumentException ignored) { }
-                    }
-                }
-                @Override public void afterTextChanged(android.text.Editable s) { }
+            @Override public void onStartTrackingTouch(SeekBar bar) { }
+            @Override public void onStopTrackingTouch(SeekBar bar) { }
+        };
+        hue.setOnSeekBarChangeListener(sliderListener);
+        saturation.setOnSeekBarChangeListener(sliderListener);
+        value.setOnSeekBarChangeListener(sliderListener);
+        alpha.setOnSeekBarChangeListener(sliderListener);
+        preview.setBackgroundColor(initial);
+
+        hex.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (updating[0]) return;
+                String text = s.toString().trim();
+                if (!text.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) return;
+                try {
+                    int parsed = Color.parseColor(text);
+                    selected[0] = parsed;
+                    preview.setBackgroundColor(parsed);
+                    float[] hsvValue = new float[3];
+                    Color.colorToHSV(parsed, hsvValue);
+                    updating[0] = true;
+                    hue.setProgress(Math.round(hsvValue[0]));
+                    saturation.setProgress(Math.round(hsvValue[1] * 100));
+                    value.setProgress(Math.round(hsvValue[2] * 100));
+                    alpha.setProgress(Color.alpha(parsed));
+                    updating[0] = false;
+                } catch (IllegalArgumentException ignored) { }
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+
+        LinearLayout palette = new LinearLayout(context);
+        palette.setOrientation(LinearLayout.HORIZONTAL);
+        palette.setGravity(Gravity.CENTER);
+        int[] colors = {0xFFE53935,0xFFFF5722,0xFFFF9800,0xFFFFC107,0xFF4CAF50,
+                0xFF009688,0xFF03A9F4,0xFF2196F3,0xFF3F51B5,0xFF673AB7,
+                0xFF9C27B0,0xFFE91E63,0xFFFFFFFF,0xFFB0BEC5,0xFF616161,0xFF17191C};
+        for (int preset : colors) {
+            View chip = new View(context);
+            chip.setBackground(shape(preset, context.getColor(R.color.line), dp(1), dp(20)));
+            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(0, dp(26), 1f);
+            chipParams.setMargins(dp(2), dp(8), dp(2), dp(8));
+            palette.addView(chip, chipParams);
+            chip.setOnClickListener(v -> {
+                selected[0] = preset;
+                float[] hsvPreset = new float[3];
+                Color.colorToHSV(preset, hsvPreset);
+                updating[0] = true;
+                hue.setProgress(Math.round(hsvPreset[0]));
+                saturation.setProgress(Math.round(hsvPreset[1] * 100));
+                value.setProgress(Math.round(hsvPreset[2] * 100));
+                alpha.setProgress(255);
+                hex.setText(colorText(preset));
+                hex.setSelection(hex.length());
+                updating[0] = false;
+                preview.setBackgroundColor(preset);
             });
-            cell.addView(label);
-            cell.addView(input, new LinearLayout.LayoutParams(-1, dp(42)));
-            row.addView(cell, new LinearLayout.LayoutParams(0, -2, 1f));
+        }
+        body.addView(palette);
+        LinearLayout actions = new LinearLayout(context);
+        actions.setGravity(Gravity.RIGHT);
+        Button cancel = new Button(context);
+        cancel.setText("Cancel");
+        cancel.setOnClickListener(v -> picker.dismiss());
+        Button apply = new Button(context);
+        apply.setText("Apply");
+        apply.setOnClickListener(v -> {
+            store.setColor(setting.key, selected[0]);
+            picker.dismiss();
+            if (dialog != null && dialog.isShowing()) {
+                dialog.dismiss();
+                show();
+            }
+        });
+        actions.addView(cancel);
+        actions.addView(apply);
+        body.addView(actions);
+        picker.setContentView(body);
+        picker.show();
+        Window window = picker.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(520), context.getResources().getDisplayMetrics().widthPixels - dp(40)),
+                    -2);
         }
     }
 
     private void buildNumbers() {
-        addSection("GLOBAL DIMENSIONS");
+        section("LAYOUT AND TYPOGRAPHY");
         for (NumberSetting setting : NUMBERS) {
-            float value = store.getFloat(setting.key, setting.defaultValue);
+            float currentValue = store.getFloat(setting.key, setting.defaultValue);
             LinearLayout row = new LinearLayout(root.getContext());
             row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(0, dp(5), 0, dp(5));
             LinearLayout heading = new LinearLayout(root.getContext());
             heading.setGravity(Gravity.CENTER_VERTICAL);
             TextView name = label(setting.label);
-            TextView current = label(format(setting, value));
+            TextView value = label(format(setting, currentValue));
             heading.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
-            heading.addView(current);
+            heading.addView(value);
             SeekBar seek = new SeekBar(root.getContext());
             seek.setMax(setting.steps);
-            seek.setProgress(progress(setting, value));
+            seek.setProgress(progress(setting, currentValue));
             seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                @Override public void onProgressChanged(SeekBar bar, int position, boolean fromUser) {
                     if (!fromUser) return;
-                    float next = setting.min + (setting.max - setting.min) * progress / setting.steps;
+                    float next = setting.min + (setting.max - setting.min) * position / setting.steps;
                     next = Math.round(next * 100f) / 100f;
                     store.setFloat(setting.key, next);
-                    current.setText(format(setting, next));
+                    value.setText(format(setting, next));
                 }
                 @Override public void onStartTrackingTouch(SeekBar bar) { }
                 @Override public void onStopTrackingTouch(SeekBar bar) { }
             });
             row.addView(heading);
-            row.addView(seek, new LinearLayout.LayoutParams(-1, dp(28)));
-            addView(row, new LinearLayout.LayoutParams(-1, -2));
+            row.addView(seek, new LinearLayout.LayoutParams(-1, dp(30)));
+            controls.addView(row);
         }
     }
 
-    private void addSection(String title) {
-        TextView view = label(title);
-        view.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        view.setPadding(0, dp(12), 0, dp(8));
-        addView(view, new LinearLayout.LayoutParams(-1, -2));
+    private void section(String text) {
+        TextView title = label(text);
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setTextColor(root.getContext().getColor(R.color.neon_red));
+        title.setPadding(0, dp(16), 0, dp(8));
+        controls.addView(title);
     }
 
-    private TextView label(String value) {
+    private TextView label(String text) {
         TextView view = new TextView(root.getContext());
-        view.setText(value);
+        view.setText(text);
         view.setTextColor(root.getContext().getColor(R.color.text_primary));
         view.setTextSize(13);
         return view;
     }
 
-    private void addView(View view, LinearLayout.LayoutParams params) {
-        controls.addView(view, params);
+    private SeekBar slider(int max, int progress) {
+        SeekBar bar = new SeekBar(root.getContext());
+        bar.setMax(max);
+        bar.setProgress(progress);
+        return bar;
     }
 
-    private void reset() {
-        store.reset();
-        controls.removeAllViews();
-        buildColors();
-        buildNumbers();
+    private void addSlider(LinearLayout parent, String title, SeekBar slider) {
+        TextView label = label(title);
+        parent.addView(label);
+        parent.addView(slider, new LinearLayout.LayoutParams(-1, dp(30)));
+    }
+
+    private GradientDrawable shape(int fill, int stroke, int width, float radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill);
+        drawable.setCornerRadius(radius);
+        drawable.setStroke(width, stroke);
+        return drawable;
+    }
+
+    private int contrast(int color) {
+        return (Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114) / 1000 > 150
+                ? Color.BLACK : Color.WHITE;
     }
 
     private int progress(NumberSetting setting, float value) {
@@ -182,8 +451,8 @@ public final class DesignModuleView {
     }
 
     private String format(NumberSetting setting, float value) {
-        if (setting.unit.equals("x")) return String.format(Locale.US, "%.2fx", value);
-        return String.format(Locale.US, "%.0f%s", value, setting.unit);
+        return setting.unit.equals("x") ? String.format(Locale.US, "%.2fx", value)
+                : String.format(Locale.US, "%.0f%s", value, setting.unit);
     }
 
     private String colorText(int color) {
@@ -198,7 +467,9 @@ public final class DesignModuleView {
         final String label, key;
         final int resource;
         ColorSetting(String label, String key, int resource) {
-            this.label = label; this.key = key; this.resource = resource;
+            this.label = label;
+            this.key = key;
+            this.resource = resource;
         }
     }
 
@@ -208,8 +479,13 @@ public final class DesignModuleView {
         final int steps;
         NumberSetting(String label, String key, float min, float max, int steps,
                       float defaultValue, String unit) {
-            this.label = label; this.key = key; this.min = min; this.max = max;
-            this.steps = steps; this.defaultValue = defaultValue; this.unit = unit;
+            this.label = label;
+            this.key = key;
+            this.min = min;
+            this.max = max;
+            this.steps = steps;
+            this.defaultValue = defaultValue;
+            this.unit = unit;
         }
     }
 }

@@ -67,7 +67,8 @@ public final class DesignRuntime {
             color(view, R.color.sidebar_icon_background), color(view, R.color.module_status_active),
             color(view, R.color.module_status_inactive), color(view, R.color.switch_thumb),
             color(view, R.color.switch_track_default), color(view, R.color.switch_track_checked),
-            color(view, R.color.switch_track_disabled)
+            color(view, R.color.switch_track_disabled), color(view, R.color.accent_overlay),
+            color(view, R.color.accent_stroke), color(view, R.color.white)
         };
         String[] keys = {
             "appColor", "sidebarColor", "headerColor", "surfaceColor", "dialogColor",
@@ -75,7 +76,8 @@ public final class DesignRuntime {
             "lineColor", "buttonColor", "buttonPressedColor", "buttonStrokeColor",
             "buttonDisabledColor", "iconSurfaceColor", "statusActiveColor",
             "statusInactiveColor", "switchThumbColor", "switchTrackColor",
-            "switchCheckedColor", "switchDisabledColor"
+            "switchCheckedColor", "switchDisabledColor", "accentOverlayColor",
+            "accentStrokeColor", "whiteColor"
         };
 
         if (view instanceof Button && !(view instanceof Switch)) applyButtonColors((Button) view, store);
