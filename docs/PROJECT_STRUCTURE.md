@@ -176,7 +176,6 @@ The module uses the **Legacy XposedBridge API 82**, not Modern libxposed.
 - Android `minSdk` and `targetSdk` are both 28. The project compiles against SDK 35.
 - Java source and target compatibility are Java 17.
 
-
 ## UI resource architecture
 
 The complete UI hierarchy and its presentation belong in Android resources:
@@ -215,5 +214,8 @@ Events module ───────────────────► event
 - Android minimum and target SDK: API 28 (Android 9).
 - Compile SDK: API 35.
 - Java source/target compatibility: Java 17.
-- UI target display: 1280×720 at an effective density of 186 dpi.
+- UI target display: 1280×720 at an effective density of **180 dpi**.
+- UI dimensions and spacing must use `dp`; text sizes must use `sp`.
+- Do not hardcode pixel dimensions or override the device density in the application. Android's resource system handles density scaling.
+- Validate fixed-size dialogs and non-scrolling screens against the 1280×720, 180 dpi display.
 - Use callbacks, listeners, broadcasts, and process lifecycle events instead of polling or timer-based state checks.
