@@ -11,4 +11,5 @@
     <item name="design_base_text_size" type="id" />
     <item name="design_base_gradient_color" type="id" />
     <item name="sidebar_container" type="id" />
+    <item name="protection_application_card" type="id" />
 </resources>

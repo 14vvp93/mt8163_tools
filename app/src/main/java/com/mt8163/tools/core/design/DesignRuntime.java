@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
@@ -91,7 +92,7 @@ public final class DesignRuntime {
             item.setCornerRadius(dp(view, store.getFloat("cornerRadiusDp", 8f)));
             if (selected) {
                 item.setColor(store.getColor("accentOverlayColor", color(view, R.color.accent_overlay)));
-                item.setStroke(dp(view, store.getFloat("borderWidthDp", 1f)),
+                item.setStroke(dp(view, store.getFloat("borderWidthEmphasisDp", 2f)),
                         store.getColor("accentStrokeColor", color(view, R.color.accent_stroke)));
             } else {
                 item.setColor(android.graphics.Color.TRANSPARENT);
@@ -348,6 +349,14 @@ public final class DesignRuntime {
             else if (near(baseSp, 44f)) adjustedSp = store.getFloat("textLargeValueSp", 44f);
             else if (near(baseSp, 28f)) adjustedSp = store.getFloat("textIconButtonSp", 28f);
             text.setTextSize(TypedValue.COMPLEX_UNIT_SP, adjustedSp * textScale);
+        }
+
+        if (view.getId() == R.id.protection_application_card) {
+            view.setMinimumHeight(dp(view, store.getFloat("protectionCardMinHeightDp", 64f)));
+        }
+        if (view instanceof ListView) {
+            ((ListView) view).setDividerHeight(dp(view,
+                    store.getFloat("sidebarDividerHeightDp", 6f)));
         }
 
         if (view.getId() == R.id.protection_app_icon && params != null) {
