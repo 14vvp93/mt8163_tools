@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
     private View overlay;
     private View appRoot;
     private int selected;
+    private DesignModuleView designPanel;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -62,6 +63,7 @@ public final class MainActivity extends Activity {
         content = findViewById(R.id.content_container);
         overlay = findViewById(R.id.disabled_overlay);
         appRoot = findViewById(android.R.id.content);
+        designPanel = new DesignModuleView(appRoot, designStore);
 
         adapter = new SidebarAdapter(this, modules);
         list.setAdapter(adapter);
@@ -71,6 +73,14 @@ public final class MainActivity extends Activity {
         designListener = () -> {
             DesignRuntime.applyTree(appRoot, designStore);
             int appColor = designStore.getColor("appColor", getColor(R.color.app_background));
+            appRoot.setBackgroundColor(appColor);
+            View sidebar = findViewById(R.id.sidebar_container);
+            if (sidebar != null) sidebar.setBackgroundColor(designStore.getColor(
+                    "sidebarColor", getColor(R.color.sidebar_background)));
+            if (header.getChildCount() > 0) {
+                header.getChildAt(0).setBackgroundColor(designStore.getColor(
+                        "headerColor", getColor(R.color.header_background)));
+            }
             getWindow().setStatusBarColor(appColor);
             getWindow().setNavigationBarColor(appColor);
             adapter.notifyDataSetChanged();
@@ -86,8 +96,6 @@ public final class MainActivity extends Activity {
 
         selected = position;
         ModuleContract module = modules.get(position);
-        if ("design".equals(module.getId())) requestDesignStorageAccess();
-
         adapter.setSelectedPosition(position);
         header.removeAllViews();
 
@@ -122,6 +130,8 @@ public final class MainActivity extends Activity {
             if ("events".equals(module.getId())) showModule(selected);
             else updateState();
         });
+        View designButton = headerView.findViewById(R.id.header_design_button);
+        designButton.setOnClickListener(v -> openDesignLab());
         header.addView(headerView);
         DesignRuntime.attach(headerView, designStore, "shell");
 
@@ -139,7 +149,8 @@ public final class MainActivity extends Activity {
             content.addView(view);
             if ("design".equals(module.getId())) {
                 DesignRuntime.attach(view, designStore, module.getId());
-                new DesignModuleView(view, designStore);
+                view.findViewById(R.id.design_controls).setVisibility(View.GONE);
+                view.findViewById(R.id.design_reset_all).setVisibility(View.GONE);
             } else {
                 if ("voltage".equals(module.getId())) {
                     VoltageModuleView.bind(view, this);
@@ -152,6 +163,21 @@ public final class MainActivity extends Activity {
             }
         }
         updateState();
+    }
+
+    private void openDesignLab() {
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED) {
+            if (designStore.syncExternalFile()) {
+                designPanel.show();
+            } else {
+                Toast.makeText(this, "Cannot read or write design_parameters.json",
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                REQUEST_DESIGN_STORAGE);
     }
 
     private void requestDesignStorageAccess() {

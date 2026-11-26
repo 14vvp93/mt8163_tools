@@ -120,29 +120,24 @@ public final class DesignModuleView {
     public DesignModuleView(View root, DesignStore store) {
         this.root = root;
         this.store = store;
-        Button open = new Button(root.getContext());
-        open.setText("Open Design Lab");
-        open.setOnClickListener(view -> show());
-        LinearLayout host = root.findViewById(R.id.design_controls);
-        host.removeAllViews();
-        host.addView(open, new LinearLayout.LayoutParams(-1, dp(48)));
-        root.findViewById(R.id.design_reset_all).setVisibility(View.GONE);
-        open.performClick();
     }
 
-    private void show() {
+    public void show() {
         if (dialog != null && dialog.isShowing()) return;
         Context context = root.getContext();
         dialog = new Dialog(context);
         LinearLayout panel = new LinearLayout(context);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setBackground(shape(context.getColor(R.color.dialog_background),
-                context.getColor(R.color.line), dp(1), dp(10)));
+        panel.setBackground(shape(store.getColor("dialogColor",
+                        context.getColor(R.color.dialog_background)),
+                store.getColor("lineColor", context.getColor(R.color.line)), dp(1),
+                dp(store.getFloat("cornerRadiusDp", 8f))));
 
         LinearLayout header = new LinearLayout(context);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(18), dp(8), dp(10), dp(8));
-        header.setBackgroundColor(context.getColor(R.color.header_background));
+        header.setBackgroundColor(store.getColor("headerColor",
+                context.getColor(R.color.header_background)));
         TextView title = label("DESIGN LAB");
         title.setTextSize(17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -202,12 +197,14 @@ public final class DesignModuleView {
         panel.addView(dialogContent, new LinearLayout.LayoutParams(-1, 0, 1f));
         minimized = false;
 
+        dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(panel);
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);
-            window.setDimAmount(.35f);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(.25f);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
         }
         dialog.show();
         if (window != null) {
@@ -215,7 +212,9 @@ public final class DesignModuleView {
             int height = Math.min(dp(500), context.getResources().getDisplayMetrics().heightPixels - dp(64));
             window.setLayout(width, height);
             WindowManager.LayoutParams params = window.getAttributes();
-            params.gravity = Gravity.CENTER;
+            params.gravity = Gravity.TOP | Gravity.LEFT;
+            params.x = Math.max(0, (context.getResources().getDisplayMetrics().widthPixels - width) / 2);
+            params.y = Math.max(0, (context.getResources().getDisplayMetrics().heightPixels - height) / 2);
             window.setAttributes(params);
         }
     }
@@ -252,10 +251,12 @@ public final class DesignModuleView {
                         int visibleHandle = dp(72);
                         int maxX = Math.max(0, screenWidth - visibleHandle);
                         int minX = Math.min(0, visibleHandle - windowWidth);
-                        int maxY = Math.max(0, screenHeight - dp(48));
+                        int visibleHeader = dp(48);
+                        int minY = Math.min(0, visibleHeader - windowHeight);
+                        int maxY = Math.max(0, screenHeight - visibleHeader);
                         params.gravity = Gravity.TOP | Gravity.LEFT;
                         params.x = Math.max(minX, Math.min(maxX, startX + Math.round(dx)));
-                        params.y = Math.max(0, Math.min(maxY, startY + Math.round(dy)));
+                        params.y = Math.max(minY, Math.min(maxY, startY + Math.round(dy)));
                         window.setAttributes(params);
                     }
                     return true;
@@ -294,8 +295,10 @@ public final class DesignModuleView {
         LinearLayout body = new LinearLayout(context);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(18), dp(14), dp(18), dp(14));
-        body.setBackground(shape(context.getColor(R.color.dialog_background),
-                context.getColor(R.color.line), dp(1), dp(10)));
+        body.setBackground(shape(store.getColor("dialogColor",
+                        context.getColor(R.color.dialog_background)),
+                store.getColor("lineColor", context.getColor(R.color.line)), dp(1),
+                dp(store.getFloat("cornerRadiusDp", 8f))));
         TextView heading = label(setting.label);
         heading.setTextSize(17);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -417,6 +420,7 @@ public final class DesignModuleView {
         actions.addView(cancel);
         actions.addView(apply);
         body.addView(actions);
+        picker.setCanceledOnTouchOutside(false);
         picker.setContentView(body);
         picker.show();
         Window window = picker.getWindow();
@@ -471,7 +475,8 @@ public final class DesignModuleView {
     private TextView label(String text) {
         TextView view = new TextView(root.getContext());
         view.setText(text);
-        view.setTextColor(root.getContext().getColor(R.color.text_primary));
+        view.setTextColor(store.getColor("primaryTextColor",
+                root.getContext().getColor(R.color.text_primary)));
         view.setTextSize(13);
         return view;
     }

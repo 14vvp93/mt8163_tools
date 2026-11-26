@@ -81,6 +81,20 @@ public final class DesignRuntime {
             "accentStrokeColor"
         };
 
+        if (view.getId() == R.id.sidebar_item_root) {
+            boolean selected = view.isActivated();
+            GradientDrawable item = new GradientDrawable();
+            item.setCornerRadius(dp(view, store.getFloat("cornerRadiusDp", 8f)));
+            if (selected) {
+                item.setColor(store.getColor("accentOverlayColor", color(view, R.color.accent_overlay)));
+                item.setStroke(dp(view, store.getFloat("borderWidthDp", 1f)),
+                        store.getColor("accentStrokeColor", color(view, R.color.accent_stroke)));
+            } else {
+                item.setColor(android.graphics.Color.TRANSPARENT);
+                item.setStroke(0, android.graphics.Color.TRANSPARENT);
+            }
+            view.setBackground(item);
+        }
         if (view instanceof Button && !(view instanceof Switch)) applyButtonColors((Button) view, store);
         if (view instanceof Switch) applySwitchColors((Switch) view, store);
 
