@@ -7,37 +7,16 @@
         </shape>
     </item>
     <item android:state_pressed="true">
-        <layer-list>
-            <item android:left="-4dp" android:top="-4dp" android:right="-4dp" android:bottom="-4dp">
-                <shape android:shape="rectangle"><corners android:radius="@dimen/radius_card" /><stroke android:width="3dp" android:color="@color/neon_glow_outer" /></shape>
-            </item>
-            <item android:left="-2dp" android:top="-2dp" android:right="-2dp" android:bottom="-2dp">
-                <shape android:shape="rectangle"><corners android:radius="@dimen/radius_card" /><stroke android:width="2dp" android:color="@color/neon_glow_mid" /></shape>
-            </item>
-            <item>
-                <shape android:shape="rectangle">
-                    <solid android:color="@color/button_pressed_background" />
-                                        <corners android:radius="@dimen/radius_card" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/button_pressed_background" />
+            <corners android:radius="@dimen/radius_card" />
+        </shape>
     </item>
     <item android:state_focused="true">
-        <layer-list>
-            <item android:left="-4dp" android:top="-4dp" android:right="-4dp" android:bottom="-4dp">
-                <shape android:shape="rectangle"><corners android:radius="@dimen/radius_card" /><stroke android:width="3dp" android:color="@color/neon_glow_outer" /></shape>
-            </item>
-            <item android:left="-2dp" android:top="-2dp" android:right="-2dp" android:bottom="-2dp">
-                <shape android:shape="rectangle"><corners android:radius="@dimen/radius_card" /><stroke android:width="2dp" android:color="@color/neon_glow_mid" /></shape>
-            </item>
-            <item>
-                <shape android:shape="rectangle">
-                    <solid android:color="@color/button_pressed_background" />
-                    
-                    <corners android:radius="@dimen/radius_card" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/button_pressed_background" />
+            <corners android:radius="@dimen/radius_card" />
+        </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
