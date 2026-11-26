@@ -11,6 +11,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
@@ -207,8 +208,10 @@ public final class DesignRuntime {
                     view.getPaddingRight(), view.getPaddingBottom()};
             view.setTag(R.id.design_base_padding, padding);
         }
-        view.setPadding(scale(padding[0], spacing), scale(padding[1], spacing),
-                scale(padding[2], spacing), scale(padding[3], spacing));
+        view.setPadding(scaleSpacing(view, padding[0], spacing, store),
+                scaleSpacing(view, padding[1], spacing, store),
+                scaleSpacing(view, padding[2], spacing, store),
+                scaleSpacing(view, padding[3], spacing, store));
 
         ViewGroup.LayoutParams params = view.getLayoutParams();
         if (params != null) {
@@ -222,9 +225,15 @@ public final class DesignRuntime {
             params.height = scaleLayout(dimensions[1], dimensionScale);
             if (view instanceof ImageView && dimensions[0] > 0 && dimensions[1] > 0) {
                 float baseMax = Math.max(dimensions[0], dimensions[1]);
-                float iconSize = dp(view, store.getFloat("iconSizeDp", 24f));
+                float baseDp = baseMax / view.getResources().getDisplayMetrics().density;
+                float iconSize = dp(view, baseDp <= 20.5f
+                        ? store.getFloat("iconSizeSmallDp", 20f)
+                        : store.getFloat("iconSizeDp", 24f));
                 params.width = Math.round(dimensions[0] * iconSize / baseMax * iconScale);
                 params.height = Math.round(dimensions[1] * iconSize / baseMax * iconScale);
+            }
+            if (view instanceof SeekBar) {
+                params.height = dp(view, store.getFloat("seekbarHeightDp", 24f));
             }
             if (view instanceof Button && !(view instanceof Switch)) {
                 params.height = dp(view, store.getFloat("buttonHeightDp", 48f));
@@ -237,8 +246,10 @@ public final class DesignRuntime {
                             margins.rightMargin, margins.bottomMargin};
                     view.setTag(R.id.design_base_margins, original);
                 }
-                margins.setMargins(scale(original[0], spacing), scale(original[1], spacing),
-                        scale(original[2], spacing), scale(original[3], spacing));
+                margins.setMargins(scaleSpacing(view, original[0], spacing, store),
+                        scaleSpacing(view, original[1], spacing, store),
+                        scaleSpacing(view, original[2], spacing, store),
+                        scaleSpacing(view, original[3], spacing, store));
             }
             view.setLayoutParams(params);
         }
@@ -287,6 +298,12 @@ public final class DesignRuntime {
             int itemPadding = dp(view, store.getFloat("sidebarItemPaddingDp", 12f) * spacing);
             view.setPadding(itemPadding, view.getPaddingTop(), itemPadding, view.getPaddingBottom());
         } else if (view.getId() == R.id.module_icon) {
+            int iconSize = dp(view, store.getFloat("sidebarIconSizeDp", 36f));
+            if (params != null) {
+                params.width = iconSize;
+                params.height = iconSize;
+                view.setLayoutParams(params);
+            }
             int iconPadding = dp(view, store.getFloat("sidebarIconPaddingDp", 8f) * spacing);
             view.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
         } else if (view.getId() == R.id.module_state && params != null) {
@@ -311,6 +328,21 @@ public final class DesignRuntime {
             int card = dp(view, store.getFloat("cardPaddingDp", 16f) * spacing);
             view.setPadding(card, card, card, card);
         }
+    }
+
+    private static int scaleSpacing(View view, int pixels, float scale, DesignStore store) {
+        if (pixels == 0) return 0;
+        float density = view.getResources().getDisplayMetrics().density;
+        float baseDp = pixels / density;
+        float[] bases = {4f, 8f, 12f, 16f, 20f, 24f};
+        String[] keys = {"spacingXsDp", "spacingSmDp", "spacingMdDp",
+                "spacingLgDp", "spacingXlDp", "spacingXxlDp"};
+        for (int i = 0; i < bases.length; i++) {
+            if (near(baseDp, bases[i])) {
+                return dp(view, store.getFloat(keys[i], bases[i]) * scale);
+            }
+        }
+        return scale(pixels, scale);
     }
 
     private static boolean near(float value, float target) {

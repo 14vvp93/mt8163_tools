@@ -271,6 +271,31 @@ public final class ProtectionModuleView {
         dialog.setContentView(content);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            com.mt8163.tools.core.design.DesignStore store =
+                    ((MainApplication) activity.getApplication()).getDesignStore();
+            int width;
+            int height;
+            if (content.findViewById(R.id.protection_picker_search) != null) {
+                width = Math.round(store.getFloat("pickerDialogMaxWidthDp", 640f)
+                        * activity.getResources().getDisplayMetrics().density);
+                height = Math.round(store.getFloat("pickerDialogMaxHeightDp", 430f)
+                        * activity.getResources().getDisplayMetrics().density);
+            } else if (content.findViewById(R.id.protection_settings_title) != null) {
+                width = Math.round(store.getFloat("protectionSettingsDialogWidthDp", 520f)
+                        * activity.getResources().getDisplayMetrics().density);
+                height = Math.round(store.getFloat("protectionSettingsDialogHeightDp", 260f)
+                        * activity.getResources().getDisplayMetrics().density);
+            } else {
+                width = Math.round(store.getFloat("protectionSettingsDialogWidthDp", 520f)
+                        * activity.getResources().getDisplayMetrics().density);
+                height = Math.round(store.getFloat("protectionConfirmDialogHeightDp", 200f)
+                        * activity.getResources().getDisplayMetrics().density);
+            }
+            window.setLayout(Math.min(width, activity.getResources().getDisplayMetrics().widthPixels - 48),
+                    Math.min(height, activity.getResources().getDisplayMetrics().heightPixels - 48));
+        }
     }
 
     private List<AppEntry> loadInstalledApplications() {

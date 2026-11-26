@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
@@ -312,6 +313,32 @@ public final class EventsModuleView {
         dialog.setContentView(root);
         dialog.setCanceledOnTouchOutside(true);
         dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            com.mt8163.tools.core.design.DesignStore store =
+                    ((MainApplication) activity.getApplication()).getDesignStore();
+            float density = activity.getResources().getDisplayMetrics().density;
+            float widthDp = contentDimension(root, R.id.events_filter_all) ? 480f
+                    : store.getFloat("eventsConfirmDialogWidthDp", 480f);
+            float heightDp;
+            if (root.findViewById(R.id.events_filter_all) != null) {
+                widthDp = store.getFloat("eventsFilterDialogWidthDp", 480f);
+                heightDp = store.getFloat("eventsFilterDialogHeightDp", 560f);
+            } else if (root.findViewById(R.id.events_export_filtered) != null) {
+                heightDp = store.getFloat("eventsExportDialogHeightDp", 300f);
+            } else {
+                heightDp = store.getFloat("eventsConfirmDialogHeightDp", 220f);
+            }
+            int width = Math.min(Math.round(widthDp * density),
+                    activity.getResources().getDisplayMetrics().widthPixels - 48);
+            int height = Math.min(Math.round(heightDp * density),
+                    activity.getResources().getDisplayMetrics().heightPixels - 48);
+            window.setLayout(width, height);
+        }
+    }
+
+    private static boolean contentDimension(View root, int id) {
+        return root.findViewById(id) != null;
     }
 
     public static void destroy() {
