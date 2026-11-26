@@ -3,6 +3,6 @@
 <TextView style="@style/DialogTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/events_clear_title" />
 <TextView style="@style/DialogMessage" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_md" android:text="@string/events_clear_message" />
 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_lg" android:gravity="end" android:orientation="horizontal">
-<Button android:id="@+id/events_clear_cancel" style="@style/DialogSecondaryButton" android:text="@string/cancel" />
-<Button android:id="@+id/events_clear_confirm" style="@style/DialogPrimaryButton" android:layout_marginStart="@dimen/spacing_sm" android:text="@string/clear" />
+<Button android:id="@+id/events_clear_cancel" style="@style/DialogSecondaryButton" android:layout_width="wrap_content" android:layout_height="@dimen/button_height" android:text="@string/cancel" />
+<Button android:id="@+id/events_clear_confirm" style="@style/DialogPrimaryButton" android:layout_width="wrap_content" android:layout_height="@dimen/button_height" android:layout_marginStart="@dimen/spacing_sm" android:text="@string/clear" />
 </LinearLayout></LinearLayout>
