@@ -4,6 +4,6 @@
 <CheckBox android:id="@+id/events_filter_all" style="@style/ProtectionSettingCheckBox" android:layout_width="match_parent" android:layout_height="@dimen/button_height" android:text="@string/events_filter_all" />
 <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:overScrollMode="never"><LinearLayout android:id="@+id/events_filter_options" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" /></ScrollView>
 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:orientation="horizontal">
-<Button android:id="@+id/events_filter_cancel" style="@style/DialogSecondaryButton" android:text="@string/cancel" />
-<Button android:id="@+id/events_filter_apply" style="@style/DialogPrimaryButton" android:layout_marginStart="@dimen/spacing_sm" android:text="@string/apply" />
+<Button android:id="@+id/events_filter_cancel" style="@style/DialogSecondaryButton" android:layout_width="wrap_content" android:layout_height="@dimen/button_height" android:text="@string/cancel" />
+<Button android:id="@+id/events_filter_apply" style="@style/DialogPrimaryButton" android:layout_width="wrap_content" android:layout_height="@dimen/button_height" android:layout_marginStart="@dimen/spacing_sm" android:text="@string/apply" />
 </LinearLayout></LinearLayout>
