@@ -179,8 +179,10 @@ public final class DesignModuleView {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
                     downRawX = event.getRawX();
                     downRawY = event.getRawY();
-                    startX = params.x;
-                    startY = params.y;
+                    int[] location = new int[2];
+                    window.getDecorView().getLocationOnScreen(location);
+                    startX = location[0];
+                    startY = location[1];
                     dragging = false;
                     return true;
                 }
