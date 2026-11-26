@@ -12,6 +12,7 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
@@ -101,6 +102,7 @@ public final class DesignRuntime {
         if (view instanceof SeekBar) applySeekBarColors((SeekBar) view, store);
         if (view instanceof Button && !(view instanceof Switch)) applyButtonColors((Button) view, store);
         if (view instanceof Switch) applySwitchColors((Switch) view, store);
+        else if (view instanceof CompoundButton) applyCompoundButtonColors((CompoundButton) view, store);
 
         if (view instanceof TextView) {
             TextView text = (TextView) view;
@@ -109,7 +111,7 @@ public final class DesignRuntime {
                 original = text.getTextColors();
                 view.setTag(R.id.design_base_text_color, original);
             }
-            text.setTextColor(map(original.getDefaultColor(), base, keys, store));
+            text.setTextColor(map(original, base, keys, store));
         }
 
         if (view instanceof ImageView) {
@@ -119,8 +121,7 @@ public final class DesignRuntime {
                 original = image.getImageTintList();
                 view.setTag(R.id.design_base_image_tint, original);
             }
-            if (original != null) image.setImageTintList(ColorStateList.valueOf(
-                    map(original.getDefaultColor(), base, keys, store)));
+            if (original != null) image.setImageTintList(map(original, base, keys, store));
         }
 
         ColorStateList tint = (ColorStateList) view.getTag(R.id.design_base_background_tint);
@@ -128,8 +129,7 @@ public final class DesignRuntime {
             tint = view.getBackgroundTintList();
             view.setTag(R.id.design_base_background_tint, tint);
         }
-        if (tint != null) view.setBackgroundTintList(ColorStateList.valueOf(
-                map(tint.getDefaultColor(), base, keys, store)));
+        if (tint != null) view.setBackgroundTintList(map(tint, base, keys, store));
 
         Drawable background = view.getBackground();
         if (background instanceof ColorDrawable) {
@@ -152,9 +152,6 @@ public final class DesignRuntime {
                 shape.setColor(map(original, base, keys, store));
             }
             shape.setCornerRadius(dp(view, store.getFloat("cornerRadiusDp", 8f)));
-            int border = dp(view, store.getFloat("borderWidthDp", 1f));
-            int borderColor = store.getColor("lineColor", color(view, R.color.line));
-            shape.setStroke(border, borderColor);
             view.setBackground(shape);
         }
     }
@@ -183,8 +180,16 @@ public final class DesignRuntime {
             layers.setLayerGravity(i, Gravity.CENTER_VERTICAL);
         }
 
+        int thumbWidth = Math.max(1, dp(bar, store.getFloat("seekbarThumbWidthDp", 24f)));
+        int thumbHeight = Math.max(1, dp(bar, store.getFloat("seekbarThumbHeightDp", 24f)));
+        GradientDrawable thumb = new GradientDrawable();
+        thumb.setShape(GradientDrawable.OVAL);
+        thumb.setColor(thumbColor);
+        thumb.setSize(thumbWidth, thumbHeight);
+
         bar.setProgressDrawable(layers);
-        bar.setThumbTintList(ColorStateList.valueOf(thumbColor));
+        bar.setThumb(thumb);
+        bar.setThumbOffset(thumbWidth / 2);
         bar.setSplitTrack(false);
     }
 
@@ -222,6 +227,15 @@ public final class DesignRuntime {
         return shape;
     }
 
+    private static void applyCompoundButtonColors(CompoundButton button, DesignStore store) {
+        int checked = store.getColor("accentColor", color(button, R.color.neon_red));
+        int normal = store.getColor("lineColor", color(button, R.color.line));
+        button.setButtonTintList(new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[0]},
+                new int[]{checked, normal}
+        ));
+    }
+
     private static void applySwitchColors(Switch toggle, DesignStore store) {
         int thumb = store.getColor("switchThumbColor", color(toggle, R.color.switch_thumb));
         int normal = store.getColor("switchTrackColor", color(toggle, R.color.switch_track_default));
@@ -236,6 +250,15 @@ public final class DesignRuntime {
                 },
                 new int[]{disabled, checked, normal}
         ));
+    }
+
+    private static ColorStateList map(ColorStateList source, int[] base,
+                                      String[] keys, DesignStore store) {
+        int[][] states = source.getStates();
+        int[] colors = source.getColors();
+        int[] mapped = new int[colors.length];
+        for (int i = 0; i < colors.length; i++) mapped[i] = map(colors[i], base, keys, store);
+        return new ColorStateList(states, mapped);
     }
 
     private static int map(int color, int[] base, String[] keys, DesignStore store) {

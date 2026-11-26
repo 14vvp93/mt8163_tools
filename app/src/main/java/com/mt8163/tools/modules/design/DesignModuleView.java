@@ -104,6 +104,8 @@ public final class DesignModuleView {
         new NumberSetting("Emphasis border width", "borderWidthEmphasisDp", 1f, 4f, 30, 2f, " dp"),
         new NumberSetting("SeekBar height", "seekbarHeightDp", 16f, 40f, 48, 24f, " dp"),
         new NumberSetting("SeekBar track height", "seekbarTrackHeightDp", 1f, 12f, 44, 4f, " dp"),
+        new NumberSetting("SeekBar thumb width", "seekbarThumbWidthDp", 12f, 40f, 56, 24f, " dp"),
+        new NumberSetting("SeekBar thumb height", "seekbarThumbHeightDp", 12f, 40f, 56, 24f, " dp"),
         new NumberSetting("Large control size", "controlSizeLargeDp", 28f, 56f, 56, 40f, " dp"),
         new NumberSetting("Protection card minimum height", "protectionCardMinHeightDp", 48f, 96f, 96, 64f, " dp"),
         new NumberSetting("Protection separator height", "protectionSeparatorHeightDp", 12f, 44f, 64, 28f, " dp"),
@@ -284,13 +286,13 @@ public final class DesignModuleView {
             swatch.setTextSize(11);
             swatch.setTextColor(contrast(color));
             swatch.setBackground(shape(color, root.getContext().getColor(R.color.line), dp(1), dp(6)));
-            swatch.setOnClickListener(v -> showColorPicker(setting, fallback));
+            swatch.setOnClickListener(v -> showColorPicker(setting, fallback, swatch));
             row.addView(swatch, new LinearLayout.LayoutParams(dp(150), dp(40)));
             controls.addView(row);
         }
     }
 
-    private void showColorPicker(ColorSetting setting, int fallback) {
+    private void showColorPicker(ColorSetting setting, int fallback, Button swatch) {
         Context context = root.getContext();
         int initial = store.getColor(setting.key, fallback);
         Dialog picker = new Dialog(context);
@@ -338,6 +340,13 @@ public final class DesignModuleView {
 
         final int[] selected = {initial};
         final boolean[] updating = {false};
+        final boolean[] applied = {false};
+        Runnable applyLiveColor = () -> {
+            store.setColor(setting.key, selected[0]);
+            swatch.setText(colorText(selected[0]));
+            swatch.setTextColor(contrast(selected[0]));
+            swatch.setBackground(shape(selected[0], context.getColor(R.color.line), dp(1), dp(6)));
+        };
         Runnable updateFromSliders = () -> {
             if (updating[0]) return;
             float[] nextHsv = {hue.getProgress(), saturation.getProgress() / 100f,
@@ -348,6 +357,7 @@ public final class DesignModuleView {
             hex.setText(colorText(selected[0]));
             hex.setSelection(hex.length());
             updating[0] = false;
+            applyLiveColor.run();
         };
         SeekBar.OnSeekBarChangeListener sliderListener = new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
@@ -380,6 +390,7 @@ public final class DesignModuleView {
                     value.setProgress(Math.round(hsvValue[2] * 100));
                     alpha.setProgress(Color.alpha(parsed));
                     updating[0] = false;
+                    applyLiveColor.run();
                 } catch (IllegalArgumentException ignored) { }
             }
             @Override public void afterTextChanged(Editable s) { }
@@ -410,6 +421,7 @@ public final class DesignModuleView {
                 hex.setSelection(hex.length());
                 updating[0] = false;
                 preview.setBackgroundColor(preset);
+                applyLiveColor.run();
             });
         }
         body.addView(palette);
@@ -421,6 +433,7 @@ public final class DesignModuleView {
         Button apply = new Button(context);
         apply.setText("Apply");
         apply.setOnClickListener(v -> {
+            applied[0] = true;
             store.setColor(setting.key, selected[0]);
             picker.dismiss();
             if (dialog != null && dialog.isShowing()) {
@@ -431,6 +444,14 @@ public final class DesignModuleView {
         actions.addView(cancel);
         actions.addView(apply);
         body.addView(actions);
+        picker.setOnDismissListener(ignored -> {
+            if (!applied[0]) {
+                store.setColor(setting.key, initial);
+                swatch.setText(colorText(initial));
+                swatch.setTextColor(contrast(initial));
+                swatch.setBackground(shape(initial, context.getColor(R.color.line), dp(1), dp(6)));
+            }
+        });
         picker.setCancelable(true);
         picker.setCanceledOnTouchOutside(false);
         picker.setContentView(body);
