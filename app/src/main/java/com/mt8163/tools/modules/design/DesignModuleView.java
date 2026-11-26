@@ -169,7 +169,7 @@ public final class DesignModuleView {
         close.setOnClickListener(v -> dialog.dismiss());
         header.addView(close, new LinearLayout.LayoutParams(dp(44), dp(42)));
         panel.addView(header);
-        makeDraggable(header);
+        makeDraggable(title);
 
         dialogContent = new LinearLayout(context);
         dialogContent.setOrientation(LinearLayout.VERTICAL);
@@ -260,10 +260,7 @@ public final class DesignModuleView {
                     }
                     return true;
                 }
-                if (event.getAction() == MotionEvent.ACTION_UP) {
-                    if (!dragging && event.getX() > view.getWidth() - dp(60)) dialog.dismiss();
-                    return true;
-                }
+                if (event.getAction() == MotionEvent.ACTION_UP) return true;
                 return true;
             }
         });
