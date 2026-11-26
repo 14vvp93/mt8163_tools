@@ -41,11 +41,15 @@
         <Button
             android:id="@+id/protection_settings_cancel"
             style="@style/DialogSecondaryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/button_height"
             android:text="@string/cancel" />
 
         <Button
             android:id="@+id/protection_settings_save"
             style="@style/DialogPrimaryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/button_height"
             android:layout_marginStart="@dimen/spacing_sm"
             android:text="@string/save" />
     </LinearLayout>
