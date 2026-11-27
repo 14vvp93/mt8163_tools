@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 
+import com.mt8163.tools.R;
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
 import com.mt8163.tools.modules.media.MediaRestorer;
@@ -547,9 +548,9 @@ public final class MediaHook implements PackageHook {
 
                     MediaRestorer.Cancellable operation = MediaRestorer.restore(
                             context, packageName, playbackState, foreground,
-                            restoreMedia, restoreBluetooth, result -> {
+                            restoreMedia, restoreBluetooth, restoreResult -> {
                                 if (isLifecycleActive(generation)) {
-                                    showPlaybackToast(context, packageName, result);
+                                    showPlaybackToast(context, packageName, restoreResult);
                                 }
                                 finishRestore(generation);
                             });
