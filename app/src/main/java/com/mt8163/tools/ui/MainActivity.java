@@ -75,13 +75,13 @@ public final class MainActivity extends Activity {
                 EventManager eventsManager = EventManager.get(this);
                 eventsManager.setEnabled(enabled);
                 eventsManager.logLifecycle(enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Events module enabled" : "Events module disabled");
+                        getString(enabled ? R.string.events_module_enabled : R.string.events_module_disabled));
             }
 
             if ("voltage".equals(selectedModule.getId())) {
                 EventLogger.log(this, "Voltage",
                         enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Voltage module enabled" : "Voltage module disabled");
+                        getString(enabled ? R.string.voltage_module_enabled : R.string.voltage_module_disabled));
                 VoltageSettingsStore.publish(this);
             }
 
@@ -92,7 +92,7 @@ public final class MainActivity extends Activity {
             if ("protection".equals(selectedModule.getId())) {
                 EventLogger.log(this, "Protection",
                         enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Protection module enabled" : "Protection module disabled");
+                        getString(enabled ? R.string.protection_module_enabled : R.string.protection_module_disabled));
                 ProtectionSettingsStore.publish(this);
             }
 
