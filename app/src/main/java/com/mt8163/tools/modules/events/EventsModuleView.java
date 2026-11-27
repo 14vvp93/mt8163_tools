@@ -61,7 +61,7 @@ public final class EventsModuleView {
         eventsManager = EventManager.get(owner);
         availableEventModules = new ArrayList<>();
         for (ModuleContract module : modules) availableEventModules.add(owner.getString(module.getNameRes()));
-        selectedEventModules.clearEvents();
+        selectedEventModules.clear();
         allEventModulesSelected = true;
         eventsAutoScrollEnabled = true;
         loadingOlderEvents = false;
@@ -131,7 +131,7 @@ public final class EventsModuleView {
         for (CheckBox option : moduleChecks) option.setEnabled(!allEventModulesSelected);
 
         apply.setOnClickListener(view -> {
-            selectedEventModules.clearEvents();
+            selectedEventModules.clear();
             allEventModulesSelected = all.isChecked();
             if (!allEventModulesSelected) {
                 for (int i = 0; i < moduleChecks.size(); i++) {
@@ -267,7 +267,7 @@ public final class EventsModuleView {
         Button cancel = root.findViewById(R.id.events_clear_cancel);
         confirm.setOnClickListener(view -> {
             eventsAutoScrollEnabled = true;
-            eventsManager.clearEvents();
+            eventsManager.clear();
             dialog.dismiss();
             Toast.makeText(eventsActivity, R.string.events_cleared, Toast.LENGTH_SHORT).show();
             refreshEvents();
@@ -293,7 +293,7 @@ public final class EventsModuleView {
     private static void startExport(Dialog dialog, boolean filtered) {
         eventsExportMode = filtered ? "filtered" : "all";
         eventsManager.logLifecycle("exportHistory", filtered
-                ? "Filtered exportEvents requested" : "Full history exportEvents requested");
+                ? "Filtered export requested" : "Full history export requested");
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
@@ -320,7 +320,7 @@ public final class EventsModuleView {
         eventsFilterButton = null;
         eventsManager = null;
         availableEventModules = new ArrayList<>();
-        selectedEventModules.clearEvents();
+        selectedEventModules.clear();
         loadingOlderEvents = false;
     }
 
@@ -335,7 +335,7 @@ public final class EventsModuleView {
         current.readAllAsync("filtered".equals(eventsExportMode) ? filter() : null, records -> {
             if (eventsActivity != owner || eventsManager != current) return;
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
-                if (output == null) throw new IllegalStateException("Cannot open exportEvents destination");
+                if (output == null) throw new IllegalStateException("Cannot open export destination");
                 output.write(buildEventsExportText(records).getBytes(StandardCharsets.UTF_8));
                 Toast.makeText(owner, R.string.events_export_completed, Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
