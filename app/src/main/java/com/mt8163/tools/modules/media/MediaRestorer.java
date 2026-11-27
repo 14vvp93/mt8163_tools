@@ -151,7 +151,15 @@ public final class MediaRestorer {
                     public void onPlaybackStateChanged(PlaybackState playbackState) {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
-                            complete(Result.RESUMED);
+                            long updateTime = playbackState.getLastPositionUpdateTime();
+                            boolean startedBeforePlay;
+                            synchronized (lock) {
+                                State current = state.get();
+                                startedBeforePlay = current == State.ACTIVE
+                                        || (current == State.PLAY_SENT && updateTime > 0
+                                        && updateTime <= playDispatchElapsedRealtime);
+                            }
+                            complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
                                 && playRequested) {
                             complete(Result.FAILED);
@@ -436,6 +444,7 @@ public final class MediaRestorer {
         private boolean playDelayScheduled;
         private boolean playTaskSubmitted;
         private boolean playCommitted;
+        private long playDispatchElapsedRealtime;
         private volatile boolean playRequested;
         private boolean controllerCallbackRegistered;
         private MediaController vendorController;
@@ -853,8 +862,13 @@ public final class MediaRestorer {
                                 && a2dpConnected && avrcpConnected
                                 && connectionVersion == profileStateVersion
                                 && state.compareAndSet(State.ACTIVE, State.PLAY_SENT);
-                        if (committed) playCommitted = true;
-                        else playTaskSubmitted = false;
+                        if (committed) {
+                            playCommitted = true;
+                            playRequested = true;
+                            playDispatchElapsedRealtime = SystemClock.elapsedRealtime();
+                        } else {
+                            playTaskSubmitted = false;
+                        }
                     }
 
                     if (!committed) {
@@ -873,7 +887,6 @@ public final class MediaRestorer {
                     }
 
                     try {
-                        playRequested = true;
                         sendPlay(service);
                         logEvent(context, "bluetoothPlaySent",
                                 "send_Avrcp_Cmd(PLAY) transaction completed");
