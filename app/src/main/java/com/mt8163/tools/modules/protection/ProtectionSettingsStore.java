@@ -92,18 +92,18 @@ public final class ProtectionSettingsStore {
             settings.put("hide_recents", hideRecents);
             settings.put("protect_cleaner", protectCleaner);
             settings.put("allow_close_via_x", allowCloseViaX);
-            applications.put(ProtectionConfig.key(packageName), settings);
-
             String key = ProtectionConfig.key(packageName);
             boolean existed = applications.has(key);
+            applications.put(key, settings);
+
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
-            publish(app);
+            boolean published = publish(app);
             EventLogger.log(app, "Protection",
                     existed ? "applicationSettingsUpdated" : "applicationAdded",
                     (existed ? "Application settings updated: " : "Application added: ")
                             + packageName);
-            return true;
+            return published;
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(app, "Protection", "configurationSave",
                     "Failed to save application settings: " + error);
@@ -126,10 +126,10 @@ public final class ProtectionSettingsStore {
             applications.remove(key);
             if (!preferences.edit().putString(KEY_APPLICATIONS, applications.toString())
                     .commit()) return false;
-            publish(app);
+            boolean published = publish(app);
             EventLogger.log(app, "Protection", "applicationRemoved",
                     "Application removed: " + packageName);
-            return true;
+            return published;
         } catch (JSONException | RuntimeException error) {
             EventLogger.log(app, "Protection", "configurationSave",
                     "Failed to remove application settings: " + error);
@@ -137,8 +137,8 @@ public final class ProtectionSettingsStore {
         }
     }
 
-    public static void publish(Context context) {
-        if (context == null) return;
+    public static boolean publish(Context context) {
+        if (context == null) return false;
 
         Context app = context.getApplicationContext();
         boolean enabled = app.getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
@@ -153,16 +153,18 @@ public final class ProtectionSettingsStore {
         if (!saved) {
             EventLogger.log(app, "Protection", "configurationSave",
                     "Failed to persist hook configuration");
-            return;
+            return false;
         }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
         intent.setPackage(TARGET_PACKAGE);
         try {
             app.sendBroadcast(intent);
+            return true;
         } catch (RuntimeException error) {
             EventLogger.log(app, "Protection", "configurationBroadcast",
                     "Failed to send configuration broadcast: " + error);
+            return false;
         }
     }
 
