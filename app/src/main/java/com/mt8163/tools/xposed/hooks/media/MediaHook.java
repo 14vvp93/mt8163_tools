@@ -22,7 +22,6 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -151,6 +150,7 @@ public final class MediaHook implements PackageHook {
         }
     }
 
+    // This support hook keeps the existing WindowManagerService available across toggles.
     private static boolean hookWindowManager(ClassLoader classLoader) {
         try {
             Class<?> type = XposedHelpers.findClass(WINDOW_MANAGER_CLASS, classLoader);
