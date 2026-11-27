@@ -6,5 +6,5 @@
 <dimen name="text_page_title">28sp</dimen><dimen name="text_section_title">18sp</dimen><dimen name="text_body">16sp</dimen><dimen name="text_secondary">14sp</dimen><dimen name="text_label">14sp</dimen><dimen name="text_button">17sp</dimen><dimen name="text_large_value">46sp</dimen>
 
 <dimen name="events_load_older_threshold">8dp</dimen>
-<dimen name="media_badge_text_size">12sp</dimen><dimen name="media_badge_horizontal_padding">8dp</dimen><dimen name="media_badge_vertical_padding">3dp</dimen><dimen name="media_badge_corner_radius">4dp</dimen>
+<dimen name="media_badge_text_size">12sp</dimen><dimen name="media_badge_horizontal_padding">8dp</dimen><dimen name="media_badge_vertical_padding">3dp</dimen><dimen name="media_badge_corner_radius">7dp</dimen>
 </resources>
