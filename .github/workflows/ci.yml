@@ -31,14 +31,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle 8.9
+      - name: Set up Gradle Wrapper
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '8.9'
           cache-read-only: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/development' }}
 
       - name: Run Android lint and unit tests
-        run: gradle --no-daemon :app:lintDebug :app:testDebugUnitTest
+        run: ./gradlew --no-daemon :app:lintDebug :app:testDebugUnitTest
 
       - name: Validate HTML preview
         shell: bash

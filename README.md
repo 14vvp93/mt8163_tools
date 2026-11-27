@@ -30,18 +30,18 @@ Modular Xposed/LSPosed tools for an MT8163 Android head unit.
 
 ## Build
 
-The project uses Gradle 8.9 and Android Gradle Plugin 8.7.3. The repository currently does not include the Gradle Wrapper.
+The project uses Gradle 8.9 and Android Gradle Plugin 8.7.3. The repository includes the Gradle 8.9 Wrapper.
 
 Run checks from the repository root with Gradle 8.9:
 
 ~~~bash
-gradle --no-daemon :app:lintDebug :app:testDebugUnitTest
+./gradlew --no-daemon :app:lintDebug :app:testDebugUnitTest
 ~~~
 
 Build the debug APK manually:
 
 ~~~bash
-gradle --no-daemon :app:assembleDebug
+./gradlew --no-daemon :app:assembleDebug
 ~~~
 
 GitHub Actions keeps APK builds manual. Pushes to development run CI checks only.

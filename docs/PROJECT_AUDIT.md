@@ -18,6 +18,7 @@ This document tracks source-level work and separates it from checks that require
 - The Voltage SeekBar touch area is 48 dp while its track remains resource-defined.
 - Normal-text colors used for muted labels and event module/source labels meet the 4.5:1 contrast target against the panel background.
 - The app manifest declares a launcher icon.
+- Gradle 8.9 Wrapper scripts, properties, and JAR are included; CI and manual APK builds use the wrapper.
 - Root README and project structure documentation describe the implemented architecture.
 - Media has a module-level README; the Xposed Media documentation describes the timestamp limitation.
 - The missing HTML preview input is restored for the existing manual preview workflow.
@@ -37,7 +38,6 @@ These items cannot be confirmed by repository inspection or CI:
 
 ## Remaining repository/tooling items
 
-- Gradle Wrapper is not included. Current CI and documented local commands use Gradle 8.9 directly.
 - APK Build remains manual-only. Do not add a push trigger.
 - The HTML preview is a browser mockup and is not a substitute for the Android app or device validation.
 - Autorun implementation is outside the current work package.

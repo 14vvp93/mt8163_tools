@@ -37,7 +37,12 @@ MT8163 Tools/
 │   ├── modules/
 │   └── xposed/
 ├── preview/index.html
-├── app/build.gradle
+├── gradle/
+│   └── wrapper/
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+├── gradlew
+├── gradlew.bat
 ├── gradle.properties
 └── settings.gradle
 ~~~
@@ -107,7 +112,7 @@ Static fields are process-local; application-process state must not be treated a
 - Gradle: 8.9.
 - CI runs lint and unit tests only.
 - APK Build is manual-only.
-- The repository does not currently include Gradle Wrapper scripts or the wrapper JAR.
+- Gradle Wrapper is pinned to Gradle 8.9.
 
 ## Device constraints
 
