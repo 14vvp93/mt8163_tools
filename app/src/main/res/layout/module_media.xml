@@ -1,15 +1,276 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/app_background" android:orientation="vertical" android:padding="@dimen/page_padding">
-<TextView style="@style/ModuleDescription" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/media_description" />
-<LinearLayout style="@style/ModuleCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_lg">
-<LinearLayout style="@style/ModuleSettingRow" android:layout_width="match_parent" android:layout_height="wrap_content">
-<TextView style="@style/ModuleSettingLabel" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/media_restore_background_media" />
-<Switch style="@style/ModuleSettingSwitch" android:id="@+id/media_restore_background_media" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="@string/media_restore_background_media" />
-</LinearLayout>
-<View android:layout_width="match_parent" android:layout_height="@dimen/border_width" android:layout_marginTop="@dimen/spacing_md" android:background="@color/line" />
-<LinearLayout style="@style/ModuleSettingRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_md">
-<TextView style="@style/ModuleSettingLabel" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/media_restore_background_bluetooth" />
-<Switch style="@style/ModuleSettingSwitch" android:id="@+id/media_restore_background_bluetooth" android:layout_width="wrap_content" android:layout_height="wrap_content" android:contentDescription="@string/media_restore_background_bluetooth" />
-</LinearLayout>
-</LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_background"
+    android:orientation="vertical"
+    android:padding="@dimen/page_padding">
+
+    <TextView
+        style="@style/ModuleDescription"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/media_description" />
+
+    <LinearLayout
+        style="@style/ModuleCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_lg">
+
+        <TextView
+            style="@style/ModuleSectionLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/media_player_options" />
+
+        <LinearLayout
+            style="@style/ModuleSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ModuleSettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_player" />
+
+                <TextView
+                    style="@style/ProtectionPickerPackage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_force_show_window" />
+            </LinearLayout>
+
+            <Switch
+                style="@style/ModuleSettingSwitch"
+                android:id="@+id/media_restore_background_media"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/media_force_show_media_window" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/border_width"
+            android:layout_marginTop="@dimen/spacing_sm"
+            android:background="@color/line" />
+
+        <LinearLayout
+            style="@style/ModuleSettingRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_sm">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ModuleSettingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_bluetooth" />
+
+                <TextView
+                    style="@style/ProtectionPickerPackage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_force_show_window" />
+            </LinearLayout>
+
+            <Switch
+                style="@style/ModuleSettingSwitch"
+                android:id="@+id/media_restore_background_bluetooth"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/media_force_show_bluetooth_window" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/border_width"
+            android:layout_marginTop="@dimen/spacing_lg"
+            android:background="@color/line" />
+
+        <TextView
+            style="@style/DialogTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:text="@string/media_last_snapshot" />
+
+        <TextView
+            style="@style/ModuleSectionLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:text="@string/media_player" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="@dimen/spacing_xs">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_package_name" />
+
+                <TextView
+                    style="@style/ProtectionPickerPackage"
+                    android:id="@+id/media_snapshot_package"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="@dimen/spacing_xs">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_playback_state" />
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:id="@+id/media_snapshot_playback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="@dimen/spacing_xs">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_window_state" />
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:id="@+id/media_snapshot_window"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/border_width"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:background="@color/line" />
+
+        <TextView
+            style="@style/ModuleSectionLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:text="@string/media_bluetooth" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="@dimen/spacing_xs">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_package_name" />
+
+                <TextView
+                    style="@style/ProtectionPickerPackage"
+                    android:id="@+id/bluetooth_snapshot_package"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="@dimen/spacing_xs">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_playback_state" />
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:id="@+id/bluetooth_snapshot_playback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="@dimen/spacing_xs">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_window_state" />
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:id="@+id/bluetooth_snapshot_window"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>
