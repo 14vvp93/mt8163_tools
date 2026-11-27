@@ -959,15 +959,15 @@ public final class MediaRestorer {
                 return false;
             }
 
-            PlaybackState current = controller.getPlaybackState();
-            if (current != null && current.getState() == PlaybackState.STATE_PLAYING) {
-                logEvent(context, "bluetoothRestoreSkipped",
-                        "Playback was already active before PLAY");
-                complete(Result.SKIPPED);
-                return false;
-            }
-
             try {
+                PlaybackState current = controller.getPlaybackState();
+                if (current != null && current.getState() == PlaybackState.STATE_PLAYING) {
+                    logEvent(context, "bluetoothRestoreSkipped",
+                            "Playback was already active before PLAY");
+                    complete(Result.SKIPPED);
+                    return false;
+                }
+
                 controller.registerCallback(playbackCallback, handler);
                 synchronized (lock) {
                     if (state.get() != State.ACTIVE) {
