@@ -3,6 +3,7 @@ package com.mt8163.tools.modules.events;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.ClipData;
+import android.content.res.ColorStateList;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
@@ -10,6 +11,7 @@ import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -42,7 +44,7 @@ public final class EventsModuleView {
     private static LinearLayout eventEntriesContainer;
     private static ScrollView eventsScrollView;
     private static TextView eventsCountText;
-    private static Button eventsFilterButton;
+    private static ImageButton eventsFilterButton;
     private static List<String> availableEventModules = new ArrayList<>();
     private static final Set<String> selectedEventModules = new HashSet<>();
     private static boolean allEventModulesSelected = true;
@@ -74,6 +76,7 @@ public final class EventsModuleView {
         eventsScrollView = root.findViewById(R.id.events_scroll);
         eventsCountText = root.findViewById(R.id.events_count);
         eventsFilterButton = root.findViewById(R.id.events_filter);
+        updateFilterButtonState();
 
         root.findViewById(R.id.events_refresh).setOnClickListener(view -> refreshEvents());
         root.findViewById(R.id.events_copy).setOnClickListener(view -> copyEvents());
@@ -103,6 +106,14 @@ public final class EventsModuleView {
 
     private static List<String> getSelectedEventModuleFilter() {
         return allEventModulesSelected ? null : new ArrayList<>(selectedEventModules);
+    }
+
+    private static void updateFilterButtonState() {
+        if (eventsActivity == null || eventsFilterButton == null) return;
+        int color = eventsActivity.getColor(allEventModulesSelected
+                ? R.color.text_secondary
+                : R.color.neon_red);
+        eventsFilterButton.setImageTintList(ColorStateList.valueOf(color));
     }
 
     private static void showEventsFilterDialog() {
@@ -142,14 +153,11 @@ public final class EventsModuleView {
                 }
                 if (selectedEventModules.isEmpty()) allEventModulesSelected = true;
             }
-            if (allEventModulesSelected) {
-                eventsFilterButton.setText(R.string.events_filter_all);
-            } else {
-                eventsFilterButton.setText(eventsActivity.getString(R.string.events_filter_selected,
-                        String.join(", ", selectedEventModules)));
-            }
+            updateFilterButtonState();
             dialog.dismiss();
-            eventsManager.logLifecycle("filterChanged", eventsFilterButton.getText().toString());
+            eventsManager.logLifecycle("filterChanged", allEventModulesSelected
+                    ? eventsActivity.getString(R.string.events_filter_all)
+                    : String.join(", ", selectedEventModules));
             refreshEvents();
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
