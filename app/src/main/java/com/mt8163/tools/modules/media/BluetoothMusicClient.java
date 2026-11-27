@@ -10,7 +10,6 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class BluetoothMusicClient {
