@@ -8,21 +8,11 @@
         </shape>
     </item>
     <item android:state_checked="true">
-        <layer-list>
-            <item android:left="-4dp" android:top="-4dp" android:right="-4dp" android:bottom="-4dp">
-                <shape android:shape="rectangle"><corners android:radius="12dp" /><solid android:color="@color/neon_glow_outer" /></shape>
-            </item>
-            <item android:left="-2dp" android:top="-2dp" android:right="-2dp" android:bottom="-2dp">
-                <shape android:shape="rectangle"><corners android:radius="12dp" /><solid android:color="@color/neon_glow_mid" /></shape>
-            </item>
-            <item>
-                <shape android:shape="rectangle">
-                    <size android:width="34dp" android:height="14dp" />
-                    <corners android:radius="12dp" />
-                    <solid android:color="@color/neon_red" />
-                </shape>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <size android:width="34dp" android:height="14dp" />
+            <corners android:radius="12dp" />
+            <solid android:color="@color/neon_red" />
+        </shape>
     </item>
     <item>
         <shape android:shape="rectangle">
