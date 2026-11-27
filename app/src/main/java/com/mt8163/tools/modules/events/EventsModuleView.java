@@ -180,7 +180,7 @@ public final class EventsModuleView {
         refreshingEvents = true;
         EventManager current = eventsManager;
         int generation = viewGeneration;
-        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
+        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, Long.MAX_VALUE, result -> {
             if (generation != viewGeneration) return;
             refreshingEvents = false;
             if (eventsManager != current || eventEntriesContainer == null || eventsActivity == null
@@ -188,6 +188,12 @@ public final class EventsModuleView {
                 refreshPending = false;
                 return;
             }
+            if (!result.success) {
+                refreshPending = false;
+                Toast.makeText(eventsActivity, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            List<EventRecord> records = result.records;
             eventEntriesContainer.removeAllViews();
             hasMoreEvents = records.size() > EVENTS_PAGE_SIZE;
             if (hasMoreEvents) records.remove(records.size() - 1);
@@ -213,11 +219,19 @@ public final class EventsModuleView {
         int oldHeight = eventEntriesContainer.getHeight();
         int oldScrollY = eventsScrollView.getScrollY();
         EventManager current = eventsManager;
-        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, oldestLoadedEventId, records -> {
+        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, oldestLoadedEventId, result -> {
             if (eventsManager != current || eventEntriesContainer == null || eventsScrollView == null) {
                 loadingOlderEvents = false;
                 return;
             }
+            if (!result.success) {
+                loadingOlderEvents = false;
+                if (eventsActivity != null) {
+                    Toast.makeText(eventsActivity, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+            List<EventRecord> records = result.records;
             hasMoreEvents = records.size() > EVENTS_PAGE_SIZE;
             if (hasMoreEvents) records.remove(records.size() - 1);
             if (!records.isEmpty()) {
@@ -274,9 +288,13 @@ public final class EventsModuleView {
         EventManager current = eventsManager;
         Activity owner = eventsActivity;
         if (current == null || owner == null) return;
-        current.readAllAsync(getSelectedEventModuleFilter(), records -> {
+        current.readAllAsync(getSelectedEventModuleFilter(), result -> {
             if (eventsManager != current || eventsActivity != owner) return;
-            String text = buildEventsExportText(records);
+            if (!result.success) {
+                Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String text = buildEventsExportText(result.records);
             if (text.isEmpty()) {
                 Toast.makeText(owner, R.string.events_nothing_to_copy, Toast.LENGTH_SHORT).show();
                 return;
@@ -366,11 +384,15 @@ public final class EventsModuleView {
         Activity owner = eventsActivity;
         EventManager current = eventsManager;
         Uri uri = data.getData();
-        current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, records -> {
+        current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, result -> {
             if (eventsActivity != owner || eventsManager != current) return;
+            if (!result.success) {
+                Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
+                return;
+            }
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
                 if (output == null) throw new IllegalStateException(owner.getString(R.string.events_export_destination_unavailable));
-                output.write(buildEventsExportText(records).getBytes(StandardCharsets.UTF_8));
+                output.write(buildEventsExportText(result.records).getBytes(StandardCharsets.UTF_8));
                 Toast.makeText(owner, R.string.events_export_completed, Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
                 Toast.makeText(owner, owner.getString(R.string.events_export_failed,
