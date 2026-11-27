@@ -19,6 +19,7 @@ public final class MediaSettingsStore {
     public static final String EXTRA_RESTORE_BACKGROUND_MEDIA = "restore_background_media";
     public static final String EXTRA_RESTORE_BACKGROUND_BLUETOOTH =
             "restore_background_bluetooth";
+    public static final String EXTRA_PLAYBACK_NOTIFICATIONS = "playback_notifications";
     public static final String EXTRA_SOURCE_PACKAGE = "source_package";
     public static final String EXTRA_PLAYBACK_STATE = "playback_state";
     public static final String EXTRA_IS_FOREGROUND = "is_foreground";
@@ -46,11 +47,14 @@ public final class MediaSettingsStore {
                 EXTRA_RESTORE_BACKGROUND_MEDIA, false);
         boolean restoreBluetooth = modulePreferences.getBoolean(
                 EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+        boolean playbackNotifications = modulePreferences.getBoolean(
+                EXTRA_PLAYBACK_NOTIFICATIONS, false);
 
         boolean saved = hookSettings(app).edit()
                 .putBoolean(EXTRA_ENABLED, enabled)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia)
                 .putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth)
+                .putBoolean(EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications)
                 .commit();
         if (!saved) {
             try {
@@ -66,6 +70,7 @@ public final class MediaSettingsStore {
         intent.putExtra(EXTRA_ENABLED, enabled);
         intent.putExtra(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia);
         intent.putExtra(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth);
+        intent.putExtra(EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications);
         app.sendBroadcast(intent);
     }
 
@@ -85,6 +90,24 @@ public final class MediaSettingsStore {
         return context != null && context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .getBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+    }
+
+    public static boolean isPlaybackNotifications(Context context) {
+        return context != null && context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .getBoolean(EXTRA_PLAYBACK_NOTIFICATIONS, false);
+    }
+
+    public static void setPlaybackNotifications(Context context, boolean enabled) {
+        if (context == null) return;
+        boolean saved = context.getApplicationContext()
+                .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
+                .edit().putBoolean(EXTRA_PLAYBACK_NOTIFICATIONS, enabled).commit();
+        if (saved) {
+            publish(context);
+        } else {
+            logConfigurationSaveFailure(context, EXTRA_PLAYBACK_NOTIFICATIONS);
+        }
     }
 
     public static void setRestoreBackgroundMedia(Context context, boolean enabled) {
