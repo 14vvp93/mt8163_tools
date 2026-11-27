@@ -100,13 +100,13 @@ Media uses one shared last-snapshot record. The saved state is displayed only in
 
 When disabled:
 - Stop applying Recents and Memory Cleaner filtering.
-- Unhook all Protection feature hooks.
-- Clear temporary filtering state, including thread-local state.
-- Unregister the module-owned receiver where applicable.
-- Refresh the Recents task list so previously hidden applications become visible without restarting SystemUI.
+- Unhook all Protection feature hooks and clear temporary filtering state, including thread-local state.
+- Keep the configuration receiver active as shared lifecycle infrastructure so a later enable broadcast can reactivate Protection.
+- Keep lightweight SystemUIApplication and RecentsActivity lifecycle support hooks active; they only register the receiver and track the current RecentsActivity instance.
+- If filtering modified the in-memory task stack, reload it through RecentsActivity.reloadTaskStack() after removing the filtering hooks. If Recents is not visible, its normal onStart reload will rebuild the stack when opened.
 - Preserve Protection settings for re-enable.
 
-A native Recents reload path has been identified in the target ROM source. Its behavior must be verified on the actual head unit, including when Recents is open and when multi-window mode is active. Unhooking alone is not sufficient because filtering may already have modified in-memory task data.
+The target ROM's private RecentsActivity.reloadTaskStack(boolean, boolean) method builds a fresh RecentsTaskLoadPlan and publishes a new MultiWindowStateChangedEvent. The implementation invokes this native path only after unhooking the stack filters, so the rebuilt list is not filtered again. Its behavior must still be verified on the actual head unit, including when Recents is open and when multi-window mode is active.
 
 ## Performance expectations
 
@@ -132,6 +132,6 @@ Before considering the feature complete, verify on the target device:
 
 ## Current status
 
-Initial runtime lifecycle support is implemented for Voltage and Media. It has not yet been built or validated on the target device.
+Initial runtime lifecycle support is implemented for Voltage, Media, and Protection. Protection keeps its configuration and RecentsActivity tracking hooks as shared support infrastructure while unhooking its Recents and Memory Cleaner feature hooks when disabled.
 
-Protection lifecycle support remains pending. Protection's Recents refresh and all module transitions require on-device validation before the feature is considered complete.
+The changes have not yet been built or validated on the target device. Protection's Recents refresh and all module transitions require on-device validation before the feature is considered complete.
