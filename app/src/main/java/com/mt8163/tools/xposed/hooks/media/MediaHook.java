@@ -49,6 +49,7 @@ public final class MediaHook implements PackageHook {
     private static final Object LOCK = new Object();
 
     private static boolean installInProgress;
+    private static boolean installRequested;
     private static boolean accHookInstalled;
     private static boolean windowManagerHookInstalled;
     private static Unhook accHook;
@@ -79,28 +80,47 @@ public final class MediaHook implements PackageHook {
 
     @Override
     public void install(XC_LoadPackage.LoadPackageParam param) {
-        boolean loadConfiguration;
         synchronized (LOCK) {
-            if (installInProgress || (accHookInstalled && windowManagerHookInstalled)) return;
+            if (installInProgress) {
+                installRequested = true;
+                return;
+            }
+            if (accHookInstalled && windowManagerHookInstalled) return;
             installInProgress = true;
-            loadConfiguration = !configurationLoaded;
         }
 
+        boolean completed = false;
         try {
-            if (loadConfiguration) loadConfiguration();
-
-            synchronized (LOCK) {
-                if (!windowManagerHookInstalled) {
-                    windowManagerHookInstalled = hookWindowManager(param.classLoader);
+            while (true) {
+                boolean loadConfiguration;
+                synchronized (LOCK) {
+                    installRequested = false;
+                    loadConfiguration = !configurationLoaded;
                 }
-                if (moduleEnabled && !accHookInstalled) {
-                    accHook = hookAccReceiver(param.classLoader);
-                    accHookInstalled = accHook != null;
+
+                if (loadConfiguration) loadConfiguration();
+
+                synchronized (LOCK) {
+                    if (!windowManagerHookInstalled) {
+                        windowManagerHookInstalled = hookWindowManager(param.classLoader);
+                    }
+                    if (moduleEnabled && !accHookInstalled) {
+                        accHook = hookAccReceiver(param.classLoader);
+                        accHookInstalled = accHook != null;
+                    }
+
+                    if (installRequested) continue;
+                    installInProgress = false;
+                    completed = true;
+                    break;
                 }
             }
         } finally {
-            synchronized (LOCK) {
-                installInProgress = false;
+            if (!completed) {
+                synchronized (LOCK) {
+                    installInProgress = false;
+                    installRequested = false;
+                }
             }
         }
 
