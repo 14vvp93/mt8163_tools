@@ -117,7 +117,7 @@ public final class MediaModuleView {
     private void setBadge(TextView view, String text, int backgroundRes, int textColorRes) {
         GradientDrawable background = new GradientDrawable();
         background.setColor(context.getColor(backgroundRes));
-        background.setCornerRadius(context.getResources().getDisplayMetrics().density * 6f);
+        background.setCornerRadius(context.getResources().getDimension(R.dimen.media_badge_corner_radius));
         view.setBackground(background);
         view.setTextColor(context.getColor(textColorRes));
         view.setText(text);
