@@ -118,8 +118,8 @@ public final class VoltageHook implements PackageHook {
                         if (moduleEnabled) {
                             batteryHook = installedHook;
                             batteryHookInstalled = batteryHook != null;
-                        } else if (installedHook != null) {
-                            installedHook.unhook();
+                        } else {
+                            unhookLocked(installedHook);
                         }
                     }
                 } catch (Throwable error) {
