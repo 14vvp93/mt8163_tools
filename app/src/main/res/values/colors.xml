@@ -4,4 +4,8 @@
 <color name="white">#FFFFFFFF</color><color name="text_primary">#F1F2F3</color><color name="text_secondary">#969DA6</color><color name="text_muted">#777F89</color>
 <color name="switch_thumb">@color/white</color><color name="switch_track_disabled">#343A40</color><color name="switch_track_checked">@color/neon_red</color><color name="switch_track_default">#596168</color>
 <color name="module_status_active">@color/neon_red</color><color name="module_status_inactive">@color/text_muted</color><color name="accent_overlay">#22E53935</color><color name="accent_stroke">#66E53935</color><color name="sidebar_icon_background">#24272D</color>
+<color name="media_badge_neutral_background">#343A40</color><color name="media_badge_neutral_text">#D7DCE1</color>
+<color name="media_badge_info_background">#173B5C</color><color name="media_badge_info_text">#64B5F6</color>
+<color name="media_badge_success_background">#183D2A</color><color name="media_badge_success_text">#66BB6A</color>
+<color name="media_badge_danger_background">#4A2020</color><color name="media_badge_danger_text">#EF5350</color>
 </resources>
