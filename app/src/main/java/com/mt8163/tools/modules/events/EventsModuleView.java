@@ -183,6 +183,13 @@ public final class EventsModuleView {
         current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, Long.MAX_VALUE, result -> {
             if (generation != viewGeneration) return;
             refreshingEvents = false;
+            if (result.cancelled) {
+                if (refreshPending) {
+                    refreshPending = false;
+                    refreshEvents();
+                }
+                return;
+            }
             if (eventsManager != current || eventEntriesContainer == null || eventsActivity == null
                     || !current.isEnabled()) {
                 refreshPending = false;
@@ -221,6 +228,10 @@ public final class EventsModuleView {
         EventManager current = eventsManager;
         current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, oldestLoadedEventId, result -> {
             if (eventsManager != current || eventEntriesContainer == null || eventsScrollView == null) {
+                loadingOlderEvents = false;
+                return;
+            }
+            if (result.cancelled) {
                 loadingOlderEvents = false;
                 return;
             }
@@ -289,7 +300,7 @@ public final class EventsModuleView {
         Activity owner = eventsActivity;
         if (current == null || owner == null) return;
         current.readAllAsync(getSelectedEventModuleFilter(), result -> {
-            if (eventsManager != current || eventsActivity != owner) return;
+            if (eventsManager != current || eventsActivity != owner || result.cancelled) return;
             if (!result.success) {
                 Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
                 return;
@@ -385,7 +396,7 @@ public final class EventsModuleView {
         EventManager current = eventsManager;
         Uri uri = data.getData();
         current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, result -> {
-            if (eventsActivity != owner || eventsManager != current) return;
+            if (eventsActivity != owner || eventsManager != current || result.cancelled) return;
             if (!result.success) {
                 Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
                 return;
