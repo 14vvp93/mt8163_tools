@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -66,34 +67,61 @@ public final class MediaModuleView {
         String packageName = MediaSettingsStore.getSourcePackage(context);
         boolean hasSnapshot = packageName != null && !packageName.trim().isEmpty();
 
-        mediaSnapshotSourceText.setText(getMediaSnapshotSourceLabel(hasSnapshot));
-        mediaSnapshotPackageText.setText(hasSnapshot
-                ? packageName : context.getString(R.string.media_unknown));
-        mediaSnapshotPlaybackText.setText(hasSnapshot
-                ? formatMediaPlaybackState(MediaSettingsStore.getPlaybackState(context))
-                : context.getString(R.string.media_unknown));
-        mediaSnapshotWindowText.setText(hasSnapshot
-                ? (MediaSettingsStore.isForeground(context)
-                ? context.getString(R.string.media_foreground)
-                : context.getString(R.string.media_background))
-                : context.getString(R.string.media_unknown));
+        if (!hasSnapshot) {
+            setBadge(mediaSnapshotSourceText, R.string.media_unknown,
+                    R.color.media_badge_danger_background, R.color.media_badge_danger_text);
+            setBadge(mediaSnapshotPackageText, R.string.media_unknown,
+                    R.color.media_badge_danger_background, R.color.media_badge_danger_text);
+            setBadge(mediaSnapshotPlaybackText, R.string.media_unknown,
+                    R.color.media_badge_danger_background, R.color.media_badge_danger_text);
+            setBadge(mediaSnapshotWindowText, R.string.media_unknown,
+                    R.color.media_badge_danger_background, R.color.media_badge_danger_text);
+            return;
+        }
+
+        setBadge(mediaSnapshotSourceText, getMediaSnapshotSourceLabel(),
+                R.color.media_badge_info_background, R.color.media_badge_info_text);
+        setBadge(mediaSnapshotPackageText, packageName,
+                R.color.media_badge_neutral_background, R.color.media_badge_neutral_text);
+
+        String playbackState = MediaSettingsStore.getPlaybackState(context);
+        if (MediaSettingsStore.PLAYBACK_PLAYING.equals(playbackState)) {
+            setBadge(mediaSnapshotPlaybackText, R.string.media_playing,
+                    R.color.media_badge_success_background, R.color.media_badge_success_text);
+        } else if (MediaSettingsStore.PLAYBACK_PAUSED.equals(playbackState)) {
+            setBadge(mediaSnapshotPlaybackText, R.string.media_paused,
+                    R.color.media_badge_info_background, R.color.media_badge_info_text);
+        } else {
+            setBadge(mediaSnapshotPlaybackText, R.string.media_unknown,
+                    R.color.media_badge_danger_background, R.color.media_badge_danger_text);
+        }
+
+        if (MediaSettingsStore.isForeground(context)) {
+            setBadge(mediaSnapshotWindowText, R.string.media_foreground,
+                    R.color.media_badge_success_background, R.color.media_badge_success_text);
+        } else {
+            setBadge(mediaSnapshotWindowText, R.string.media_background,
+                    R.color.media_badge_info_background, R.color.media_badge_info_text);
+        }
     }
 
-    private int getMediaSnapshotSourceLabel(boolean hasSnapshot) {
-        if (!hasSnapshot) return R.string.media_snapshot_unknown_source;
+    private int getMediaSnapshotSourceLabel() {
         return MediaSettingsStore.isBluetoothSource(context)
                 ? R.string.media_snapshot_bluetooth
                 : R.string.media_snapshot_media_player;
     }
 
-    private String formatMediaPlaybackState(String value) {
-        if (MediaSettingsStore.PLAYBACK_PLAYING.equals(value)) {
-            return context.getString(R.string.media_playing);
-        }
-        if (MediaSettingsStore.PLAYBACK_PAUSED.equals(value)) {
-            return context.getString(R.string.media_paused);
-        }
-        return context.getString(R.string.media_unknown);
+    private void setBadge(TextView view, int textRes, int backgroundRes, int textColorRes) {
+        setBadge(view, context.getString(textRes), backgroundRes, textColorRes);
+    }
+
+    private void setBadge(TextView view, String text, int backgroundRes, int textColorRes) {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(context.getColor(backgroundRes));
+        background.setCornerRadius(context.getResources().getDisplayMetrics().density * 6f);
+        view.setBackground(background);
+        view.setTextColor(context.getColor(textColorRes));
+        view.setText(text);
     }
 
     private void registerMediaSnapshotReceiver() {
