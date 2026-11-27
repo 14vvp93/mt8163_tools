@@ -1,13 +1,17 @@
-# Hook organization
+# Xposed Hooks
 
-Hooks are grouped by MT8163 Tools functional module. The corresponding Java packages are under `app/src/main/java/com/mt8163/tools/xposed/hooks/`.
+Xposed implementations are stored separately from application module code under:
 
-- `media/` — Media hooks.
-- `protection/` — Protection hooks.
-- `voltage/` — Voltage hooks.
-- `autorun/` — Autorun hooks.
-- `events/` — event-observation hooks.
+`app/src/main/java/com/mt8163/tools/xposed/hooks/`
 
-Each independently registered hook implements `com.mt8163.tools.xposed.PackageHook`, matches its exact target package, and installs against the target application's class loader.
+Only modules with active Xposed integrations have a hook package.
 
-Keep hooks independent. A failure in one hook must not stop other hooks. Events receives events through Core's neutral interface; other modules must never depend on Events.
+| Package | Hook class | Target process | Documentation |
+|---|---|---|---|
+| `media/` | `MediaHook` | `android` | [Media](media/README.md) |
+| `protection/` | `ProtectionHook` | `com.android.systemui` main process | [Protection](protection/README.md) |
+| `voltage/` | `VoltageHook` | `android` | [Voltage](voltage/README.md) |
+
+Events has no Xposed hook. It receives operational events through the Core `EventLogger` API. Autorun has no hook implementation.
+
+See [Xposed integration](../README.md) for package routing, shared bootstrap, and configuration delivery.
