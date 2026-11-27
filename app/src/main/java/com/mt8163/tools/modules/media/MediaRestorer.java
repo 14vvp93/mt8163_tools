@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.media.session.MediaController;
+import android.media.session.PlaybackState;
 import android.media.session.MediaSessionManager;
 import android.os.Binder;
 import android.os.Handler;
@@ -53,8 +54,15 @@ public final class MediaRestorer {
         void cancel();
     }
 
+    public enum Result {
+        RESUMED,
+        FAILED,
+        SKIPPED,
+        CANCELLED
+    }
+
     public interface Completion {
-        void onComplete();
+        void onComplete(Result result);
     }
 
     private MediaRestorer() {
@@ -67,7 +75,7 @@ public final class MediaRestorer {
         Context appContext = context == null ? null : context.getApplicationContext();
         if (appContext == null || packageName == null || packageName.isEmpty()) {
             logEvent(appContext, "restoreRejected", "Missing context or source package");
-            if (completion != null) completion.onComplete();
+            notifyCompletion(completion, Result.FAILED);
             return () -> { };
         }
 
@@ -85,7 +93,7 @@ public final class MediaRestorer {
             if (!shouldPlay) {
                 logEvent(appContext, "bluetoothRestoreSkipped", "Playback state is " + state);
                 if (launchActivity) launchSourceActivity(appContext, packageName);
-                notifyCompletion(completion);
+                notifyCompletion(completion, Result.SKIPPED);
                 return () -> { };
             }
             BluetoothRestore restore = new BluetoothRestore(
@@ -113,7 +121,7 @@ public final class MediaRestorer {
     private static final class StandardRestore implements Cancellable {
         private enum State {
             ACTIVE,
-            PLAY_COMMITTED,
+            PLAY_SENT,
             COMPLETED,
             CANCELLED
         }
@@ -126,15 +134,29 @@ public final class MediaRestorer {
         private final MediaSessionManager manager;
         private final Handler handler = new Handler(Looper.getMainLooper());
         private final Object lock = new Object();
-        private long deadlineElapsedRealtime;
 
         private final AtomicReference<State> state =
                 new AtomicReference<>(State.ACTIVE);
         private boolean listenerRegistered;
+        private boolean controllerCallbackRegistered;
+        private boolean playRequested;
+        private MediaController activeController;
 
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
                 this::onSessionsChanged;
         private final Runnable timeout = this::onTimeout;
+        private final MediaController.Callback playbackCallback =
+                new MediaController.Callback() {
+                    @Override
+                    public void onPlaybackStateChanged(PlaybackState playbackState) {
+                        if (playbackState == null) return;
+                        if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
+                            complete(Result.RESUMED);
+                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR) {
+                            complete(Result.FAILED);
+                        }
+                    }
+                };
 
         StandardRestore(Context context, String packageName, boolean launchActivity,
                         boolean shouldPlay, Completion completion) {
@@ -152,22 +174,23 @@ public final class MediaRestorer {
                 logEvent(context, "mediaPlaySkipped",
                         "Snapshot state is not playing: " + packageName);
                 if (launchActivity) launchSourceActivity(context, packageName);
-                completeWithoutPlay();
+                complete(Result.SKIPPED);
                 return;
             }
 
             if (manager == null) {
                 logEvent(context, "mediaRestoreFailed", "MediaSessionManager unavailable");
                 if (launchActivity) launchSourceActivity(context, packageName);
-                completeWithoutPlay();
+                complete(Result.FAILED);
                 return;
             }
 
             logEvent(context, "mediaRestoreWaiting",
                     "Waiting for MediaSession: " + packageName);
             if (!handler.postDelayed(timeout, MEDIA_TIMEOUT_MS)) {
-                logEvent(context, "mediaRestoreFailed", "Unable to schedule MediaSession timeout");
-                completeWithoutPlay();
+                logEvent(context, "mediaRestoreFailed",
+                        "Unable to schedule MediaSession timeout");
+                complete(Result.FAILED);
                 return;
             }
 
@@ -186,14 +209,12 @@ public final class MediaRestorer {
             MediaController existing = findStandardSession(getActiveSessions());
             if (existing != null) {
                 logEvent(context, "mediaSessionFound", "Existing session: " + packageName);
-                finish(existing);
+                resume(existing);
             }
         }
 
         private boolean isActive() {
-            synchronized (lock) {
-                return state.get() == State.ACTIVE;
-            }
+            return state.get() == State.ACTIVE;
         }
 
         private List<MediaController> getActiveSessions() {
@@ -229,7 +250,7 @@ public final class MediaRestorer {
                 logEvent(context, "mediaSessionListenerRegistered", "Source: " + packageName);
             } catch (RuntimeException error) {
                 logEvent(context, "mediaSessionListenerFailed", error.toString());
-                completeWithoutPlay();
+                complete(Result.FAILED);
             }
         }
 
@@ -238,70 +259,116 @@ public final class MediaRestorer {
             MediaController controller = findStandardSession(sessions);
             if (controller != null) {
                 logEvent(context, "mediaSessionFound", "Active session: " + packageName);
-                finish(controller);
+                resume(controller);
             }
+        }
+
+        private void resume(MediaController controller) {
+            if (controller == null || !isActive()) return;
+
+            PlaybackState current = controller.getPlaybackState();
+            if (isPlaying(current)) {
+                logEvent(context, "mediaRestoreSkipped",
+                        "Playback was already active before PLAY: " + packageName);
+                complete(Result.SKIPPED);
+                return;
+            }
+
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return;
+                activeController = controller;
+                state.set(State.PLAY_SENT);
+            }
+
+            try {
+                controller.registerCallback(playbackCallback, handler);
+                synchronized (lock) {
+                    controllerCallbackRegistered = true;
+                }
+
+                current = controller.getPlaybackState();
+                if (isPlaying(current)) {
+                    logEvent(context, "mediaRestoreSkipped",
+                            "Playback became active before PLAY: " + packageName);
+                    complete(Result.SKIPPED);
+                    return;
+                }
+
+                handler.removeCallbacks(timeout);
+                if (!handler.postDelayed(timeout, MEDIA_TIMEOUT_MS)) {
+                    logEvent(context, "mediaRestoreFailed",
+                            "Unable to schedule playback confirmation");
+                    complete(Result.FAILED);
+                    return;
+                }
+
+                playRequested = true;
+                controller.getTransportControls().play();
+                logEvent(context, "mediaPlaySent",
+                        "TransportControls.play(): " + packageName);
+            } catch (RuntimeException error) {
+                logEvent(context, "mediaPlayFailed", error.toString());
+                complete(Result.FAILED);
+            }
+        }
+
+        private boolean isPlaying(PlaybackState playbackState) {
+            return playbackState != null
+                    && playbackState.getState() == PlaybackState.STATE_PLAYING;
         }
 
         private void onTimeout() {
-            boolean completed = false;
-            synchronized (lock) {
-                if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
-                    cleanupListenerLocked();
-                    completed = true;
-                }
-            }
-            if (completed) {
+            State current = state.get();
+            if (current == State.ACTIVE) {
                 logEvent(context, "mediaRestoreTimeout",
                         "5-second MediaSession wait expired: " + packageName);
-                notifyCompletion(completion);
+            } else if (current == State.PLAY_SENT) {
+                logEvent(context, "mediaRestoreTimeout",
+                        "Playback was not confirmed within 5 seconds: " + packageName);
             }
+            complete(Result.FAILED);
         }
 
-        private void completeWithoutPlay() {
-            boolean completed = false;
+        private void complete(Result result) {
+            boolean completed;
             synchronized (lock) {
-                if (state.compareAndSet(State.ACTIVE, State.COMPLETED)) {
-                    handler.removeCallbacks(timeout);
-                    cleanupListenerLocked();
-                    completed = true;
+                State current = state.get();
+                if (current == State.COMPLETED || current == State.CANCELLED) return;
+                if (result == Result.RESUMED && (!playRequested || current != State.PLAY_SENT)) {
+                    return;
                 }
-            }
-            if (completed) notifyCompletion(completion);
-        }
-
-        private void finish(MediaController controller) {
-            boolean completed = false;
-            if (controller != null && playing) {
-                if (!state.compareAndSet(State.ACTIVE, State.PLAY_COMMITTED)) return;
-                handler.removeCallbacks(timeout);
-                cleanupListenerLocked();
-                try {
-                    controller.getTransportControls().play();
-                    logEvent(context, "mediaPlaySent",
-                            "TransportControls.play(): " + packageName);
-                } catch (RuntimeException error) {
-                    logEvent(context, "mediaPlayFailed", error.toString());
-                }
-                state.compareAndSet(State.PLAY_COMMITTED, State.COMPLETED);
-                completed = true;
-            } else if (state.compareAndSet(State.ACTIVE, State.COMPLETED)) {
-                handler.removeCallbacks(timeout);
-                cleanupListenerLocked();
-                logEvent(context, "mediaRestoreEnded",
-                        "No matching MediaSession; PLAY not sent");
+                state.set(State.COMPLETED);
                 completed = true;
             }
-            if (completed) notifyCompletion(completion);
+            if (!completed) return;
+            cleanup();
+            notifyCompletion(completion, result);
         }
 
-        private void cleanupListenerLocked() {
+        private void cleanup() {
+            handler.removeCallbacks(timeout);
+            boolean removeListener;
+            boolean removeControllerCallback;
+            MediaController controller;
             synchronized (lock) {
-                if (!listenerRegistered) return;
+                removeListener = listenerRegistered;
                 listenerRegistered = false;
+                removeControllerCallback = controllerCallbackRegistered;
+                controllerCallbackRegistered = false;
+                controller = activeController;
+                activeController = null;
             }
-            try {
-                manager.removeOnActiveSessionsChangedListener(listener);
-            } catch (RuntimeException ignored) {
+            if (removeListener) {
+                try {
+                    manager.removeOnActiveSessionsChangedListener(listener);
+                } catch (RuntimeException ignored) {
+                }
+            }
+            if (removeControllerCallback && controller != null) {
+                try {
+                    controller.unregisterCallback(playbackCallback);
+                } catch (RuntimeException ignored) {
+                }
             }
         }
 
@@ -309,19 +376,17 @@ public final class MediaRestorer {
         public void cancel() {
             boolean cancelled = false;
             synchronized (lock) {
-                if (state.compareAndSet(State.ACTIVE, State.CANCELLED)) {
-                    handler.removeCallbacks(timeout);
-                    cleanupListenerLocked();
+                State current = state.get();
+                if (current == State.ACTIVE || current == State.PLAY_SENT) {
+                    state.set(State.CANCELLED);
                     cancelled = true;
                 }
             }
             if (cancelled) {
+                cleanup();
+                notifyCompletion(completion, Result.CANCELLED);
                 logEvent(context, "mediaRestoreCancelled",
                         "Restoration cancelled: " + packageName);
-                notifyCompletion(completion);
-            } else if (state.get() == State.PLAY_COMMITTED) {
-                logEvent(context, "mediaRestoreCancelIgnored",
-                        "PLAY was already committed: " + packageName);
             }
         }
     }
@@ -329,6 +394,7 @@ public final class MediaRestorer {
     private static final class BluetoothRestore implements Cancellable {
         private enum State {
             ACTIVE,
+            PLAY_SENT,
             COMPLETED,
             CANCELLED
         }
@@ -369,6 +435,9 @@ public final class MediaRestorer {
         private boolean playDelayScheduled;
         private boolean playTaskSubmitted;
         private boolean playCommitted;
+        private boolean playRequested;
+        private boolean controllerCallbackRegistered;
+        private MediaController vendorController;
         private int profileStateVersion;
 
         private final MusicCallback callback = new MusicCallback();
@@ -376,6 +445,18 @@ public final class MediaRestorer {
                 this::onSessionsChanged;
         private final Runnable timeout = this::onTimeout;
         private final Runnable playDelay = this::onPlayDelayElapsed;
+        private final MediaController.Callback playbackCallback =
+                new MediaController.Callback() {
+                    @Override
+                    public void onPlaybackStateChanged(PlaybackState playbackState) {
+                        if (playbackState == null) return;
+                        if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
+                            complete(Result.RESUMED);
+                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR) {
+                            complete(Result.FAILED);
+                        }
+                    }
+                };
         private final ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
@@ -442,9 +523,9 @@ public final class MediaRestorer {
             }
 
             if (state.get() != State.ACTIVE) return;
-            boolean existingSession = hasVendorSession(getActiveSessions());
-            if (existingSession) {
-                markSessionReady("Existing vendor session");
+            MediaController existingSession = findVendorSession(getActiveSessions());
+            if (existingSession != null) {
+                markSessionReady(existingSession, "Existing vendor session");
             }
 
             if (state.get() != State.ACTIVE) return;
@@ -461,12 +542,12 @@ public final class MediaRestorer {
             }
         }
 
-        private boolean hasVendorSession(List<MediaController> sessions) {
-            if (sessions == null) return false;
+        private MediaController findVendorSession(List<MediaController> sessions) {
+            if (sessions == null) return null;
             for (MediaController controller : sessions) {
-                if (isVendorSession(controller)) return true;
+                if (isVendorSession(controller)) return controller;
             }
-            return false;
+            return null;
         }
 
         private void registerListener() {
@@ -487,16 +568,18 @@ public final class MediaRestorer {
         }
 
         private void onSessionsChanged(List<MediaController> sessions) {
-            if (hasVendorSession(sessions)) {
-                markSessionReady("Vendor MediaSession became active");
+            MediaController controller = findVendorSession(sessions);
+            if (controller != null) {
+                markSessionReady(controller, "Vendor MediaSession became active");
             }
         }
 
-        private void markSessionReady(String message) {
+        private void markSessionReady(MediaController controller, String message) {
             boolean removeListener;
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || sessionReady) return;
                 sessionReady = true;
+                vendorController = controller;
                 removeListener = listenerRegistered;
                 listenerRegistered = false;
             }
@@ -667,6 +750,8 @@ public final class MediaRestorer {
         }
 
         private void onPlayDelayElapsed() {
+            if (!preparePlaybackConfirmation()) return;
+
             final IBinder service;
             final int connectionVersion;
             synchronized (lock) {
@@ -705,7 +790,7 @@ public final class MediaRestorer {
                         committed = !expired && state.get() == State.ACTIVE
                                 && a2dpConnected && avrcpConnected
                                 && connectionVersion == profileStateVersion
-                                && state.compareAndSet(State.ACTIVE, State.COMPLETED);
+                                && state.compareAndSet(State.ACTIVE, State.PLAY_SENT);
                         if (committed) playCommitted = true;
                         else playTaskSubmitted = false;
                     }
@@ -718,7 +803,7 @@ public final class MediaRestorer {
                             logEvent(context, "bluetoothRestoreTimeout",
                                     "30-second deadline reached before PLAY commit after "
                                             + elapsedMs + " ms");
-                            finishResources();
+                            finishResources(Result.FAILED);
                         } else {
                             handler.post(this::updatePlayDelay);
                         }
@@ -726,14 +811,15 @@ public final class MediaRestorer {
                     }
 
                     try {
+                        playRequested = true;
                         sendPlay(service);
                         logEvent(context, "bluetoothPlaySent",
                                 "send_Avrcp_Cmd(PLAY) transaction completed");
                     } catch (RemoteException | RuntimeException error) {
                         logEvent(context, "bluetoothPlayFailed", error.toString());
+                        fail("Bluetooth PLAY command failed: " + error);
                     } finally {
                         BLUETOOTH_WORKER_BUSY.set(false);
-                        finishResources();
                     }
                 });
             } catch (RuntimeException error) {
@@ -809,9 +895,9 @@ public final class MediaRestorer {
             String readiness;
             synchronized (lock) {
                 committed = playCommitted;
-                if (state.get() == State.ACTIVE) {
-                    timedOut = state.compareAndSet(State.ACTIVE, State.CANCELLED);
-                } else if (state.get() == State.COMPLETED && committed) {
+                State current = state.get();
+                if (current == State.ACTIVE || current == State.PLAY_SENT) {
+                    state.set(State.COMPLETED);
                     timedOut = true;
                 }
                 readiness = "MediaSession: " + sessionReady
@@ -827,21 +913,83 @@ public final class MediaRestorer {
                         "30-second restoration deadline reached after "
                                 + elapsedMs + " ms; PLAY committed: "
                                 + committed + "; " + readiness);
-                finishResources();
+                finishResources(Result.FAILED);
             }
         }
 
         private void fail(String reason) {
-            boolean failed = state.compareAndSet(State.ACTIVE, State.COMPLETED);
+            boolean failed = false;
+            synchronized (lock) {
+                State current = state.get();
+                if (current == State.ACTIVE || current == State.PLAY_SENT) {
+                    state.set(State.COMPLETED);
+                    failed = true;
+                }
+            }
             if (failed) {
                 logEvent(context, "bluetoothRestoreFailed", reason);
-                finishResources();
-            } else if (state.get() == State.CANCELLED) {
-                finishResources();
+                finishResources(Result.FAILED);
             }
         }
 
-        private void finishResources() {
+        private void complete(Result result) {
+            boolean completed = false;
+            synchronized (lock) {
+                State current = state.get();
+                if (current == State.COMPLETED || current == State.CANCELLED) return;
+                if (result == Result.RESUMED
+                        && (!playRequested || current != State.PLAY_SENT)) return;
+                state.set(State.COMPLETED);
+                completed = true;
+            }
+            if (completed) finishResources(result);
+        }
+
+        private boolean preparePlaybackConfirmation() {
+            MediaController controller;
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return false;
+                controller = vendorController;
+                if (controllerCallbackRegistered) return true;
+            }
+            if (controller == null) {
+                fail("Bluetooth MediaSession unavailable for playback confirmation");
+                return false;
+            }
+
+            PlaybackState current = controller.getPlaybackState();
+            if (current != null && current.getState() == PlaybackState.STATE_PLAYING) {
+                logEvent(context, "bluetoothRestoreSkipped",
+                        "Playback was already active before PLAY");
+                complete(Result.SKIPPED);
+                return false;
+            }
+
+            try {
+                controller.registerCallback(playbackCallback, handler);
+                synchronized (lock) {
+                    if (state.get() != State.ACTIVE) {
+                        controller.unregisterCallback(playbackCallback);
+                        return false;
+                    }
+                    controllerCallbackRegistered = true;
+                }
+
+                current = controller.getPlaybackState();
+                if (current != null && current.getState() == PlaybackState.STATE_PLAYING) {
+                    logEvent(context, "bluetoothRestoreSkipped",
+                            "Playback became active before PLAY");
+                    complete(Result.SKIPPED);
+                    return false;
+                }
+                return true;
+            } catch (RuntimeException error) {
+                fail("Unable to monitor Bluetooth playback state: " + error);
+                return false;
+            }
+        }
+
+        private void finishResources(Result result) {
             if (!cleaned.compareAndSet(false, true)) return;
             handler.removeCallbacks(timeout);
             handler.removeCallbacks(playDelay);
@@ -849,12 +997,18 @@ public final class MediaRestorer {
             IBinder service;
             boolean removeListener;
             boolean unregister;
+            boolean unregisterController;
+            MediaController controller;
             synchronized (lock) {
                 playDelayScheduled = false;
                 playTaskSubmitted = false;
                 removeListener = listenerRegistered;
                 listenerRegistered = false;
                 unregister = callbackRegistrationStarted;
+                unregisterController = controllerCallbackRegistered;
+                controllerCallbackRegistered = false;
+                controller = vendorController;
+                vendorController = null;
                 service = binder;
                 if (bound) {
                     bound = false;
@@ -871,6 +1025,12 @@ public final class MediaRestorer {
             }
 
             if (removeListener) removeSessionListener();
+            if (unregisterController && controller != null) {
+                try {
+                    controller.unregisterCallback(playbackCallback);
+                } catch (RuntimeException ignored) {
+                }
+            }
 
             if (unregister && service != null) {
                 try {
@@ -881,24 +1041,22 @@ public final class MediaRestorer {
                 }
             }
 
-            notifyCompletion(completion);
+            notifyCompletion(completion, result);
         }
 
         @Override
         public void cancel() {
-            boolean cancelled;
-            boolean committed;
+            boolean cancelled = false;
             synchronized (lock) {
-                committed = playCommitted;
-                cancelled = !committed
-                        && state.compareAndSet(State.ACTIVE, State.CANCELLED);
+                State current = state.get();
+                if (current == State.ACTIVE || current == State.PLAY_SENT) {
+                    state.set(State.CANCELLED);
+                    cancelled = true;
+                }
             }
             if (cancelled) {
                 logEvent(context, "bluetoothRestoreCancelled", "Restoration cancelled");
-                finishResources();
-            } else if (committed) {
-                logEvent(context, "bluetoothRestoreCancelIgnored",
-                        "PLAY transaction was already committed");
+                finishResources(Result.CANCELLED);
             }
         }
 
@@ -977,10 +1135,10 @@ public final class MediaRestorer {
         }
     }
 
-    private static void notifyCompletion(Completion completion) {
+    private static void notifyCompletion(Completion completion, Result result) {
         if (completion == null) return;
         try {
-            completion.onComplete();
+            completion.onComplete(result);
         } catch (RuntimeException ignored) {
         }
     }
