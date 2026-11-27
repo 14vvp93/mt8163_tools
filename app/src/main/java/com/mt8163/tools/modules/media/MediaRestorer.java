@@ -893,9 +893,9 @@ public final class MediaRestorer {
                     throw new RemoteException("Bluetooth callback unregistration failed");
                 }
                 reply.readException();
-                logEvent(context, "bluetoothCallbackUnregistered",
-                        "Vendor callback removed");
+                logEvent(context, "bluetoothCallbackUnregistered", "true");
             } catch (RemoteException | RuntimeException error) {
+                logEvent(context, "bluetoothCallbackUnregistered", "false");
                 logEvent(context, "bluetoothCallbackUnregisterFailed", error.toString());
             } finally {
                 reply.recycle();
@@ -1028,9 +1028,9 @@ public final class MediaRestorer {
                     bound = false;
                     try {
                         context.unbindService(connection);
-                        logEvent(context, "bluetoothServiceUnbound",
-                                "Vendor service unbound");
+                        logEvent(context, "bluetoothServiceUnbound", "true");
                     } catch (IllegalArgumentException error) {
+                        logEvent(context, "bluetoothServiceUnbound", "false");
                         logEvent(context, "bluetoothServiceUnbindFailed",
                                 error.toString());
                     }
