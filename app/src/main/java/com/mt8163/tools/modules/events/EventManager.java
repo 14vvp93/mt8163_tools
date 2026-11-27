@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -28,6 +29,7 @@ public final class EventManager {
     private final ExecutorService reader = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicLong dropped = new AtomicLong();
+    private final AtomicBoolean notificationPending = new AtomicBoolean();
     private volatile boolean enabled;
     private volatile Listener listener;
     private long generation;
@@ -109,7 +111,9 @@ public final class EventManager {
     }
 
     private void notifyListener() {
+        if (!notificationPending.compareAndSet(false, true)) return;
         main.post(() -> {
+            notificationPending.set(false);
             Listener current = listener;
             if (enabled && current != null) current.onEventsChanged();
         });
