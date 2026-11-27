@@ -55,7 +55,7 @@ public final class VoltageModuleView {
         VoltageSettingsStore.publish(context);
         if (Float.compare(previousVoltageOffset, voltageOffset) != 0) {
             EventLogger.log(context, "Voltage", "settingsChanged",
-                    String.format(Locale.US, "Voltage offset: %+.1f V → %+.1f V",
+                    context.getString(R.string.voltage_offset_changed,
                             previousVoltageOffset, voltageOffset));
         }
     }
