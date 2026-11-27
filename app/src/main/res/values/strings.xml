@@ -9,7 +9,7 @@
 <plurals name="protection_picker_results"><item quantity="one">%1$d of %2$d matching applications</item><item quantity="other">Showing %1$d of %2$d matching applications</item></plurals>
 
 <string name="apply">Apply</string><string name="clear">Clear</string>
-<string name="events_filter_title">Module filter</string><string name="events_filter_all">All modules</string><string name="events_filter_selected">%1$s</string>
+<string name="events_filter_title">Module filter</string><string name="events_filter_accessibility">Filter events</string><string name="events_filter_all">All modules</string><string name="events_filter_selected">%1$s</string>
 <string name="events_count_format">%1$d loaded · dropped %2$d · max %3$d · scroll up for older events</string>
 <string name="events_count_loaded">%1$d loaded · dropped %2$d · max %3$d</string>
 <string name="events_nothing_to_copy">No events to copy</string><string name="events_copied">Event log copied</string>
