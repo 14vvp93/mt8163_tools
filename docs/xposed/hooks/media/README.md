@@ -1,5 +1,13 @@
 # Media Hook
 
+## Target
+
+- Hook class: `com.mt8163.tools.xposed.hooks.media.MediaHook`.
+- Target package and LSPosed scope: `android`.
+- Runtime process: `system_server`.
+
+The module UI and settings are documented in [Media Module](../../../modules/media/README.md).
+
 ## Purpose
 
 The Media module stores the active audio source state when ACC turns OFF and restores the required playback state when ACC turns ON.
