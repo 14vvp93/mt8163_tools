@@ -641,12 +641,14 @@ public final class MediaRestorer {
 
         private void onCallbacksReady() {
             boolean playing;
+            boolean playbackError;
             boolean hasInitialState;
             synchronized (lock) {
                 if (state.get() != State.ACTIVE || !callbackRegistered) return;
                 callbacksReady = true;
                 hasInitialState = playStateReceived;
                 playing = bluetoothPlaybackState == MUSIC_STATE_PLAYING;
+                playbackError = bluetoothPlaybackState == MUSIC_STATE_ERROR;
             }
             if (!hasInitialState) {
                 fail("Vendor callback did not provide the initial Bluetooth playback state");
@@ -656,6 +658,10 @@ public final class MediaRestorer {
                 logEvent(context, "bluetoothRestoreSkipped",
                         "Bluetooth playback was already active before PLAY");
                 complete(Result.SKIPPED);
+                return;
+            }
+            if (playbackError) {
+                fail("Vendor callback reported a Bluetooth playback error before PLAY");
                 return;
             }
             logEvent(context, "bluetoothCallbacksReady",
@@ -1003,7 +1009,10 @@ public final class MediaRestorer {
                         result = Result.SKIPPED;
                     }
                 } else if (present && playbackState == MUSIC_STATE_ERROR
-                        && state.get() == State.PLAY_SENT && playCommandDispatched) {
+                        && ((state.get() == State.ACTIVE && callbacksReady)
+                        || (state.get() == State.PLAY_SENT && playCommandDispatched))) {
+                    result = Result.FAILED;
+                } else if (!present && callbacksReady) {
                     result = Result.FAILED;
                 }
             }
@@ -1016,7 +1025,7 @@ public final class MediaRestorer {
                         "Vendor callback reported PLAYING before PLAY dispatch");
             } else if (result == Result.FAILED) {
                 logEvent(context, "bluetoothPlaybackFailed",
-                        "Vendor callback reported playback error");
+                        "Vendor callback reported an error or unknown playback state");
             }
             if (result != null) complete(result);
         }
