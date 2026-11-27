@@ -29,7 +29,7 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class ProtectionModuleView {
-    private static final int MAX_PICKER_RESULTS = 10;
+    private static final int MAX_PROTECTION_PICKER_RESULTS = 10;
 
     private final Activity protectionActivity;
     private final PackageManager protectionPackageManager;
@@ -48,18 +48,18 @@ public final class ProtectionModuleView {
 
     private void renderProtectedApplications() {
         protectionApplicationsContainer.removeAllViews();
-        List<AppEntry> configured = new ArrayList<>();
+        List<ProtectedApplicationEntry> configured = new ArrayList<>();
 
         for (String packageName : ProtectionSettingsStore.getConfiguredPackageNames(protectionActivity)) {
             try {
                 ApplicationInfo info = protectionPackageManager.getApplicationInfo(packageName, 0);
-                configured.add(new AppEntry(info, getApplicationLabel(info)));
+                configured.add(new ProtectedApplicationEntry(info, getApplicationLabel(info)));
             } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
             }
         }
 
         sortApplications(configured);
-        for (AppEntry app : configured) {
+        for (ProtectedApplicationEntry app : configured) {
             addProtectedApplication(app);
         }
 
@@ -69,7 +69,7 @@ public final class ProtectionModuleView {
         }
     }
 
-    private void addProtectedApplication(AppEntry app) {
+    private void addProtectedApplication(ProtectedApplicationEntry app) {
         View card = protectionInflater.inflate(R.layout.item_protected_application,
                 protectionApplicationsContainer, false);
         ProtectionConfig.ApplicationSettings applicationProtectionSettings =
@@ -85,11 +85,11 @@ public final class ProtectionModuleView {
         TextView name = card.findViewById(R.id.protection_app_name);
         name.setText(app.label);
 
-        setIndicatorState(card, R.id.protection_indicator_cleaner,
+        setProtectionIndicatorState(card, R.id.protection_indicator_cleaner,
                 applicationProtectionSettings.shouldProtectCleaner());
-        setIndicatorState(card, R.id.protection_indicator_hide,
+        setProtectionIndicatorState(card, R.id.protection_indicator_hide,
                 applicationProtectionSettings.shouldHideRecents());
-        setIndicatorState(card, R.id.protection_indicator_close,
+        setProtectionIndicatorState(card, R.id.protection_indicator_close,
                 applicationProtectionSettings.shouldAllowCloseViaX());
 
         card.findViewById(R.id.protection_app_settings)
@@ -99,11 +99,11 @@ public final class ProtectionModuleView {
         protectionApplicationsContainer.addView(card);
     }
 
-    private static void setIndicatorState(View protectionRootView, int id, boolean enabled) {
+    private static void setProtectionIndicatorState(View protectionRootView, int id, boolean enabled) {
         protectionRootView.findViewById(id).setActivated(enabled);
     }
 
-    private void showApplicationSettings(AppEntry app) {
+    private void showApplicationSettings(ProtectedApplicationEntry app) {
         ProtectionConfig.ApplicationSettings currentApplicationSettings =
                 ProtectionSettingsStore.getApplicationSettings(protectionActivity, app.info.packageName);
 
@@ -137,7 +137,7 @@ public final class ProtectionModuleView {
         showDialog(protectionDialog, protectionRootView);
     }
 
-    private void confirmRemoveApplication(AppEntry app) {
+    private void confirmRemoveApplication(ProtectedApplicationEntry app) {
         Dialog protectionDialog = new Dialog(protectionActivity);
         View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_confirm, null, false);
         TextView message = protectionRootView.findViewById(R.id.protection_confirm_message);
@@ -160,7 +160,7 @@ public final class ProtectionModuleView {
     }
 
     private void showApplicationPicker() {
-        List<AppEntry> installed = loadInstalledApplications();
+        List<ProtectedApplicationEntry> installed = loadInstalledApplications();
         Dialog protectionDialog = new Dialog(protectionActivity);
         View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_picker, null, false);
 
@@ -199,7 +199,7 @@ public final class ProtectionModuleView {
         render.run();
     }
 
-    private void renderPickerResults(List<AppEntry> installed, String query,
+    private void renderPickerResults(List<ProtectedApplicationEntry> installed, String query,
                                      boolean showSystem, LinearLayout applicationPickerList,
                                      TextView applicationPickerResultsText, Dialog protectionDialog) {
         applicationPickerList.removeAllViews();
@@ -209,7 +209,7 @@ public final class ProtectionModuleView {
         int matches = 0;
         int shown = 0;
 
-        for (AppEntry app : installed) {
+        for (ProtectedApplicationEntry app : installed) {
             if (configured.contains(app.info.packageName)) continue;
             if (!showSystem && isSystemApplication(app.info)) continue;
 
@@ -219,7 +219,7 @@ public final class ProtectionModuleView {
                     && !packageName.contains(filter)) continue;
 
             matches++;
-            if (shown >= MAX_PICKER_RESULTS) continue;
+            if (shown >= MAX_PROTECTION_PICKER_RESULTS) continue;
             addPickerRow(app, applicationPickerList, protectionDialog);
             shown++;
         }
@@ -237,7 +237,7 @@ public final class ProtectionModuleView {
         }
     }
 
-    private void addPickerRow(AppEntry app, LinearLayout applicationPickerList, Dialog protectionDialog) {
+    private void addPickerRow(ProtectedApplicationEntry app, LinearLayout applicationPickerList, Dialog protectionDialog) {
         View row = protectionInflater.inflate(R.layout.item_protection_picker, applicationPickerList, false);
         ImageView icon = row.findViewById(R.id.protection_picker_app_icon);
         try {
@@ -269,8 +269,8 @@ public final class ProtectionModuleView {
         protectionDialog.show();
     }
 
-    private List<AppEntry> loadInstalledApplications() {
-        List<AppEntry> result = new ArrayList<>();
+    private List<ProtectedApplicationEntry> loadInstalledApplications() {
+        List<ProtectedApplicationEntry> result = new ArrayList<>();
         try {
             List<ApplicationInfo> installed =
                     protectionPackageManager.getInstalledApplications(PackageManager.GET_META_DATA);
@@ -280,7 +280,7 @@ public final class ProtectionModuleView {
                         || protectionPackageManager.getLaunchIntentForPackage(info.packageName) == null) {
                     continue;
                 }
-                result.add(new AppEntry(info, getApplicationLabel(info)));
+                result.add(new ProtectedApplicationEntry(info, getApplicationLabel(info)));
             }
         } catch (RuntimeException error) {
             showToast(R.string.protection_load_failed);
@@ -303,7 +303,7 @@ public final class ProtectionModuleView {
                 | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0;
     }
 
-    private static void sortApplications(List<AppEntry> applications) {
+    private static void sortApplications(List<ProtectedApplicationEntry> applications) {
         Collator collator = Collator.getInstance(Locale.getDefault());
         Collections.sort(applications, (left, right) -> {
             int result = collator.compare(left.label, right.label);
@@ -316,11 +316,11 @@ public final class ProtectionModuleView {
         Toast.makeText(protectionActivity, messageResource, Toast.LENGTH_SHORT).show();
     }
 
-    private static final class AppEntry {
+    private static final class ProtectedApplicationEntry {
         final ApplicationInfo info;
         final String label;
 
-        AppEntry(ApplicationInfo info, String label) {
+        ProtectedApplicationEntry(ApplicationInfo info, String label) {
             this.info = info;
             this.label = label;
         }
