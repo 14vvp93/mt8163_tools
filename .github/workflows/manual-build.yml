@@ -1,6 +1,9 @@
 name: APK Build
 
 on:
+  push:
+    branches:
+      - development
   workflow_dispatch:
 
 permissions:
@@ -8,7 +11,7 @@ permissions:
 
 concurrency:
   group: apk-build-${{ github.ref }}
-  cancel-in-progress: true
+  queue: max
 
 jobs:
   build:
