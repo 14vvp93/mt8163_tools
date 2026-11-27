@@ -31,7 +31,7 @@ Feature hooks are installed only while Protection is enabled.
 | Keep against Close all | `TaskStackView.onBusEvent(DismissAllTaskViewsEvent)` |
 | Hide from initial Recents stack | `RecentsView.onReload(TaskStack, boolean)` |
 | Hide during stack refresh | `MultiWindowStateChangedEvent(TaskStack)` |
-| Memory Cleaner exclusion | Per-task cleanup paths in `MemoryCleanerTile` |
+| Memory Cleaner exclusion | `MemoryCleanerTile.clearRecentsTask()`, `deleteTaskData()`, `removeTask()`, and `forceStopPackage()` guards |
 
 The implementation preserves normal firmware behavior for applications not selected in Protection. Keep is defined by application membership in the Protection list; there is no separate Keep setting.
 
