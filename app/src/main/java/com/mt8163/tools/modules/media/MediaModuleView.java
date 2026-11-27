@@ -110,12 +110,6 @@ public final class MediaModuleView {
         }
     }
 
-    private int getMediaSnapshotSourceLabel() {
-        return MediaSettingsStore.isBluetoothSource(context)
-                ? R.string.media_snapshot_bluetooth
-                : R.string.media_snapshot_media_player;
-    }
-
     private void setBadge(TextView view, int textRes, int backgroundRes, int textColorRes) {
         setBadge(view, context.getString(textRes), backgroundRes, textColorRes);
     }
