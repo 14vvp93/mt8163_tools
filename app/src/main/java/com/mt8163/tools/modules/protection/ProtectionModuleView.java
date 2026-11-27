@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.drawable.Drawable;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -33,10 +35,15 @@ import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class ProtectionModuleView {
     private static final int MAX_PROTECTION_PICKER_RESULTS = 10;
     private static final Object APPLICATION_CACHE_LOCK = new Object();
+    private static final ExecutorService APPLICATION_LOADER =
+            Executors.newSingleThreadExecutor();
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static List<ProtectedApplicationEntry> installedApplicationsCache;
     private static final Map<String, Drawable.ConstantState> applicationIconCache = new HashMap<>();
     private static boolean packageReceiverRegistered;
@@ -167,7 +174,6 @@ public final class ProtectionModuleView {
     }
 
     private void showApplicationPicker() {
-        List<ProtectedApplicationEntry> installed = loadInstalledApplications();
         Dialog protectionDialog = new Dialog(protectionActivity);
         View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_picker, null, false);
 
@@ -175,12 +181,19 @@ public final class ProtectionModuleView {
         Switch showSystemAppsSwitch = protectionRootView.findViewById(R.id.protection_picker_system_apps);
         TextView applicationPickerResultsText = protectionRootView.findViewById(R.id.protection_picker_results);
         LinearLayout applicationPickerList = protectionRootView.findViewById(R.id.protection_picker_list);
+        PickerData pickerData = new PickerData();
 
         protectionRootView.findViewById(R.id.protection_picker_close)
                 .setOnClickListener(view -> protectionDialog.dismiss());
+        applicationPickerResultsText.setText(R.string.protection_loading);
 
-        Runnable render = () -> renderPickerResults(installed,
-                applicationSearchInput.getText().toString(), showSystemAppsSwitch.isChecked(), applicationPickerList, applicationPickerResultsText, protectionDialog);
+        Runnable render = () -> {
+            if (!pickerData.loaded) return;
+            renderPickerResults(pickerData.applications,
+                    applicationSearchInput.getText().toString(),
+                    showSystemAppsSwitch.isChecked(), applicationPickerList,
+                    applicationPickerResultsText, protectionDialog);
+        };
 
         applicationSearchInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -199,7 +212,26 @@ public final class ProtectionModuleView {
         showSystemAppsSwitch.setOnCheckedChangeListener((button, checked) -> render.run());
 
         DialogHelper.showSelection(protectionActivity, protectionDialog, protectionRootView);
-        render.run();
+        APPLICATION_LOADER.execute(() -> {
+            List<ProtectedApplicationEntry> installed = Collections.emptyList();
+            boolean failed = false;
+            try {
+                installed = loadInstalledApplications();
+            } catch (RuntimeException error) {
+                failed = true;
+            }
+
+            final List<ProtectedApplicationEntry> result = installed;
+            final boolean loadFailed = failed;
+            MAIN_HANDLER.post(() -> {
+                if (protectionActivity.isFinishing() || protectionActivity.isDestroyed()
+                        || !protectionDialog.isShowing()) return;
+                pickerData.applications = result;
+                pickerData.loaded = true;
+                if (loadFailed) showToast(R.string.protection_load_failed);
+                render.run();
+            });
+        });
     }
 
     private void renderPickerResults(List<ProtectedApplicationEntry> installed, String query,
@@ -269,20 +301,17 @@ public final class ProtectionModuleView {
         }
 
         List<ProtectedApplicationEntry> result = new ArrayList<>();
-        try {
-            List<ApplicationInfo> installed =
-                    protectionPackageManager.getInstalledApplications(PackageManager.GET_META_DATA);
-            for (ApplicationInfo info : installed) {
-                if (info == null || info.packageName == null
-                        || protectionActivity.getPackageName().equals(info.packageName)
-                        || protectionPackageManager.getLaunchIntentForPackage(info.packageName) == null) {
-                    continue;
-                }
-                result.add(new ProtectedApplicationEntry(info, getApplicationLabel(info)));
+        List<ApplicationInfo> installed =
+                protectionPackageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+        for (ApplicationInfo info : installed) {
+            if (info == null || info.packageName == null
+                    || protectionActivity.getPackageName().equals(info.packageName)
+                    || protectionPackageManager.getLaunchIntentForPackage(info.packageName) == null) {
+                continue;
             }
-        } catch (RuntimeException error) {
-            showToast(R.string.protection_load_failed);
+            result.add(new ProtectedApplicationEntry(info, getApplicationLabel(info)));
         }
+
         sortApplications(result);
         List<ProtectedApplicationEntry> cached = Collections.unmodifiableList(result);
         synchronized (APPLICATION_CACHE_LOCK) {
@@ -363,6 +392,11 @@ public final class ProtectionModuleView {
                 applicationIconCache.clear();
             }
         }
+    }
+
+    private static final class PickerData {
+        List<ProtectedApplicationEntry> applications = Collections.emptyList();
+        boolean loaded;
     }
 
     private static final class ProtectedApplicationEntry {
