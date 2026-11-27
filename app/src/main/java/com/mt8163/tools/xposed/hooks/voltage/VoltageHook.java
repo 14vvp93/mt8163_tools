@@ -28,6 +28,7 @@ public final class VoltageHook implements PackageHook {
     private static final Object LOCK = new Object();
 
     private static boolean installInProgress;
+    private static boolean installRequested;
     private static boolean constructorHookInstalled;
     private static boolean batteryHookInstalled;
     private static Unhook constructorHook;
@@ -56,19 +57,40 @@ public final class VoltageHook implements PackageHook {
 
     @Override
     public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
+        if (param == null || param.classLoader == null) return;
+
         synchronized (LOCK) {
-            if (installInProgress || (constructorHookInstalled && batteryHookInstalled)) return;
+            if (installInProgress) {
+                installRequested = true;
+                return;
+            }
+            if (constructorHookInstalled && batteryHookInstalled) return;
             installInProgress = true;
         }
 
         try {
-            loadInitialConfiguration();
+            while (true) {
+                synchronized (LOCK) {
+                    installRequested = false;
+                }
 
-            synchronized (LOCK) {
-                if (!moduleEnabled) return;
-                if (!constructorHookInstalled) {
+                loadInitialConfiguration();
+
+                synchronized (LOCK) {
+                    if (!moduleEnabled) {
+                        if (installRequested) continue;
+                        return;
+                    }
+
+                    if (constructorHookInstalled && batteryHookInstalled) {
+                        if (installRequested) continue;
+                        return;
+                    }
+
+                    Unhook newConstructorHook = null;
+                    Unhook newBatteryHook = null;
                     try {
-                        constructorHook = XposedHelpers.findAndHookConstructor(
+                        newConstructorHook = XposedHelpers.findAndHookConstructor(
                                 TARGET_CLASS,
                                 param.classLoader,
                                 Context.class,
@@ -84,57 +106,52 @@ public final class VoltageHook implements PackageHook {
                                         }
                                     }
                                 });
-                        constructorHookInstalled = constructorHook != null;
-                    } catch (Throwable error) {
-                        logInstallFailure("MCU constructor hook failed", error);
-                    }
-                }
-            }
 
-            boolean needsBatteryHook;
-            synchronized (LOCK) {
-                needsBatteryHook = moduleEnabled && !batteryHookInstalled;
-            }
+                        Class<?> packetClass = XposedHelpers.findClass(
+                                TARGET_CLASS + "$McuPacket", param.classLoader);
+                        newBatteryHook = XposedHelpers.findAndHookMethod(
+                                TARGET_CLASS,
+                                param.classLoader,
+                                "onBattery",
+                                packetClass,
+                                new XC_MethodHook() {
+                                    @Override
+                                    protected void afterHookedMethod(MethodHookParam hookParam) {
+                                        processBatteryPacket(hookParam.thisObject,
+                                                hookParam.args != null && hookParam.args.length > 0
+                                                        ? hookParam.args[0] : null);
+                                    }
+                                });
 
-            if (needsBatteryHook) {
-                try {
-                    Class<?> packetClass = XposedHelpers.findClass(
-                            TARGET_CLASS + "$McuPacket", param.classLoader);
-
-                    Unhook installedHook = XposedHelpers.findAndHookMethod(
-                            TARGET_CLASS,
-                            param.classLoader,
-                            "onBattery",
-                            packetClass,
-                            new XC_MethodHook() {
-                                @Override
-                                protected void afterHookedMethod(MethodHookParam hookParam) {
-                                    processBatteryPacket(hookParam.thisObject,
-                                            hookParam.args != null && hookParam.args.length > 0
-                                                    ? hookParam.args[0] : null);
-                                }
-                            });
-                    synchronized (LOCK) {
-                        if (moduleEnabled) {
-                            batteryHook = installedHook;
-                            batteryHookInstalled = batteryHook != null;
-                        } else {
-                            unhookLocked(installedHook);
+                        if (newConstructorHook == null || newBatteryHook == null) {
+                            throw new IllegalStateException("Voltage hook returned no Unhook handle");
                         }
+
+                        constructorHook = newConstructorHook;
+                        batteryHook = newBatteryHook;
+                        constructorHookInstalled = true;
+                        batteryHookInstalled = true;
+                        logEvent("hooksInstalled", "Voltage hooks installed successfully");
+                    } catch (Throwable error) {
+                        unhookLocked(newBatteryHook);
+                        unhookLocked(newConstructorHook);
+                        unhookLocked(batteryHook);
+                        unhookLocked(constructorHook);
+                        batteryHook = null;
+                        constructorHook = null;
+                        batteryHookInstalled = false;
+                        constructorHookInstalled = false;
+                        logInstallFailure("Voltage hook installation rolled back", error);
+                        throw error;
                     }
-                } catch (Throwable error) {
-                    logInstallFailure("MCU onBattery hook failed", error);
+
+                    if (!installRequested) return;
                 }
             }
         } finally {
             synchronized (LOCK) {
                 installInProgress = false;
-            }
-        }
-
-        synchronized (LOCK) {
-            if (!constructorHookInstalled && !batteryHookInstalled) {
-                throw new IllegalStateException("No Voltage hooks were installed");
+                installRequested = false;
             }
         }
     }
