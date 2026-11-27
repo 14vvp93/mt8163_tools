@@ -50,6 +50,9 @@ public final class EventsModuleView {
     private static boolean allEventModulesSelected = true;
     private static boolean eventsAutoScrollEnabled = true;
     private static boolean loadingOlderEvents;
+    private static boolean refreshingEvents;
+    private static boolean refreshPending;
+    private static int viewGeneration;
     private static boolean hasMoreEvents;
     private static long oldestLoadedEventId = Long.MAX_VALUE;
     private static String eventsExportMode = "all";
@@ -68,6 +71,9 @@ public final class EventsModuleView {
         allEventModulesSelected = true;
         eventsAutoScrollEnabled = true;
         loadingOlderEvents = false;
+        refreshingEvents = false;
+        refreshPending = false;
+        viewGeneration++;
         hasMoreEvents = false;
         oldestLoadedEventId = Long.MAX_VALUE;
 
@@ -167,10 +173,21 @@ public final class EventsModuleView {
 
     private static void refreshEvents() {
         if (eventsManager == null || !eventsManager.isEnabled() || eventEntriesContainer == null) return;
+        if (refreshingEvents) {
+            refreshPending = true;
+            return;
+        }
+        refreshingEvents = true;
         EventManager current = eventsManager;
+        int generation = viewGeneration;
         current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
+            if (generation != viewGeneration) return;
+            refreshingEvents = false;
             if (eventsManager != current || eventEntriesContainer == null || eventsActivity == null
-                    || !current.isEnabled()) return;
+                    || !current.isEnabled()) {
+                refreshPending = false;
+                return;
+            }
             eventEntriesContainer.removeAllViews();
             hasMoreEvents = records.size() > EVENTS_PAGE_SIZE;
             if (hasMoreEvents) records.remove(records.size() - 1);
@@ -183,6 +200,10 @@ public final class EventsModuleView {
             eventsScrollView.post(() -> {
                 if (eventsScrollView != null) eventsScrollView.fullScroll(View.FOCUS_DOWN);
             });
+            if (refreshPending) {
+                refreshPending = false;
+                refreshEvents();
+            }
         });
     }
 
@@ -327,6 +348,9 @@ public final class EventsModuleView {
         availableEventModules = new ArrayList<>();
         selectedEventModules.clear();
         loadingOlderEvents = false;
+        refreshingEvents = false;
+        refreshPending = false;
+        viewGeneration++;
     }
 
     public static boolean onActivityResult(int requestCode, int resultCode, Intent data) {
