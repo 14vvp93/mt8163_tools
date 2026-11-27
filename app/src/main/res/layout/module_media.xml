@@ -124,6 +124,7 @@
                     style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:textSize="8sp"
                     android:text="@string/media_source_information" />
 
                 <LinearLayout
@@ -194,6 +195,7 @@
                     style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:textSize="8sp"
                     android:text="@string/media_playback_status" />
 
                 <LinearLayout
