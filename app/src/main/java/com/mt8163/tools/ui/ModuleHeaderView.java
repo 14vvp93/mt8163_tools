@@ -13,25 +13,25 @@ public final class ModuleHeaderView {
 
     public static void bind(View root, ModuleContract module,
                             OnCheckedChangeListener listener) {
-        TextView title = root.findViewById(R.id.header_title);
-        TextView status = root.findViewById(R.id.header_status);
-        Switch toggle = root.findViewById(R.id.header_switch);
+        TextView moduleTitleText = root.findViewById(R.id.header_title);
+        TextView moduleStatusText = root.findViewById(R.id.header_status);
+        Switch moduleEnabledSwitch = root.findViewById(R.id.header_switch);
 
-        title.setText(root.getContext().getString(module.getNameRes()));
-        updateStatus(status, module.isEnabled());
+        moduleTitleText.setText(root.getContext().getString(module.getNameRes()));
+        updateStatus(moduleStatusText, module.isEnabled());
 
-        toggle.setOnCheckedChangeListener(null);
-        toggle.setChecked(module.isEnabled());
-        toggle.setOnCheckedChangeListener((button, enabled) -> {
+        moduleEnabledSwitch.setOnCheckedChangeListener(null);
+        moduleEnabledSwitch.setChecked(module.isEnabled());
+        moduleEnabledSwitch.setOnCheckedChangeListener((button, enabled) -> {
             module.setEnabled(enabled);
-            updateStatus(status, enabled);
+            updateStatus(moduleStatusText, enabled);
             if (listener != null) listener.onCheckedChanged(enabled);
         });
     }
 
-    private static void updateStatus(TextView status, boolean enabled) {
-        status.setText(enabled ? R.string.module_enabled : R.string.module_disabled);
-        status.setTextColor(status.getContext().getColor(
+    private static void updateStatus(TextView moduleStatusText, boolean enabled) {
+        moduleStatusText.setText(enabled ? R.string.module_enabled : R.string.module_disabled);
+        moduleStatusText.setTextColor(moduleStatusText.getContext().getColor(
                 enabled ? R.color.module_status_active : R.color.module_status_inactive));
     }
 
