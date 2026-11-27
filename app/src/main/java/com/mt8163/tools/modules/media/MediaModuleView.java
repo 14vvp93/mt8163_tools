@@ -15,6 +15,7 @@ public final class MediaModuleView {
     private final Context context;
     private final Switch restoreBackgroundMediaSwitch;
     private final Switch restoreBackgroundBluetoothSwitch;
+    private final Switch playbackNotificationsSwitch;
     private final TextView mediaSnapshotSourceText;
     private final TextView mediaSnapshotPackageText;
     private final TextView mediaSnapshotPlaybackText;
@@ -32,6 +33,7 @@ public final class MediaModuleView {
         this.context = context.getApplicationContext();
         restoreBackgroundMediaSwitch = root.findViewById(R.id.media_restore_background_media);
         restoreBackgroundBluetoothSwitch = root.findViewById(R.id.media_restore_background_bluetooth);
+        playbackNotificationsSwitch = root.findViewById(R.id.media_playback_notifications);
         mediaSnapshotSourceText = root.findViewById(R.id.media_snapshot_source);
         mediaSnapshotPackageText = root.findViewById(R.id.media_snapshot_package);
         mediaSnapshotPlaybackText = root.findViewById(R.id.media_snapshot_playback);
@@ -40,11 +42,15 @@ public final class MediaModuleView {
         restoreBackgroundMediaSwitch.setChecked(MediaSettingsStore.isRestoreBackgroundMedia(this.context));
         restoreBackgroundBluetoothSwitch.setChecked(
                 MediaSettingsStore.isRestoreBackgroundBluetooth(this.context));
+        playbackNotificationsSwitch.setChecked(
+                MediaSettingsStore.isPlaybackNotifications(this.context));
 
         restoreBackgroundMediaSwitch.setOnCheckedChangeListener((button, checked) ->
                 MediaSettingsStore.setRestoreBackgroundMedia(this.context, checked));
         restoreBackgroundBluetoothSwitch.setOnCheckedChangeListener((button, checked) ->
                 MediaSettingsStore.setRestoreBackgroundBluetooth(this.context, checked));
+        playbackNotificationsSwitch.setOnCheckedChangeListener((button, checked) ->
+                MediaSettingsStore.setPlaybackNotifications(this.context, checked));
 
         root.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
