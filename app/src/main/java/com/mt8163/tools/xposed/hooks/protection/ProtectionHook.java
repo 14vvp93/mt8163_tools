@@ -63,9 +63,7 @@ public final class ProtectionHook implements PackageHook {
 
         synchronized (LOCK) {
             systemUiClassLoader = param.classLoader;
-            if (!supportHooksInstalled) {
-                installSupportHooks(param.classLoader);
-            }
+            installSupportHooks(param.classLoader);
         }
 
         loadConfiguration();
