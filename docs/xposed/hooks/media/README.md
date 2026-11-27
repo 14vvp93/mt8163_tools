@@ -1,4 +1,4 @@
-# Media module
+# Media Hook
 
 ## Purpose
 
