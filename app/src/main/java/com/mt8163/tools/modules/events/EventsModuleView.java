@@ -154,7 +154,7 @@ public final class EventsModuleView {
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
-        showDialog(dialog, root, true);
+        DialogHelper.showSelection(eventsActivity, dialog, root);
     }
 
     private static void refreshEvents() {
@@ -274,7 +274,7 @@ public final class EventsModuleView {
             refreshEvents();
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
-        showDialog(dialog, root);
+        DialogHelper.showCompact(eventsActivity, dialog, root);
     }
 
     private static void exportEvents() {
@@ -288,7 +288,7 @@ public final class EventsModuleView {
         filtered.setOnClickListener(view -> startExport(dialog, true));
         all.setOnClickListener(view -> startExport(dialog, false));
         cancel.setOnClickListener(view -> dialog.dismiss());
-        showDialog(dialog, root);
+        DialogHelper.showCompact(eventsActivity, dialog, root);
     }
 
     private static void startExport(Dialog dialog, boolean filtered) {
@@ -306,13 +306,6 @@ public final class EventsModuleView {
         eventsActivity.startActivityForResult(intent, EVENTS_EXPORT_REQUEST);
     }
 
-    private static void showDialog(Dialog dialog, View root) {
-        showDialog(dialog, root, false);
-    }
-
-    private static void showDialog(Dialog dialog, View root, boolean large) {
-        DialogHelper.show(eventsActivity, dialog, root, large);
-    }
 
     public static void destroy() {
         if (eventsManager != null) eventsManager.setListener(null);
