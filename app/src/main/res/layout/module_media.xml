@@ -121,7 +121,7 @@
                 android:layout_marginTop="@dimen/spacing_md">
 
                 <TextView
-                    style="@style/ModuleSettingLabel"
+                    style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/media_source_information" />
@@ -185,13 +185,13 @@
 
                 <View
                     android:layout_width="match_parent"
-                    android:layout_height="@dimen/border_width"
+                    android:layout_height="2dp"
                     android:layout_marginTop="@dimen/spacing_md"
                     android:layout_marginBottom="@dimen/spacing_md"
                     android:background="@drawable/media_snapshot_divider" />
 
                 <TextView
-                    style="@style/ModuleSettingLabel"
+                    style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/media_playback_status" />
