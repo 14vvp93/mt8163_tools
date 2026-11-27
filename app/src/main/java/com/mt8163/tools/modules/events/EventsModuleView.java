@@ -297,7 +297,7 @@ public final class EventsModuleView {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
-        intent.putExtra(Intent.EXTRA_TITLE, "MT8163Tools_Events_"
+        intent.putExtra(Intent.EXTRA_TITLE, eventsActivity.getString(R.string.events_export_file_prefix)
                 + new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
                 .format(new Date()) + ".txt");
         dialog.dismiss();
