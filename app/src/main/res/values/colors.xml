@@ -8,5 +8,5 @@
 <color name="media_badge_info_background">#173B5C</color><color name="media_badge_info_text">#64B5F6</color>
 <color name="media_badge_success_background">#183D2A</color><color name="media_badge_success_text">#66BB6A</color>
 <color name="media_badge_danger_background">#4A2020</color><color name="media_badge_danger_text">#EF5350</color>
-    <color name="input_focused_background">#25282D</color>
+    <color name="input_focused_background">#212429</color>
 </resources>
