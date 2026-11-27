@@ -3,7 +3,7 @@
 <TextView style="@style/ModuleDescription" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/voltage_description" />
 <LinearLayout style="@style/ModuleCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_lg" android:gravity="center_vertical">
 <TextView style="@style/ModuleSectionLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/voltage_current_correction" />
-<TextView style="@style/VoltageOffsetValue" android:id="@+id/voltage_offset_value" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_xs" android:gravity="center" android:text="@string/voltage_initial_offset" />
+<TextView style="@style/VoltageOffsetValue" android:id="@+id/voltage_offset_value" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_sm" android:gravity="center" android:text="@string/voltage_initial_offset" />
 <SeekBar style="@style/VoltageSeekBar" android:id="@+id/voltage_offset" android:layout_width="match_parent" android:layout_height="@dimen/seekbar_height" android:layout_marginTop="@dimen/spacing_md" android:max="40" android:progress="20" />
 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/spacing_xs" android:orientation="horizontal">
 <TextView style="@style/VoltageScaleLabel" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/voltage_minimum" />
