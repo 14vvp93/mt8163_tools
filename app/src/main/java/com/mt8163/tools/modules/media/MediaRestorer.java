@@ -874,7 +874,7 @@ public final class MediaRestorer {
                         if (committed) {
                             playCommitted = true;
                             playRequested = true;
-                            playDispatchElapsedRealtime = SystemClock.elapsedRealtime();
+                            playDispatchElapsedRealtime = Long.MAX_VALUE;
                         } else {
                             playTaskSubmitted = false;
                         }
@@ -896,9 +896,13 @@ public final class MediaRestorer {
                     }
 
                     try {
-                        sendPlay(service);
-                        logEvent(context, "bluetoothPlaySent",
-                                "send_Avrcp_Cmd(PLAY) transaction completed");
+                        if (sendPlay(service)) {
+                            logEvent(context, "bluetoothPlaySent",
+                                    "send_Avrcp_Cmd(PLAY) transaction completed");
+                        } else {
+                            logEvent(context, "bluetoothPlaySkipped",
+                                    "Playback became active before PLAY dispatch");
+                        }
                     } catch (RemoteException | RuntimeException error) {
                         logEvent(context, "bluetoothPlayFailed", error.toString());
                         fail("Bluetooth PLAY command failed: " + error);
@@ -932,16 +936,21 @@ public final class MediaRestorer {
             }
         }
 
-        private void sendPlay(IBinder service) throws RemoteException {
+        private boolean sendPlay(IBinder service) throws RemoteException {
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
             try {
                 data.writeInterfaceToken(BLUETOOTH_DESCRIPTOR);
                 data.writeInt(0);
+                synchronized (lock) {
+                    if (state.get() != State.PLAY_SENT) return false;
+                    playDispatchElapsedRealtime = SystemClock.elapsedRealtime();
+                }
                 if (!service.transact(TRANSACTION_SEND_AVRCP_COMMAND, data, reply, 0)) {
                     throw new RemoteException("Bluetooth PLAY transaction failed");
                 }
                 reply.readException();
+                return true;
             } finally {
                 reply.recycle();
                 data.recycle();
