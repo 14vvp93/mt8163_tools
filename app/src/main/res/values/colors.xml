@@ -1,12 +1,45 @@
 <resources>
-<color name="app_background">#17191C</color><color name="sidebar_background">#15171A</color><color name="header_background">#1B1D22</color><color name="panel_background">#202328</color><color name="dialog_background">@color/panel_background</color><color name="line">#383D44</color>
-<color name="neon_red">#E53935</color><color name="neon_glow_outer">#16E53935</color><color name="neon_glow_mid">#26E53935</color><color name="neon_glow_inner">#40E53935</color><color name="button_background">#292D33</color><color name="button_pressed_background">#343A40</color><color name="button_stroke">@color/line</color><color name="button_disabled">#252A2E</color>
-<color name="white">#FFFFFFFF</color><color name="text_primary">#F1F2F3</color><color name="text_secondary">#969DA6</color><color name="text_muted">#858D97</color><color name="text_accent">#FF6B67</color><color name="text_source">#81C784</color>
-<color name="switch_thumb">@color/white</color><color name="switch_track_disabled">#343A40</color><color name="switch_track_checked">@color/neon_red</color><color name="switch_track_default">#596168</color>
-<color name="module_status_active">@color/text_accent</color><color name="module_status_inactive">@color/text_muted</color><color name="accent_overlay">#22E53935</color><color name="accent_stroke">#66E53935</color><color name="sidebar_icon_background">#24272D</color>
-<color name="media_badge_neutral_background">#343A40</color><color name="media_badge_neutral_text">#D7DCE1</color>
-<color name="media_badge_info_background">#173B5C</color><color name="media_badge_info_text">#64B5F6</color>
-<color name="media_badge_success_background">#183D2A</color><color name="media_badge_success_text">#66BB6A</color>
-<color name="media_badge_danger_background">#4A2020</color><color name="media_badge_danger_text">#EF5350</color>
+    <color name="app_background">#17191C</color>
+    <color name="sidebar_background">#15171A</color>
+    <color name="header_background">#1B1D22</color>
+    <color name="panel_background">#202328</color>
+    <color name="dialog_background">@color/panel_background</color>
+    <color name="line">#383D44</color>
+
+    <color name="neon_red">#FF1744</color>
+    <color name="neon_glow_outer">#16FF1744</color>
+    <color name="neon_glow_mid">#26FF1744</color>
+    <color name="neon_glow_inner">#40FF1744</color>
+    <color name="button_background">#292D33</color>
+    <color name="button_pressed_background">#343A40</color>
+    <color name="button_stroke">@color/line</color>
+    <color name="button_disabled">#252A2E</color>
+
+    <color name="white">#FFFFFFFF</color>
+    <color name="text_primary">#F1F2F3</color>
+    <color name="text_secondary">#969DA6</color>
+    <color name="text_muted">#858D97</color>
+    <color name="text_accent">#FF5252</color>
+    <color name="text_source">#00E676</color>
+
+    <color name="switch_thumb">@color/white</color>
+    <color name="switch_track_disabled">#343A40</color>
+    <color name="switch_track_checked">@color/neon_red</color>
+    <color name="switch_track_default">#596168</color>
+    <color name="module_status_active">@color/text_accent</color>
+    <color name="module_status_inactive">@color/text_muted</color>
+    <color name="accent_overlay">#22FF1744</color>
+    <color name="accent_stroke">#66FF1744</color>
+    <color name="sidebar_icon_background">#24272D</color>
+
+    <color name="media_badge_neutral_background">#343A40</color>
+    <color name="media_badge_neutral_text">#F1F2F3</color>
+    <color name="media_badge_info_background">#0057B8</color>
+    <color name="media_badge_info_text">#FFFFFF</color>
+    <color name="media_badge_success_background">#006B32</color>
+    <color name="media_badge_success_text">#FFFFFF</color>
+    <color name="media_badge_danger_background">#C62828</color>
+    <color name="media_badge_danger_text">#FFFFFF</color>
+
     <color name="input_focused_background">#212429</color>
 </resources>
