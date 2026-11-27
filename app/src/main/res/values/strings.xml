@@ -24,4 +24,16 @@
 
 <string name="module_media_title">Media</string><string name="module_protection_title">Protection</string><string name="module_voltage_title">Voltage</string><string name="module_autorun_title">Autorun</string><string name="module_events_title">Events</string>
 <string name="voltage_offset_format">%+.1f V</string>
+<string name="voltage_offset_changed">Voltage offset: %1$+.1f V → %2$+.1f V</string>
+<string name="events_clip_label">MT8163 Events</string>
+<string name="events_export_filtered_requested">Filtered export requested</string>
+<string name="events_export_all_requested">Full history export requested</string>
+<string name="events_export_destination_unavailable">Cannot open export destination</string>
+<string name="events_export_file_prefix">MT8163Tools_Events_</string>
+<string name="events_module_enabled">Events module enabled</string>
+<string name="events_module_disabled">Events module disabled</string>
+<string name="voltage_module_enabled">Voltage module enabled</string>
+<string name="voltage_module_disabled">Voltage module disabled</string>
+<string name="protection_module_enabled">Protection module enabled</string>
+<string name="protection_module_disabled">Protection module disabled</string>
 </resources>
