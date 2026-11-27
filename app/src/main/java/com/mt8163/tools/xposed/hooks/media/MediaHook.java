@@ -134,8 +134,8 @@ public final class MediaHook implements PackageHook {
         }
 
         synchronized (LOCK) {
-            if (moduleEnabled && !accHookInstalled && !windowManagerHookInstalled) {
-                throw new IllegalStateException("No Media hooks were installed");
+            if (moduleEnabled && !accHookInstalled) {
+                throw new IllegalStateException("Required Media ACC hook was not installed");
             }
         }
     }
