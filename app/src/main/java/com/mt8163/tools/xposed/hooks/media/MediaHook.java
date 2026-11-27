@@ -9,6 +9,8 @@ import android.content.pm.PackageManager;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import com.mt8163.tools.core.EventLogger;
@@ -51,6 +53,7 @@ public final class MediaHook implements PackageHook {
     private static final String EXTRA_PLAYBACK_STATE = "playback_state";
     private static final String EXTRA_IS_FOREGROUND = "is_foreground";
     private static final Object LOCK = new Object();
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
     private static boolean installInProgress;
     private static boolean installRequested;
@@ -574,13 +577,9 @@ public final class MediaHook implements PackageHook {
 
     private static void showPlaybackToast(Context context, String packageName,
                                           MediaRestorer.Result result) {
-        boolean enabled;
-        synchronized (LOCK) {
-            enabled = moduleEnabled && accState && playbackNotifications;
-        }
-        if (!enabled || context == null || result == null) return;
+        if (context == null || result == null) return;
 
-        String message;
+        final String message;
         if (result == MediaRestorer.Result.RESUMED) {
             if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
                 message = "Bluetooth: Playback resumed";
@@ -594,11 +593,16 @@ public final class MediaHook implements PackageHook {
             return;
         }
 
-        try {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-        } catch (RuntimeException error) {
-            reportError("playbackToast", error);
-        }
+        MAIN_HANDLER.post(() -> {
+            synchronized (LOCK) {
+                if (!moduleEnabled || !accState || !playbackNotifications) return;
+            }
+            try {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+            } catch (RuntimeException error) {
+                reportError("playbackToast", error);
+            }
+        });
     }
 
     private static String getApplicationLabel(Context context, String packageName) {
