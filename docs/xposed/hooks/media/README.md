@@ -63,7 +63,9 @@ Map the result as follows:
 
 - `true` → `playing`
 - `false` → `paused`
-- Binder failure or timeout → `unknown`
+- Binder failure or the five-second operation deadline → `unknown`
+
+The transaction is synchronous. The five-second deadline completes the application-side request but cannot interrupt a Binder transaction that is already blocked. At most two Bluetooth snapshot Binder queries may be active at once; a query that remains blocked retains its worker slot until Binder returns. If both slots are occupied, a new snapshot request returns `unknown` rather than creating another worker thread.
 
 Do not query the standard Media source and Bluetooth in parallel. Do not send Bluetooth PAUSE; the head unit handles it itself.
 
