@@ -14,7 +14,7 @@
 <string name="events_count_format">%1$d loaded · dropped %2$d · max %3$d · scroll up for older events</string>
 <string name="events_count_loaded">%1$d loaded · dropped %2$d · max %3$d</string>
 <string name="events_nothing_to_copy">No events to copy</string><string name="events_copied">Event log copied</string>
-<string name="events_clear_title">Clear event log?</string><string name="events_clear_message">This will delete the complete event history, not only the visible entries.</string><string name="events_cleared">Event history cleared</string>
+<string name="events_clear_title">Clear event log?</string><string name="events_clear_message">This will delete the complete event history, not only the visible entries.</string><string name="events_cleared">Event history cleared</string><string name="events_clear_failed">Unable to clear event history</string>
 <string name="events_export_title">Export event log</string><string name="events_export_filtered_label">Current filter</string><string name="events_export_all_label">All history</string>
 <string name="events_export_completed">Export completed</string><string name="events_export_failed">Export failed: %1$s</string>
 <string name="events_description">View and manage system events recorded by MT8163 Tools.</string><string name="refresh">Refresh</string><string name="copy">Copy</string><string name="export">Export</string>
