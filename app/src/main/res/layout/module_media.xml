@@ -124,7 +124,7 @@
                     style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="8sp"
+                    android:textSize="10sp"
                     android:textColor="@color/text_muted"
                     android:text="@string/media_source_information" />
 
@@ -196,7 +196,7 @@
                     style="@style/ModuleBodyText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="8sp"
+                    android:textSize="10sp"
                     android:textColor="@color/text_muted"
                     android:text="@string/media_playback_status" />
 
