@@ -2,9 +2,9 @@ package com.mt8163.tools.ui;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.moduleItemView.LayoutInflater;
-import android.moduleItemView.View;
-import android.moduleItemView.ViewGroup;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -59,20 +59,23 @@ public final class SidebarAdapter extends BaseAdapter {
 
         moduleNameText.setText(parent.getContext().getString(sidebarModule.getNameRes()));
         moduleNameText.setActivated(isSelectedModule);
-        moduleIconView.setImageResource(moduleIconView(sidebarModule.getId()));
+        moduleIconView.setImageResource(getModuleIconResource(sidebarModule.getId()));
         moduleIconView.setActivated(isSelectedModule);
-        moduleIconView.setContentDescription(parent.getContext().getString(sidebarModule.getNameRes()));
+        moduleIconView.setContentDescription(
+                parent.getContext().getString(sidebarModule.getNameRes()));
         moduleItemView.setActivated(isSelectedModule);
 
         moduleStatusIndicator.setVisibility(View.VISIBLE);
-        moduleStatusIndicator.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
-                isModuleEnabled ? R.color.module_status_active : R.color.module_status_inactive)));
+        moduleStatusIndicator.setBackgroundTintList(ColorStateList.valueOf(
+                parent.getContext().getColor(isModuleEnabled
+                        ? R.color.module_status_active
+                        : R.color.module_status_inactive)));
 
         return moduleItemView;
     }
 
-    private int moduleIconView(String id) {
-        switch (id) {
+    private int getModuleIconResource(String moduleId) {
+        switch (moduleId) {
             case "media": return R.drawable.ic_module_media;
             case "protection": return R.drawable.ic_module_protection;
             case "voltage": return R.drawable.ic_module_voltage;
