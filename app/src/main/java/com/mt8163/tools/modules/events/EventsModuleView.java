@@ -254,7 +254,7 @@ public final class EventsModuleView {
             ClipboardManager clipboard =
                     (ClipboardManager) owner.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard == null) return;
-            clipboard.setPrimaryClip(ClipData.newPlainText("MT8163 Events", text));
+            clipboard.setPrimaryClip(ClipData.newPlainText(owner.getString(R.string.events_clip_label), text));
             Toast.makeText(owner, R.string.events_copied, Toast.LENGTH_SHORT).show();
         });
     }
@@ -293,7 +293,7 @@ public final class EventsModuleView {
     private static void startExport(Dialog dialog, boolean filtered) {
         eventsExportMode = filtered ? "filtered" : "all";
         eventsManager.logLifecycle("exportHistory", filtered
-                ? "Filtered export requested" : "Full history export requested");
+                ? eventsActivity.getString(R.string.events_export_filtered_requested)\n                : eventsActivity.getString(R.string.events_export_all_requested));
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
@@ -335,7 +335,7 @@ public final class EventsModuleView {
         current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, records -> {
             if (eventsActivity != owner || eventsManager != current) return;
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
-                if (output == null) throw new IllegalStateException("Cannot open export destination");
+                if (output == null) throw new IllegalStateException(owner.getString(R.string.events_export_destination_unavailable));
                 output.write(buildEventsExportText(records).getBytes(StandardCharsets.UTF_8));
                 Toast.makeText(owner, R.string.events_export_completed, Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
