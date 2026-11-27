@@ -285,7 +285,7 @@ public final class MediaRestorer {
                 controller.registerCallback(playbackCallback, handler);
                 boolean callbackActive;
                 synchronized (lock) {
-                    callbackActive = state.get() == State.ACTIVE;
+                    callbackActive = state.get() == State.PLAY_SENT;
                     if (callbackActive) controllerCallbackRegistered = true;
                 }
                 if (!callbackActive) {
