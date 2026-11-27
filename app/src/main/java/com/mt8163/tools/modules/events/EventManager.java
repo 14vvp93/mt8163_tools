@@ -124,10 +124,12 @@ public final class EventManager {
 
     public static final class ReadResult {
         public final boolean success;
+        public final boolean cancelled;
         public final List<EventRecord> records;
 
-        private ReadResult(boolean success, List<EventRecord> records) {
+        private ReadResult(boolean success, boolean cancelled, List<EventRecord> records) {
             this.success = success;
+            this.cancelled = cancelled;
             this.records = records;
         }
     }
@@ -135,30 +137,59 @@ public final class EventManager {
     public void readAsync(List<String> modules, int limit, long beforeId,
                           Consumer<ReadResult> callback) {
         if (callback == null) return;
-        if (!enabled) {
-            main.post(() -> callback.accept(new ReadResult(true, Collections.emptyList())));
+
+        final long readGeneration;
+        final boolean readEnabled;
+        synchronized (writeLock) {
+            readGeneration = generation;
+            readEnabled = enabled;
+        }
+        if (!readEnabled) {
+            postReadResult(callback, readGeneration,
+                    new ReadResult(true, false, Collections.emptyList()));
             return;
         }
+
         List<String> moduleFilter = modules == null ? null : new ArrayList<>(modules);
         try {
             reader.execute(() -> {
                 ReadResult result;
-                try {
-                    List<EventRecord> records = enabled
-                            ? database.read(moduleFilter, limit, beforeId) : Collections.emptyList();
-                    result = new ReadResult(true, records);
-                } catch (RuntimeException error) {
-                    Log.e(TAG, "Failed to read event history", error);
-                    result = new ReadResult(false, Collections.emptyList());
+                synchronized (writeLock) {
+                    if (!enabled || readGeneration != generation) {
+                        result = new ReadResult(true, true, Collections.emptyList());
+                    } else {
+                        result = null;
+                    }
                 }
-                ReadResult readResult = result;
-                main.post(() -> callback.accept(enabled
-                        ? readResult : new ReadResult(true, Collections.emptyList())));
+                if (result == null) {
+                    try {
+                        result = new ReadResult(true, false,
+                                database.read(moduleFilter, limit, beforeId));
+                    } catch (RuntimeException error) {
+                        Log.e(TAG, "Failed to read event history", error);
+                        result = new ReadResult(false, false, Collections.emptyList());
+                    }
+                }
+                postReadResult(callback, readGeneration, result);
             });
         } catch (RejectedExecutionException error) {
             Log.w(TAG, "Event read queue is full", error);
-            main.post(() -> callback.accept(new ReadResult(false, Collections.emptyList())));
+            postReadResult(callback, readGeneration,
+                    new ReadResult(false, false, Collections.emptyList()));
         }
+    }
+
+    private void postReadResult(Consumer<ReadResult> callback, long readGeneration,
+                               ReadResult result) {
+        main.post(() -> {
+            ReadResult delivered = result;
+            synchronized (writeLock) {
+                if (readGeneration != generation) {
+                    delivered = new ReadResult(true, true, Collections.emptyList());
+                }
+            }
+            callback.accept(delivered);
+        });
     }
 
     public void readAllAsync(List<String> modules, Consumer<ReadResult> callback) {
