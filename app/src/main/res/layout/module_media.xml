@@ -101,24 +101,11 @@
                     android:contentDescription="@string/media_force_show_bluetooth_window" />
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/border_width"
-                android:layout_marginTop="@dimen/spacing_lg"
-                android:background="@color/line" />
-
-            <TextView
-                style="@style/ModuleSectionLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_md"
-                android:text="@string/media_notifications_title" />
-
             <LinearLayout
                 style="@style/ModuleSettingRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/spacing_md">
+                android:layout_marginTop="@dimen/spacing_sm">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -146,6 +133,7 @@
                     android:layout_height="wrap_content"
                     android:contentDescription="@string/media_playback_notifications" />
             </LinearLayout>
+
 
             <View
                 android:layout_width="match_parent"
