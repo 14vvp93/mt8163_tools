@@ -31,28 +31,28 @@ import java.util.Set;
 public final class ProtectionModuleView {
     private static final int MAX_PICKER_RESULTS = 10;
 
-    private final Activity activity;
-    private final PackageManager packageManager;
-    private final LayoutInflater inflater;
-    private final LinearLayout applicationsContainer;
+    private final Activity protectionActivity;
+    private final PackageManager protectionPackageManager;
+    private final LayoutInflater protectionInflater;
+    private final LinearLayout protectionApplicationsContainer;
 
-    public ProtectionModuleView(View root, Activity activity) {
-        this.activity = activity;
-        packageManager = activity.getPackageManager();
-        inflater = LayoutInflater.from(activity);
-        applicationsContainer = root.findViewById(R.id.protection_applications);
-        root.findViewById(R.id.protection_add_application)
+    public ProtectionModuleView(View protectionRootView, Activity protectionActivity) {
+        this.protectionActivity = protectionActivity;
+        protectionPackageManager = protectionActivity.getPackageManager();
+        protectionInflater = LayoutInflater.from(protectionActivity);
+        protectionApplicationsContainer = protectionRootView.findViewById(R.id.protection_applications);
+        protectionRootView.findViewById(R.id.protection_add_application)
                 .setOnClickListener(view -> showApplicationPicker());
         renderProtectedApplications();
     }
 
     private void renderProtectedApplications() {
-        applicationsContainer.removeAllViews();
+        protectionApplicationsContainer.removeAllViews();
         List<AppEntry> configured = new ArrayList<>();
 
-        for (String packageName : ProtectionSettingsStore.getConfiguredPackageNames(activity)) {
+        for (String packageName : ProtectionSettingsStore.getConfiguredPackageNames(protectionActivity)) {
             try {
-                ApplicationInfo info = packageManager.getApplicationInfo(packageName, 0);
+                ApplicationInfo info = protectionPackageManager.getApplicationInfo(packageName, 0);
                 configured.add(new AppEntry(info, getApplicationLabel(info)));
             } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
             }
@@ -64,20 +64,20 @@ public final class ProtectionModuleView {
         }
 
         if (configured.isEmpty()) {
-            applicationsContainer.addView(inflater.inflate(
-                    R.layout.item_protection_empty, applicationsContainer, false));
+            protectionApplicationsContainer.addView(protectionInflater.inflate(
+                    R.layout.item_protection_empty, protectionApplicationsContainer, false));
         }
     }
 
     private void addProtectedApplication(AppEntry app) {
-        View card = inflater.inflate(R.layout.item_protected_application,
-                applicationsContainer, false);
-        ProtectionConfig.ApplicationSettings settings =
-                ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
+        View card = protectionInflater.inflate(R.layout.item_protected_application,
+                protectionApplicationsContainer, false);
+        ProtectionConfig.ApplicationSettings applicationProtectionSettings =
+                ProtectionSettingsStore.getApplicationSettings(protectionActivity, app.info.packageName);
 
         ImageView icon = card.findViewById(R.id.protection_app_icon);
         try {
-            icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
+            icon.setImageDrawable(protectionPackageManager.getApplicationIcon(app.info));
         } catch (RuntimeException error) {
             icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
@@ -86,96 +86,96 @@ public final class ProtectionModuleView {
         name.setText(app.label);
 
         setIndicatorState(card, R.id.protection_indicator_cleaner,
-                settings.shouldProtectCleaner());
+                applicationProtectionSettings.shouldProtectCleaner());
         setIndicatorState(card, R.id.protection_indicator_hide,
-                settings.shouldHideRecents());
+                applicationProtectionSettings.shouldHideRecents());
         setIndicatorState(card, R.id.protection_indicator_close,
-                settings.shouldAllowCloseViaX());
+                applicationProtectionSettings.shouldAllowCloseViaX());
 
         card.findViewById(R.id.protection_app_settings)
                 .setOnClickListener(view -> showApplicationSettings(app));
         card.findViewById(R.id.protection_app_remove)
                 .setOnClickListener(view -> confirmRemoveApplication(app));
-        applicationsContainer.addView(card);
+        protectionApplicationsContainer.addView(card);
     }
 
-    private static void setIndicatorState(View root, int id, boolean enabled) {
-        root.findViewById(id).setActivated(enabled);
+    private static void setIndicatorState(View protectionRootView, int id, boolean enabled) {
+        protectionRootView.findViewById(id).setActivated(enabled);
     }
 
     private void showApplicationSettings(AppEntry app) {
-        ProtectionConfig.ApplicationSettings current =
-                ProtectionSettingsStore.getApplicationSettings(activity, app.info.packageName);
+        ProtectionConfig.ApplicationSettings currentApplicationSettings =
+                ProtectionSettingsStore.getApplicationSettings(protectionActivity, app.info.packageName);
 
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_protection_settings, null, false);
-        TextView title = root.findViewById(R.id.protection_settings_title);
-        Switch cleaner = root.findViewById(R.id.protection_setting_cleaner);
-        Switch hide = root.findViewById(R.id.protection_setting_hide);
-        Switch allowClose = root.findViewById(R.id.protection_setting_allow_close);
-        Button save = root.findViewById(R.id.protection_settings_save);
-        Button cancel = root.findViewById(R.id.protection_settings_cancel);
+        Dialog protectionDialog = new Dialog(protectionActivity);
+        View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_settings, null, false);
+        TextView title = protectionRootView.findViewById(R.id.protection_settings_title);
+        Switch protectCleanerSwitch = protectionRootView.findViewById(R.id.protection_setting_cleaner);
+        Switch hideRecentsSwitch = protectionRootView.findViewById(R.id.protection_setting_hide);
+        Switch allowCloseViaXSwitch = protectionRootView.findViewById(R.id.protection_setting_allow_close);
+        Button save = protectionRootView.findViewById(R.id.protection_settings_save);
+        Button cancel = protectionRootView.findViewById(R.id.protection_settings_cancel);
 
         title.setText(app.label);
-        cleaner.setChecked(current.shouldProtectCleaner());
-        hide.setChecked(current.shouldHideRecents());
-        allowClose.setChecked(current.shouldAllowCloseViaX());
+        protectCleanerSwitch.setChecked(currentApplicationSettings.shouldProtectCleaner());
+        hideRecentsSwitch.setChecked(currentApplicationSettings.shouldHideRecents());
+        allowCloseViaXSwitch.setChecked(currentApplicationSettings.shouldAllowCloseViaX());
 
         save.setOnClickListener(view -> {
             boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                    activity, app.info.packageName, hide.isChecked(),
-                    cleaner.isChecked(), allowClose.isChecked());
+                    protectionActivity, app.info.packageName, hideRecentsSwitch.isChecked(),
+                    protectCleanerSwitch.isChecked(), allowCloseViaXSwitch.isChecked());
             if (!saved) {
                 showToast(R.string.protection_save_failed);
                 return;
             }
-            dialog.dismiss();
+            protectionDialog.dismiss();
             renderProtectedApplications();
         });
-        cancel.setOnClickListener(view -> dialog.dismiss());
+        cancel.setOnClickListener(view -> protectionDialog.dismiss());
 
-        showDialog(dialog, root);
+        showDialog(protectionDialog, protectionRootView);
     }
 
     private void confirmRemoveApplication(AppEntry app) {
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_protection_confirm, null, false);
-        TextView message = root.findViewById(R.id.protection_confirm_message);
-        Button remove = root.findViewById(R.id.protection_confirm_remove);
-        Button cancel = root.findViewById(R.id.protection_confirm_cancel);
+        Dialog protectionDialog = new Dialog(protectionActivity);
+        View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_confirm, null, false);
+        TextView message = protectionRootView.findViewById(R.id.protection_confirm_message);
+        Button remove = protectionRootView.findViewById(R.id.protection_confirm_remove);
+        Button cancel = protectionRootView.findViewById(R.id.protection_confirm_cancel);
 
-        message.setText(activity.getString(R.string.protection_remove_message, app.label));
+        message.setText(protectionActivity.getString(R.string.protection_remove_message, app.label));
         remove.setOnClickListener(view -> {
             if (ProtectionSettingsStore.removeApplicationSettings(
-                    activity, app.info.packageName)) {
-                dialog.dismiss();
+                    protectionActivity, app.info.packageName)) {
+                protectionDialog.dismiss();
                 renderProtectedApplications();
             } else {
                 showToast(R.string.protection_remove_failed);
             }
         });
-        cancel.setOnClickListener(view -> dialog.dismiss());
+        cancel.setOnClickListener(view -> protectionDialog.dismiss());
 
-        showDialog(dialog, root);
+        showDialog(protectionDialog, protectionRootView);
     }
 
     private void showApplicationPicker() {
         List<AppEntry> installed = loadInstalledApplications();
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_protection_picker, null, false);
+        Dialog protectionDialog = new Dialog(protectionActivity);
+        View protectionRootView = protectionInflater.inflate(R.layout.dialog_protection_picker, null, false);
 
-        EditText search = root.findViewById(R.id.protection_picker_search);
-        Switch systemApps = root.findViewById(R.id.protection_picker_system_apps);
-        TextView results = root.findViewById(R.id.protection_picker_results);
-        LinearLayout list = root.findViewById(R.id.protection_picker_list);
+        EditText applicationSearchInput = protectionRootView.findViewById(R.id.protection_picker_search);
+        Switch showSystemAppsSwitch = protectionRootView.findViewById(R.id.protection_picker_system_apps);
+        TextView applicationPickerResultsText = protectionRootView.findViewById(R.id.protection_picker_results);
+        LinearLayout applicationPickerList = protectionRootView.findViewById(R.id.protection_picker_list);
 
-        root.findViewById(R.id.protection_picker_close)
-                .setOnClickListener(view -> dialog.dismiss());
+        protectionRootView.findViewById(R.id.protection_picker_close)
+                .setOnClickListener(view -> protectionDialog.dismiss());
 
         Runnable render = () -> renderPickerResults(installed,
-                search.getText().toString(), systemApps.isChecked(), list, results, dialog);
+                applicationSearchInput.getText().toString(), showSystemAppsSwitch.isChecked(), applicationPickerList, applicationPickerResultsText, protectionDialog);
 
-        search.addTextChangedListener(new TextWatcher() {
+        applicationSearchInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {
             }
@@ -189,10 +189,10 @@ public final class ProtectionModuleView {
             public void afterTextChanged(Editable editable) {
             }
         });
-        systemApps.setOnCheckedChangeListener((button, checked) -> render.run());
+        showSystemAppsSwitch.setOnCheckedChangeListener((button, checked) -> render.run());
 
-        showDialog(dialog, root);
-        Window window = dialog.getWindow();
+        showDialog(protectionDialog, protectionRootView);
+        Window window = protectionDialog.getWindow();
         if (window != null) {
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         }
@@ -200,12 +200,12 @@ public final class ProtectionModuleView {
     }
 
     private void renderPickerResults(List<AppEntry> installed, String query,
-                                     boolean showSystem, LinearLayout list,
-                                     TextView results, Dialog dialog) {
-        list.removeAllViews();
+                                     boolean showSystem, LinearLayout applicationPickerList,
+                                     TextView applicationPickerResultsText, Dialog protectionDialog) {
+        applicationPickerList.removeAllViews();
         String filter = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         Set<String> configured = new HashSet<>(
-                ProtectionSettingsStore.getConfiguredPackageNames(activity));
+                ProtectionSettingsStore.getConfiguredPackageNames(protectionActivity));
         int matches = 0;
         int shown = 0;
 
@@ -220,28 +220,28 @@ public final class ProtectionModuleView {
 
             matches++;
             if (shown >= MAX_PICKER_RESULTS) continue;
-            addPickerRow(app, list, dialog);
+            addPickerRow(app, applicationPickerList, protectionDialog);
             shown++;
         }
 
-        results.setText(activity.getResources().getQuantityString(
+        applicationPickerResultsText.setText(protectionActivity.getResources().getQuantityString(
                 R.plurals.protection_picker_results, matches, shown, matches));
 
         if (shown == 0) {
-            TextView empty = (TextView) inflater.inflate(
-                    R.layout.item_protection_empty, list, false);
+            TextView empty = (TextView) protectionInflater.inflate(
+                    R.layout.item_protection_empty, applicationPickerList, false);
             empty.setText(filter.isEmpty()
                     ? R.string.protection_picker_empty
                     : R.string.protection_picker_no_matches);
-            list.addView(empty);
+            applicationPickerList.addView(empty);
         }
     }
 
-    private void addPickerRow(AppEntry app, LinearLayout list, Dialog dialog) {
-        View row = inflater.inflate(R.layout.item_protection_picker, list, false);
+    private void addPickerRow(AppEntry app, LinearLayout applicationPickerList, Dialog protectionDialog) {
+        View row = protectionInflater.inflate(R.layout.item_protection_picker, applicationPickerList, false);
         ImageView icon = row.findViewById(R.id.protection_picker_app_icon);
         try {
-            icon.setImageDrawable(packageManager.getApplicationIcon(app.info));
+            icon.setImageDrawable(protectionPackageManager.getApplicationIcon(app.info));
         } catch (RuntimeException error) {
             icon.setImageResource(android.R.drawable.sym_def_app_icon);
         }
@@ -252,32 +252,32 @@ public final class ProtectionModuleView {
 
         row.setOnClickListener(view -> {
             boolean saved = ProtectionSettingsStore.setApplicationSettings(
-                    activity, app.info.packageName, false, false, false);
+                    protectionActivity, app.info.packageName, false, false, false);
             if (!saved) {
                 showToast(R.string.protection_add_failed);
                 return;
             }
-            dialog.dismiss();
+            protectionDialog.dismiss();
             renderProtectedApplications();
         });
-        list.addView(row);
+        applicationPickerList.addView(row);
     }
 
-    private void showDialog(Dialog dialog, View content) {
-        dialog.setContentView(content);
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
+    private void showDialog(Dialog protectionDialog, View content) {
+        protectionDialog.setContentView(content);
+        protectionDialog.setCanceledOnTouchOutside(true);
+        protectionDialog.show();
     }
 
     private List<AppEntry> loadInstalledApplications() {
         List<AppEntry> result = new ArrayList<>();
         try {
             List<ApplicationInfo> installed =
-                    packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+                    protectionPackageManager.getInstalledApplications(PackageManager.GET_META_DATA);
             for (ApplicationInfo info : installed) {
                 if (info == null || info.packageName == null
-                        || activity.getPackageName().equals(info.packageName)
-                        || packageManager.getLaunchIntentForPackage(info.packageName) == null) {
+                        || protectionActivity.getPackageName().equals(info.packageName)
+                        || protectionPackageManager.getLaunchIntentForPackage(info.packageName) == null) {
                     continue;
                 }
                 result.add(new AppEntry(info, getApplicationLabel(info)));
@@ -291,7 +291,7 @@ public final class ProtectionModuleView {
 
     private String getApplicationLabel(ApplicationInfo info) {
         try {
-            CharSequence label = packageManager.getApplicationLabel(info);
+            CharSequence label = protectionPackageManager.getApplicationLabel(info);
             return label == null ? info.packageName : label.toString();
         } catch (RuntimeException error) {
             return info.packageName;
@@ -313,7 +313,7 @@ public final class ProtectionModuleView {
     }
 
     private void showToast(int messageResource) {
-        Toast.makeText(activity, messageResource, Toast.LENGTH_SHORT).show();
+        Toast.makeText(protectionActivity, messageResource, Toast.LENGTH_SHORT).show();
     }
 
     private static final class AppEntry {
