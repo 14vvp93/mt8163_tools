@@ -2,9 +2,9 @@ package com.mt8163.tools.ui;
 
 import android.content.Context;
 import android.content.res.ColorStateList;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.moduleItemView.LayoutInflater;
+import android.moduleItemView.View;
+import android.moduleItemView.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -15,29 +15,29 @@ import com.mt8163.tools.core.ModuleContract;
 import java.util.List;
 
 public final class SidebarAdapter extends BaseAdapter {
-    private final LayoutInflater inflater;
-    private final List<ModuleContract> modules;
-    private int selected;
+    private final LayoutInflater sidebarInflater;
+    private final List<ModuleContract> registeredModules;
+    private int selectedModulePosition;
 
-    public SidebarAdapter(Context context, List<ModuleContract> modules) {
-        inflater = LayoutInflater.from(context);
-        this.modules = modules;
-        selected = modules.size() - 1;
+    public SidebarAdapter(Context context, List<ModuleContract> registeredModules) {
+        sidebarInflater = LayoutInflater.from(context);
+        this.registeredModules = registeredModules;
+        selectedModulePosition = registeredModules.size() - 1;
     }
 
     public void setSelectedPosition(int position) {
-        selected = position;
+        selectedModulePosition = position;
         notifyDataSetChanged();
     }
 
     @Override
     public int getCount() {
-        return modules.size();
+        return registeredModules.size();
     }
 
     @Override
     public ModuleContract getItem(int position) {
-        return modules.get(position);
+        return registeredModules.get(position);
     }
 
     @Override
@@ -47,31 +47,31 @@ public final class SidebarAdapter extends BaseAdapter {
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
-        View view = convertView != null ? convertView
-                : inflater.inflate(R.layout.item_sidebar_module, parent, false);
+        View moduleItemView = convertView != null ? convertView
+                : sidebarInflater.inflate(R.layout.item_sidebar_module, parent, false);
 
-        ModuleContract module = getItem(position);
-        boolean isSelected = position == selected;
-        boolean enabled = module.isEnabled();
-        ImageView icon = view.findViewById(R.id.module_icon);
-        TextView name = view.findViewById(R.id.module_name);
-        View state = view.findViewById(R.id.module_state);
+        ModuleContract sidebarModule = getItem(position);
+        boolean isSelectedModule = position == selectedModulePosition;
+        boolean isModuleEnabled = sidebarModule.isEnabled();
+        ImageView moduleIconView = moduleItemView.findViewById(R.id.module_icon);
+        TextView moduleNameText = moduleItemView.findViewById(R.id.module_name);
+        View moduleStatusIndicator = moduleItemView.findViewById(R.id.module_state);
 
-        name.setText(parent.getContext().getString(module.getNameRes()));
-        name.setActivated(isSelected);
-        icon.setImageResource(icon(module.getId()));
-        icon.setActivated(isSelected);
-        icon.setContentDescription(parent.getContext().getString(module.getNameRes()));
-        view.setActivated(isSelected);
+        moduleNameText.setText(parent.getContext().getString(sidebarModule.getNameRes()));
+        moduleNameText.setActivated(isSelectedModule);
+        moduleIconView.setImageResource(moduleIconView(sidebarModule.getId()));
+        moduleIconView.setActivated(isSelectedModule);
+        moduleIconView.setContentDescription(parent.getContext().getString(sidebarModule.getNameRes()));
+        moduleItemView.setActivated(isSelectedModule);
 
-        state.setVisibility(View.VISIBLE);
-        state.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
-                enabled ? R.color.module_status_active : R.color.module_status_inactive)));
+        moduleStatusIndicator.setVisibility(View.VISIBLE);
+        moduleStatusIndicator.setBackgroundTintList(ColorStateList.valueOf(parent.getContext().getColor(
+                isModuleEnabled ? R.color.module_status_active : R.color.module_status_inactive)));
 
-        return view;
+        return moduleItemView;
     }
 
-    private int icon(String id) {
+    private int moduleIconView(String id) {
         switch (id) {
             case "media": return R.drawable.ic_module_media;
             case "protection": return R.drawable.ic_module_protection;
