@@ -58,6 +58,7 @@ public final class VoltageSettingsStore {
         if (!saved) {
             EventLogger.log(app, "Voltage", "configurationSave",
                     "Failed to persist hook settings");
+            return;
         }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
