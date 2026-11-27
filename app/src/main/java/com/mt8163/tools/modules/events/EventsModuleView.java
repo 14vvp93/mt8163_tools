@@ -210,8 +210,11 @@ public final class EventsModuleView {
             eventsCountText.setText(eventsActivity.getString(R.string.events_count_format,
                     records.size(), current.getDroppedCount(), EventDatabase.MAX_RECORDS));
             eventsAutoScrollEnabled = true;
-            eventsScrollView.post(() -> {
-                if (eventsScrollView != null) eventsScrollView.fullScroll(View.FOCUS_DOWN);
+            ScrollView targetScrollView = eventsScrollView;
+            targetScrollView.post(() -> {
+                if (viewGeneration == generation && eventsScrollView == targetScrollView) {
+                    targetScrollView.fullScroll(View.FOCUS_DOWN);
+                }
             });
             if (refreshPending) {
                 refreshPending = false;
@@ -226,7 +229,9 @@ public final class EventsModuleView {
         int oldHeight = eventEntriesContainer.getHeight();
         int oldScrollY = eventsScrollView.getScrollY();
         EventManager current = eventsManager;
+        int generation = viewGeneration;
         current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, oldestLoadedEventId, result -> {
+            if (generation != viewGeneration) return;
             if (eventsManager != current || eventEntriesContainer == null || eventsScrollView == null) {
                 loadingOlderEvents = false;
                 return;
@@ -252,11 +257,14 @@ public final class EventsModuleView {
             eventsCountText.setText(eventsActivity.getString(R.string.events_count_loaded,
                     eventEntriesContainer.getChildCount(), current.getDroppedCount(),
                     EventDatabase.MAX_RECORDS));
-            eventsScrollView.post(() -> {
-                if (eventEntriesContainer != null && eventsScrollView != null) {
-                    eventsScrollView.scrollTo(0, oldScrollY + eventEntriesContainer.getHeight() - oldHeight);
+            ScrollView targetScrollView = eventsScrollView;
+            LinearLayout targetContainer = eventEntriesContainer;
+            targetScrollView.post(() -> {
+                if (generation == viewGeneration && eventsScrollView == targetScrollView
+                        && eventEntriesContainer == targetContainer) {
+                    targetScrollView.scrollTo(0, oldScrollY + targetContainer.getHeight() - oldHeight);
+                    loadingOlderEvents = false;
                 }
-                loadingOlderEvents = false;
             });
         });
     }
@@ -298,9 +306,11 @@ public final class EventsModuleView {
     private static void copyEvents() {
         EventManager current = eventsManager;
         Activity owner = eventsActivity;
+        int generation = viewGeneration;
         if (current == null || owner == null) return;
         current.readAllAsync(getSelectedEventModuleFilter(), result -> {
-            if (eventsManager != current || eventsActivity != owner || result.cancelled) return;
+            if (generation != viewGeneration || eventsManager != current
+                    || eventsActivity != owner || result.cancelled) return;
             if (!result.success) {
                 Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
                 return;
@@ -327,10 +337,12 @@ public final class EventsModuleView {
         confirm.setOnClickListener(view -> {
             Activity owner = eventsActivity;
             EventManager current = eventsManager;
+            int generation = viewGeneration;
             eventsAutoScrollEnabled = true;
             dialog.dismiss();
             current.clear(cleared -> {
-                if (eventsActivity != owner || eventsManager != current) return;
+                if (generation != viewGeneration || eventsActivity != owner
+                        || eventsManager != current) return;
                 Toast.makeText(owner, cleared ? R.string.events_cleared
                         : R.string.events_clear_failed, Toast.LENGTH_SHORT).show();
                 refreshEvents();
@@ -394,9 +406,11 @@ public final class EventsModuleView {
 
         Activity owner = eventsActivity;
         EventManager current = eventsManager;
+        int generation = viewGeneration;
         Uri uri = data.getData();
         current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, result -> {
-            if (eventsActivity != owner || eventsManager != current || result.cancelled) return;
+            if (generation != viewGeneration || eventsActivity != owner
+                    || eventsManager != current || result.cancelled) return;
             if (!result.success) {
                 Toast.makeText(owner, R.string.events_read_failed, Toast.LENGTH_SHORT).show();
                 return;
