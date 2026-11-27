@@ -192,10 +192,24 @@ public final class ProtectionHook implements PackageHook {
             return;
         }
 
+        WeakReference<Activity> activityRef = new WeakReference<>(activity);
         activity.runOnUiThread(() -> {
+            Activity currentActivity = activityRef.get();
+            if (currentActivity == null) return;
+
+            synchronized (LOCK) {
+                if (recentsActivity.get() != currentActivity) return;
+            }
+
+            if (currentActivity.isFinishing() || currentActivity.isDestroyed()
+                    || !Boolean.TRUE.equals(readField(currentActivity, "mIsVisible"))) {
+                recentsStackModified = false;
+                return;
+            }
+
             try {
-                XposedHelpers.callMethod(activity, "reloadTaskStack",
-                        activity.isInMultiWindowMode(), false);
+                XposedHelpers.callMethod(currentActivity, "reloadTaskStack",
+                        currentActivity.isInMultiWindowMode(), false);
                 recentsStackModified = false;
                 XposedBridge.log("MT8163 Tools: Protection Recents stack refreshed");
             } catch (Throwable error) {
