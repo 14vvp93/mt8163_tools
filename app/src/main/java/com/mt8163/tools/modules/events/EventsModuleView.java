@@ -296,11 +296,16 @@ public final class EventsModuleView {
         Button confirm = root.findViewById(R.id.events_clear_confirm);
         Button cancel = root.findViewById(R.id.events_clear_cancel);
         confirm.setOnClickListener(view -> {
+            Activity owner = eventsActivity;
+            EventManager current = eventsManager;
             eventsAutoScrollEnabled = true;
-            eventsManager.clear();
             dialog.dismiss();
-            Toast.makeText(eventsActivity, R.string.events_cleared, Toast.LENGTH_SHORT).show();
-            refreshEvents();
+            current.clear(cleared -> {
+                if (eventsActivity != owner || eventsManager != current) return;
+                Toast.makeText(owner, cleared ? R.string.events_cleared
+                        : R.string.events_clear_failed, Toast.LENGTH_SHORT).show();
+                refreshEvents();
+            });
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
         DialogHelper.showCompact(eventsActivity, dialog, root);
