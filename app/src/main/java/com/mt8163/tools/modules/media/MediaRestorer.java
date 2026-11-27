@@ -267,21 +267,21 @@ public final class MediaRestorer {
         private void resume(MediaController controller) {
             if (controller == null || !isActive()) return;
 
-            PlaybackState current = controller.getPlaybackState();
-            if (isPlaying(current)) {
-                logEvent(context, "mediaRestoreSkipped",
-                        "Playback was already active before PLAY: " + packageName);
-                complete(Result.SKIPPED);
-                return;
-            }
-
-            synchronized (lock) {
-                if (state.get() != State.ACTIVE) return;
-                activeController = controller;
-                state.set(State.PLAY_SENT);
-            }
-
             try {
+                PlaybackState current = controller.getPlaybackState();
+                if (isPlaying(current)) {
+                    logEvent(context, "mediaRestoreSkipped",
+                            "Playback was already active before PLAY: " + packageName);
+                    complete(Result.SKIPPED);
+                    return;
+                }
+
+                synchronized (lock) {
+                    if (state.get() != State.ACTIVE) return;
+                    activeController = controller;
+                    state.set(State.PLAY_SENT);
+                }
+
                 controller.registerCallback(playbackCallback, handler);
                 synchronized (lock) {
                     controllerCallbackRegistered = true;
