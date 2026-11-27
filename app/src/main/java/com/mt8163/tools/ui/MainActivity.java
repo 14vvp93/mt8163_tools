@@ -1,7 +1,7 @@
 package com.mt8163.tools.ui;
 
-import android.app.Activity;
-import android.content.Intent;
+import android.mainApplication.Activity;
+import android.moduleContentContainer.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,106 +14,106 @@ import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.core.ModuleContract;
 import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
-import com.mt8163.tools.modules.events.EventManager;
-import com.mt8163.tools.modules.events.EventsModuleView;
-import com.mt8163.tools.modules.media.MediaModuleView;
-import com.mt8163.tools.modules.media.MediaSettingsStore;
-import com.mt8163.tools.modules.protection.ProtectionModuleView;
-import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
-import com.mt8163.tools.modules.voltage.VoltageModuleView;
-import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
+import com.mt8163.tools.registeredModules.events.EventManager;
+import com.mt8163.tools.registeredModules.events.EventsModuleView;
+import com.mt8163.tools.registeredModules.media.MediaModuleView;
+import com.mt8163.tools.registeredModules.media.MediaSettingsStore;
+import com.mt8163.tools.registeredModules.protection.ProtectionModuleView;
+import com.mt8163.tools.registeredModules.protection.ProtectionSettingsStore;
+import com.mt8163.tools.registeredModules.voltage.VoltageModuleView;
+import com.mt8163.tools.registeredModules.voltage.VoltageSettingsStore;
 
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private ModuleRegistry registry;
-    private PreferencesManager preferences;
-    private List<ModuleContract> modules;
-    private SidebarAdapter adapter;
-    private FrameLayout header;
-    private FrameLayout content;
-    private View overlay;
-    private int selected;
+    private ModuleRegistry moduleRegistry;
+    private PreferencesManager preferencesManager;
+    private List<ModuleContract> registeredModules;
+    private SidebarAdapter sidebarAdapter;
+    private FrameLayout moduleHeaderContainer;
+    private FrameLayout moduleContentContainer;
+    private View disabledModuleOverlay;
+    private int selectedModulePosition;
 
     @Override
-    protected void onCreate(Bundle state) {
-        super.onCreate(state);
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        MainApplication app = (MainApplication) getApplication();
-        registry = app.getModuleRegistry();
-        preferences = app.getPreferencesManager();
-        modules = registry.getModules();
+        MainApplication mainApplication = (MainApplication) getApplication();
+        moduleRegistry = mainApplication.getModuleRegistry();
+        preferencesManager = mainApplication.getPreferencesManager();
+        registeredModules = moduleRegistry.getModules();
 
-        ListView list = findViewById(R.id.sidebar_list);
-        header = findViewById(R.id.header_container);
-        content = findViewById(R.id.content_container);
-        overlay = findViewById(R.id.disabled_overlay);
+        ListView moduleListView = findViewById(R.id.sidebar_list);
+        moduleHeaderContainer = findViewById(R.id.header_container);
+        moduleContentContainer = findViewById(R.id.content_container);
+        disabledModuleOverlay = findViewById(R.id.disabled_overlay);
 
-        adapter = new SidebarAdapter(this, modules);
-        list.setAdapter(adapter);
-        selected = modules.size() - 1;
-        list.setOnItemClickListener((parent, view, position, id) -> showModule(position));
-        showModule(selected);
+        sidebarAdapter = new SidebarAdapter(this, registeredModules);
+        moduleListView.setAdapter(sidebarAdapter);
+        selectedModulePosition = registeredModules.size() - 1;
+        moduleListView.setOnItemClickListener((parent, view, position, id) -> showModule(position));
+        showModule(selectedModulePosition);
     }
 
     private void showModule(int position) {
-        if (position < 0 || position >= modules.size()) return;
+        if (position < 0 || position >= registeredModules.size()) return;
 
-        selected = position;
-        ModuleContract module = modules.get(position);
-        adapter.setSelectedPosition(position);
-        header.removeAllViews();
+        selectedModulePosition = position;
+        ModuleContract selectedModule = registeredModules.get(position);
+        sidebarAdapter.setSelectedPosition(position);
+        moduleHeaderContainer.removeAllViews();
 
-        View headerView = LayoutInflater.from(this)
-                .inflate(R.layout.view_module_header, header, false);
-        ModuleHeaderView.bind(headerView, module, enabled -> {
-            registry.saveState(module, preferences);
+        View moduleHeaderView = LayoutInflater.from(this)
+                .inflate(R.layout.view_module_header, moduleHeaderContainer, false);
+        ModuleHeaderView.bind(moduleHeaderView, selectedModule, enabled -> {
+            moduleRegistry.saveState(selectedModule, preferencesManager);
 
-            if ("events".equals(module.getId())) {
+            if ("events".equals(selectedModule.getId())) {
                 EventManager events = EventManager.get(this);
                 events.setEnabled(enabled);
                 events.logLifecycle(enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Events module enabled" : "Events module disabled");
+                        enabled ? "Events selectedModule enabled" : "Events selectedModule disabled");
             }
 
-            if ("voltage".equals(module.getId())) {
+            if ("voltage".equals(selectedModule.getId())) {
                 EventLogger.log(this, "Voltage",
                         enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Voltage module enabled" : "Voltage module disabled");
+                        enabled ? "Voltage selectedModule enabled" : "Voltage selectedModule disabled");
                 VoltageSettingsStore.publish(this);
             }
 
-            if ("media".equals(module.getId())) {
+            if ("media".equals(selectedModule.getId())) {
                 MediaSettingsStore.publish(this);
             }
 
-            if ("protection".equals(module.getId())) {
+            if ("protection".equals(selectedModule.getId())) {
                 EventLogger.log(this, "Protection",
                         enabled ? "moduleEnabled" : "moduleDisabled",
-                        enabled ? "Protection module enabled" : "Protection module disabled");
+                        enabled ? "Protection selectedModule enabled" : "Protection selectedModule disabled");
                 ProtectionSettingsStore.publish(this);
             }
 
-            adapter.notifyDataSetChanged();
-            if ("events".equals(module.getId())) showModule(selected);
+            sidebarAdapter.notifyDataSetChanged();
+            if ("events".equals(selectedModule.getId())) showModule(selectedModulePosition);
             else updateState();
         });
-        header.addView(headerView);
+        moduleHeaderContainer.addView(moduleHeaderView);
 
         EventsModuleView.destroy();
-        content.removeAllViews();
-        if ("events".equals(module.getId())) {
-            if (module.isEnabled()) content.addView(EventsModuleView.create(this, modules));
+        moduleContentContainer.removeAllViews();
+        if ("events".equals(selectedModule.getId())) {
+            if (selectedModule.isEnabled()) moduleContentContainer.addView(EventsModuleView.create(this, registeredModules));
         } else {
             View view = LayoutInflater.from(this)
-                    .inflate(module.getLayoutRes(), content, false);
-            content.addView(view);
-            if ("voltage".equals(module.getId())) {
+                    .inflate(selectedModule.getLayoutRes(), moduleContentContainer, false);
+            moduleContentContainer.addView(view);
+            if ("voltage".equals(selectedModule.getId())) {
                 VoltageModuleView.bind(view, this);
-            } else if ("media".equals(module.getId())) {
+            } else if ("media".equals(selectedModule.getId())) {
                 new MediaModuleView(view, this);
-            } else if ("protection".equals(module.getId())) {
+            } else if ("protection".equals(selectedModule.getId())) {
                 new ProtectionModuleView(view, this);
             }
         }
@@ -121,9 +121,9 @@ public final class MainActivity extends Activity {
     }
 
     private void updateState() {
-        boolean enabled = modules.get(selected).isEnabled();
-        content.setVisibility(enabled ? View.VISIBLE : View.GONE);
-        overlay.setVisibility(enabled ? View.GONE : View.VISIBLE);
+        boolean enabled = registeredModules.get(selectedModulePosition).isEnabled();
+        moduleContentContainer.setVisibility(enabled ? View.VISIBLE : View.GONE);
+        disabledModuleOverlay.setVisibility(enabled ? View.GONE : View.VISIBLE);
     }
 
     @Override
