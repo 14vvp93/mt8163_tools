@@ -151,15 +151,7 @@ public final class MediaRestorer {
                     public void onPlaybackStateChanged(PlaybackState playbackState) {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
-                            long updateTime = playbackState.getLastPositionUpdateTime();
-                            boolean startedBeforePlay;
-                            synchronized (lock) {
-                                State current = state.get();
-                                startedBeforePlay = current == State.ACTIVE
-                                        || (current == State.PLAY_SENT && updateTime > 0
-                                        && updateTime <= playDispatchElapsedRealtime);
-                            }
-                            complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
+                            complete(Result.RESUMED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
                                 && playRequested) {
                             complete(Result.FAILED);
@@ -465,7 +457,15 @@ public final class MediaRestorer {
                     public void onPlaybackStateChanged(PlaybackState playbackState) {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
-                            complete(Result.RESUMED);
+                            long updateTime = playbackState.getLastPositionUpdateTime();
+                            boolean startedBeforePlay;
+                            synchronized (lock) {
+                                State current = state.get();
+                                startedBeforePlay = current == State.ACTIVE
+                                        || (current == State.PLAY_SENT && updateTime > 0
+                                        && updateTime <= playDispatchElapsedRealtime);
+                            }
+                            complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
                                 && playRequested) {
                             complete(Result.FAILED);
