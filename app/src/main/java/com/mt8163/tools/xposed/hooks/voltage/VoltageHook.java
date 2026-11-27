@@ -6,11 +6,13 @@ import android.os.Bundle;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
+import com.mt8163.tools.xposed.HookRegistry;
 import com.mt8163.tools.xposed.PackageHook;
 
 import java.util.Locale;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodHook.Unhook;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -28,6 +30,8 @@ public final class VoltageHook implements PackageHook {
     private static boolean installInProgress;
     private static boolean constructorHookInstalled;
     private static boolean batteryHookInstalled;
+    private static Unhook constructorHook;
+    private static Unhook batteryHook;
     private static boolean initialConfigurationLoaded;
     private static boolean configurationLoadInProgress;
     private static long configurationGeneration;
@@ -46,6 +50,11 @@ public final class VoltageHook implements PackageHook {
     }
 
     @Override
+    public String moduleId() {
+        return "voltage";
+    }
+
+    @Override
     public void install(XC_LoadPackage.LoadPackageParam param) throws Throwable {
         synchronized (LOCK) {
             if (installInProgress || (constructorHookInstalled && batteryHookInstalled)) return;
@@ -56,9 +65,10 @@ public final class VoltageHook implements PackageHook {
             loadInitialConfiguration();
 
             synchronized (LOCK) {
+                if (!moduleEnabled) return;
                 if (!constructorHookInstalled) {
                     try {
-                        XposedHelpers.findAndHookConstructor(
+                        constructorHook = XposedHelpers.findAndHookConstructor(
                                 TARGET_CLASS,
                                 param.classLoader,
                                 Context.class,
@@ -74,7 +84,7 @@ public final class VoltageHook implements PackageHook {
                                         }
                                     }
                                 });
-                        constructorHookInstalled = true;
+                        constructorHookInstalled = constructorHook != null;
                     } catch (Throwable error) {
                         logInstallFailure("MCU constructor hook failed", error);
                     }
@@ -91,7 +101,7 @@ public final class VoltageHook implements PackageHook {
                     Class<?> packetClass = XposedHelpers.findClass(
                             TARGET_CLASS + "$McuPacket", param.classLoader);
 
-                    XposedHelpers.findAndHookMethod(
+                    Unhook installedHook = XposedHelpers.findAndHookMethod(
                             TARGET_CLASS,
                             param.classLoader,
                             "onBattery",
@@ -105,7 +115,8 @@ public final class VoltageHook implements PackageHook {
                                 }
                             });
                     synchronized (LOCK) {
-                        batteryHookInstalled = true;
+                        batteryHook = installedHook;
+                        batteryHookInstalled = batteryHook != null;
                     }
                 } catch (Throwable error) {
                     logInstallFailure("MCU onBattery hook failed", error);
@@ -126,6 +137,7 @@ public final class VoltageHook implements PackageHook {
 
     private static void onServiceCreated(Context context, Object service) {
         synchronized (LOCK) {
+            if (!moduleEnabled || !constructorHookInstalled) return;
             eventContext = context;
             mcuService = service;
         }
@@ -194,6 +206,44 @@ public final class VoltageHook implements PackageHook {
         }
     }
 
+    @Override
+    public void uninstall() {
+        synchronized (LOCK) {
+            moduleEnabled = false;
+            restoreRawVoltageLocked();
+            unhookLocked(constructorHook);
+            unhookLocked(batteryHook);
+            constructorHook = null;
+            batteryHook = null;
+            constructorHookInstalled = false;
+            batteryHookInstalled = false;
+            mcuService = null;
+            hasRawVoltage = false;
+            rawBatteryVoltage = 0.0f;
+            hasReportedVoltageApplied = false;
+        }
+        logEvent("moduleDisabled", "Voltage hooks removed and raw MCU voltage restored");
+    }
+
+    private static void restoreRawVoltageLocked() {
+        if (mcuService == null || !hasRawVoltage) return;
+        try {
+            XposedHelpers.setFloatField(mcuService, "mBatteryVoltage", rawBatteryVoltage);
+        } catch (Throwable error) {
+            logEvent("voltageRestoreFailed", "Unable to restore raw MCU voltage: " + error);
+            XposedBridge.log("MT8163 Tools: Voltage restore failed: " + error);
+        }
+    }
+
+    private static void unhookLocked(Unhook hook) {
+        if (hook == null) return;
+        try {
+            hook.unhook();
+        } catch (Throwable error) {
+            XposedBridge.log("MT8163 Tools: Voltage unhook failed: " + error);
+        }
+    }
+
     public static void onConfigurationChanged(Intent intent) {
         if (intent == null
                 || !VoltageSettingsStore.ACTION_CONFIG_CHANGED.equals(intent.getAction())) {
@@ -217,9 +267,10 @@ public final class VoltageHook implements PackageHook {
             return;
         }
 
+        boolean enabledChanged;
         synchronized (LOCK) {
             boolean offsetChanged = Float.compare(voltageOffset, offset) != 0;
-            boolean changed = moduleEnabled != enabled || offsetChanged;
+            enabledChanged = moduleEnabled != enabled;
 
             if (offsetChanged) hasReportedVoltageApplied = false;
 
@@ -227,17 +278,29 @@ public final class VoltageHook implements PackageHook {
             voltageOffset = offset;
             configurationGeneration++;
             initialConfigurationLoaded = true;
-            applyCurrentVoltageLocked(false);
 
-            if (changed) {
+            if (!enabled) {
+                restoreRawVoltageLocked();
+            } else {
+                applyCurrentVoltageLocked(false);
+            }
+
+            if (enabledChanged || offsetChanged) {
                 logEvent("configurationChanged", String.format(Locale.US,
                         "Enabled=%s, offset=%+.1f V", enabled, offset));
             }
+        }
+
+        if (enabledChanged) {
+            HookRegistry.setModuleEnabled("voltage", enabled);
         }
     }
 
     private static void processBatteryPacket(Object service, Object packet) {
         if (service == null || packet == null) return;
+        synchronized (LOCK) {
+            if (!moduleEnabled || !batteryHookInstalled) return;
+        }
 
         try {
             Object subCommandValue = XposedHelpers.callMethod(packet, "subCmd");
