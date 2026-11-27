@@ -462,7 +462,7 @@ public final class MediaRestorer {
                             synchronized (lock) {
                                 State current = state.get();
                                 startedBeforePlay = current == State.ACTIVE
-                                        || (current == State.PLAY_SENT && updateTime > 0
+                                        || (current == State.PLAY_SENT
                                         && updateTime <= playDispatchElapsedRealtime);
                             }
                             complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
