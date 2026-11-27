@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.drawable.GradientDrawable;
 import android.view.View;
+import android.widget.CompoundButton;
 import android.widget.Switch;
 import android.widget.TextView;
 
@@ -85,7 +86,7 @@ public final class MediaModuleView {
         refreshMediaSnapshot();
     }
 
-    private void handleSettingsResult(Switch target, boolean successful,
+    private void handleSettingsResult(CompoundButton target, boolean successful,
                                        boolean persistedValue) {
         if (successful) return;
 
