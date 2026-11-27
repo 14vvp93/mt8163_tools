@@ -283,8 +283,17 @@ public final class MediaRestorer {
                 }
 
                 controller.registerCallback(playbackCallback, handler);
+                boolean callbackActive;
                 synchronized (lock) {
-                    controllerCallbackRegistered = true;
+                    callbackActive = state.get() == State.ACTIVE;
+                    if (callbackActive) controllerCallbackRegistered = true;
+                }
+                if (!callbackActive) {
+                    try {
+                        controller.unregisterCallback(playbackCallback);
+                    } catch (RuntimeException ignored) {
+                    }
+                    return;
                 }
 
                 current = controller.getPlaybackState();
@@ -1074,6 +1083,7 @@ public final class MediaRestorer {
             boolean unregister;
             boolean unregisterController;
             MediaController controller;
+            boolean unbindService;
             synchronized (lock) {
                 playDelayScheduled = false;
                 playTaskSubmitted = false;
@@ -1085,18 +1095,20 @@ public final class MediaRestorer {
                 controller = vendorController;
                 vendorController = null;
                 service = binder;
-                if (bound) {
-                    bound = false;
-                    try {
-                        context.unbindService(connection);
-                        logEvent(context, "bluetoothServiceUnbound", "true");
-                    } catch (IllegalArgumentException error) {
-                        logEvent(context, "bluetoothServiceUnbound", "false");
-                        logEvent(context, "bluetoothServiceUnbindFailed",
-                                error.toString());
-                    }
-                }
+                unbindService = bound;
+                bound = false;
                 binder = null;
+            }
+
+            if (unbindService) {
+                try {
+                    context.unbindService(connection);
+                    logEvent(context, "bluetoothServiceUnbound", "true");
+                } catch (IllegalArgumentException error) {
+                    logEvent(context, "bluetoothServiceUnbound", "false");
+                    logEvent(context, "bluetoothServiceUnbindFailed",
+                            error.toString());
+                }
             }
 
             if (removeListener) removeSessionListener();
