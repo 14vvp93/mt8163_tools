@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@android:id/background">
+    <item android:id="@android:id/background" android:height="@dimen/seekbar_track_height">
         <shape android:shape="rectangle">
             <corners android:radius="4dp" />
             <solid android:color="@color/line" />
         </shape>
     </item>
-    <item android:id="@android:id/progress">
+    <item android:id="@android:id/progress" android:height="@dimen/seekbar_track_height">
         <clip>
             <shape android:shape="rectangle">
                 <corners android:radius="4dp" />
