@@ -440,6 +440,10 @@ public final class MediaRestorer {
         private boolean controllerCallbackRegistered;
         private MediaController vendorController;
         private int profileStateVersion;
+        private int a2dpCallbackVersion;
+        private int avrcpCallbackVersion;
+        private int a2dpCallbackVersionAtRegistration;
+        private int avrcpCallbackVersionAtRegistration;
 
         private final MusicCallback callback = new MusicCallback();
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
@@ -654,15 +658,57 @@ public final class MediaRestorer {
             if (state.get() != State.ACTIVE) return;
             registerCallback(service);
             if (state.get() != State.ACTIVE) return;
+            queryInitialProfileStates(service);
+            if (state.get() != State.ACTIVE) return;
             if (!handler.post(this::onCallbacksReady)) {
                 fail("Unable to dispatch Bluetooth callback readiness");
             }
+        }
+
+        private void queryInitialProfileStates(IBinder service) {
+            queryInitialProfileState(service, true, 1,
+                    a2dpCallbackVersionAtRegistration);
+            queryInitialProfileState(service, false, 2,
+                    avrcpCallbackVersionAtRegistration);
+        }
+
+        private void queryInitialProfileState(IBinder service, boolean a2dp,
+                                              int transaction, int callbackVersionAtRegistration) {
+            final boolean connected;
+            try {
+                connected = queryBoolean(service, transaction);
+            } catch (RemoteException | RuntimeException error) {
+                logEvent(context, a2dp ? "bluetoothA2dpInitialStateFailed"
+                                : "bluetoothAvrcpInitialStateFailed",
+                        error.toString());
+                return;
+            }
+
+            synchronized (lock) {
+                if (state.get() != State.ACTIVE) return;
+                int callbackVersion = a2dp
+                        ? a2dpCallbackVersion : avrcpCallbackVersion;
+                if (callbackVersion != callbackVersionAtRegistration) return;
+
+                if (a2dp) {
+                    a2dpConnected = connected;
+                } else {
+                    avrcpConnected = connected;
+                }
+                profileStateVersion++;
+            }
+
+            logEvent(context, a2dp ? "bluetoothA2dpInitialState"
+                            : "bluetoothAvrcpInitialState",
+                    connected ? "connected" : "disconnected");
         }
 
         private void registerCallback(IBinder service) throws RemoteException {
             synchronized (lock) {
                 if (state.get() != State.ACTIVE) return;
                 callbackRegistrationStarted = true;
+                a2dpCallbackVersionAtRegistration = a2dpCallbackVersion;
+                avrcpCallbackVersionAtRegistration = avrcpCallbackVersion;
             }
 
             Parcel data = Parcel.obtain();
@@ -709,8 +755,10 @@ public final class MediaRestorer {
 
                 profileStateVersion++;
                 if (a2dp) {
+                    a2dpCallbackVersion++;
                     a2dpConnected = connected;
                 } else {
+                    avrcpCallbackVersion++;
                     avrcpConnected = connected;
                 }
 
