@@ -13,6 +13,8 @@ public final class MediaSettingsStore {
             "com.mt8163.tools.action.MEDIA_STATE_CHANGED";
     public static final String ACTION_RESTORE_REQUEST =
             "com.mt8163.tools.action.MEDIA_RESTORE_REQUEST";
+    public static final String ACTION_SNAPSHOT_UPDATED =
+            "com.mt8163.tools.action.MEDIA_SNAPSHOT_UPDATED";
     public static final String EXTRA_ENABLED = "module_enabled";
     public static final String EXTRA_RESTORE_BACKGROUND_MEDIA = "restore_background_media";
     public static final String EXTRA_RESTORE_BACKGROUND_BLUETOOTH =
@@ -25,9 +27,12 @@ public final class MediaSettingsStore {
     public static final String PLAYBACK_PAUSED = "paused";
     public static final String PLAYBACK_UNKNOWN = "unknown";
 
+    private static final String BLUETOOTH_SOURCE_PACKAGE = "com.autochips.bluetooth";
     private static final String MODULE_SETTINGS = "mt8163_tools";
     private static final String HOOK_SETTINGS = "media_hook_config";
     private static final String STATE_SETTINGS = "media_state";
+    private static final String MEDIA_PREFIX = "media_";
+    private static final String BLUETOOTH_PREFIX = "bluetooth_";
 
     private MediaSettingsStore() {
     }
@@ -100,30 +105,78 @@ public final class MediaSettingsStore {
                                        String playbackState, boolean isForeground) {
         if (context == null) return false;
 
+        String source = packageName == null ? "" : packageName;
+        String state = normalizePlaybackState(playbackState);
+        boolean bluetooth = BLUETOOTH_SOURCE_PACKAGE.equals(source);
+        String prefix = bluetooth ? BLUETOOTH_PREFIX : MEDIA_PREFIX;
+
         try {
-            return stateSettings(context.getApplicationContext()).edit()
-                    .putString(EXTRA_SOURCE_PACKAGE, packageName == null ? "" : packageName)
-                    .putString(EXTRA_PLAYBACK_STATE, normalizePlaybackState(playbackState))
+            boolean saved = stateSettings(context.getApplicationContext()).edit()
+                    .putString(EXTRA_SOURCE_PACKAGE, source)
+                    .putString(EXTRA_PLAYBACK_STATE, state)
                     .putBoolean(EXTRA_IS_FOREGROUND, isForeground)
+                    .putBoolean(prefix + "snapshot_saved", true)
+                    .putString(prefix + EXTRA_SOURCE_PACKAGE, source)
+                    .putString(prefix + EXTRA_PLAYBACK_STATE, state)
+                    .putBoolean(prefix + EXTRA_IS_FOREGROUND, isForeground)
                     .commit();
+            if (saved) {
+                Intent updated = new Intent(ACTION_SNAPSHOT_UPDATED);
+                updated.setPackage(context.getApplicationContext().getPackageName());
+                context.getApplicationContext().sendBroadcast(updated);
+            }
+            return saved;
         } catch (RuntimeException error) {
             return false;
         }
     }
 
-    public static String normalizePlaybackState(String state) {
-        if (state == null) return PLAYBACK_UNKNOWN;
+    public static String getMediaSnapshotPackage(Context context) {
+        return getSnapshotPackage(context, MEDIA_PREFIX);
+    }
 
-        String value = state.trim();
-        if (PLAYBACK_PLAYING.equalsIgnoreCase(value)
-                || "start".equalsIgnoreCase(value)
-                || "write".equalsIgnoreCase(value)
-                || "fast_forwarding".equalsIgnoreCase(value)
-                || "rewinding".equalsIgnoreCase(value)) {
-            return PLAYBACK_PLAYING;
-        }
-        if (PLAYBACK_PAUSED.equalsIgnoreCase(value)) return PLAYBACK_PAUSED;
-        return PLAYBACK_UNKNOWN;
+    public static String getBluetoothSnapshotPackage(Context context) {
+        return getSnapshotPackage(context, BLUETOOTH_PREFIX);
+    }
+
+    public static String getMediaSnapshotPlaybackState(Context context) {
+        return getSnapshotPlaybackState(context, MEDIA_PREFIX);
+    }
+
+    public static String getBluetoothSnapshotPlaybackState(Context context) {
+        return getSnapshotPlaybackState(context, BLUETOOTH_PREFIX);
+    }
+
+    public static String getMediaSnapshotWindowState(Context context) {
+        return getSnapshotWindowState(context, MEDIA_PREFIX);
+    }
+
+    public static String getBluetoothSnapshotWindowState(Context context) {
+        return getSnapshotWindowState(context, BLUETOOTH_PREFIX);
+    }
+
+    private static String getSnapshotPackage(Context context, String prefix) {
+        if (context == null || !hasSnapshot(context, prefix)) return "";
+        return stateSettings(context.getApplicationContext())
+                .getString(prefix + EXTRA_SOURCE_PACKAGE, "");
+    }
+
+    private static String getSnapshotPlaybackState(Context context, String prefix) {
+        if (!hasSnapshot(context, prefix)) return PLAYBACK_UNKNOWN;
+        return stateSettings(context.getApplicationContext())
+                .getString(prefix + EXTRA_PLAYBACK_STATE, PLAYBACK_UNKNOWN);
+    }
+
+    private static String getSnapshotWindowState(Context context, String prefix) {
+        if (!hasSnapshot(context, prefix)) return "Unknown";
+        return stateSettings(context.getApplicationContext())
+                .getBoolean(prefix + EXTRA_IS_FOREGROUND, false)
+                ? "Foreground" : "Background";
+    }
+
+    private static boolean hasSnapshot(Context context, String prefix) {
+        return context != null && stateSettings(context.getApplicationContext())
+                .getBoolean(prefix + "snapshot_saved", false);
     }
 
     public static String getSourcePackage(Context context) {
@@ -139,6 +192,21 @@ public final class MediaSettingsStore {
     public static boolean isForeground(Context context) {
         return context != null && stateSettings(context.getApplicationContext())
                 .getBoolean(EXTRA_IS_FOREGROUND, false);
+    }
+
+    public static String normalizePlaybackState(String state) {
+        if (state == null) return PLAYBACK_UNKNOWN;
+
+        String value = state.trim();
+        if (PLAYBACK_PLAYING.equalsIgnoreCase(value)
+                || "start".equalsIgnoreCase(value)
+                || "write".equalsIgnoreCase(value)
+                || "fast_forwarding".equalsIgnoreCase(value)
+                || "rewinding".equalsIgnoreCase(value)) {
+            return PLAYBACK_PLAYING;
+        }
+        if (PLAYBACK_PAUSED.equalsIgnoreCase(value)) return PLAYBACK_PAUSED;
+        return PLAYBACK_UNKNOWN;
     }
 
     private static SharedPreferences stateSettings(Context context) {
