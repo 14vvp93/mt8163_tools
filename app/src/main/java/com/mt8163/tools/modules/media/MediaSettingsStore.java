@@ -36,8 +36,8 @@ public final class MediaSettingsStore {
     private MediaSettingsStore() {
     }
 
-    public static void publish(Context context) {
-        if (context == null) return;
+    public static boolean publish(Context context) {
+        if (context == null) return false;
 
         Context app = context.getApplicationContext();
         SharedPreferences modulePreferences =
@@ -62,7 +62,7 @@ public final class MediaSettingsStore {
                         app, "Media", "configurationSave", "Failed to persist hook settings");
             } catch (RuntimeException ignored) {
             }
-            return;
+            return false;
         }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
@@ -73,6 +73,7 @@ public final class MediaSettingsStore {
         intent.putExtra(EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications);
         try {
             app.sendBroadcast(intent);
+            return true;
         } catch (RuntimeException error) {
             String message = "Failed to send configuration broadcast: "
                     + error.getClass().getSimpleName()
@@ -82,6 +83,7 @@ public final class MediaSettingsStore {
                         app, "Media", "configurationBroadcast", message);
             } catch (RuntimeException ignored) {
             }
+            return false;
         }
     }
 
@@ -109,40 +111,40 @@ public final class MediaSettingsStore {
                 .getBoolean(EXTRA_PLAYBACK_NOTIFICATIONS, false);
     }
 
-    public static void setPlaybackNotifications(Context context, boolean enabled) {
-        if (context == null) return;
+    public static boolean setPlaybackNotifications(Context context, boolean enabled) {
+        if (context == null) return false;
         boolean saved = context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .edit().putBoolean(EXTRA_PLAYBACK_NOTIFICATIONS, enabled).commit();
-        if (saved) {
-            publish(context);
-        } else {
+        if (!saved) {
             logConfigurationSaveFailure(context, EXTRA_PLAYBACK_NOTIFICATIONS);
+            return false;
         }
+        return publish(context);
     }
 
-    public static void setRestoreBackgroundMedia(Context context, boolean enabled) {
-        if (context == null) return;
+    public static boolean setRestoreBackgroundMedia(Context context, boolean enabled) {
+        if (context == null) return false;
         boolean saved = context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, enabled).commit();
-        if (saved) {
-            publish(context);
-        } else {
+        if (!saved) {
             logConfigurationSaveFailure(context, EXTRA_RESTORE_BACKGROUND_MEDIA);
+            return false;
         }
+        return publish(context);
     }
 
-    public static void setRestoreBackgroundBluetooth(Context context, boolean enabled) {
-        if (context == null) return;
+    public static boolean setRestoreBackgroundBluetooth(Context context, boolean enabled) {
+        if (context == null) return false;
         boolean saved = context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, enabled).commit();
-        if (saved) {
-            publish(context);
-        } else {
+        if (!saved) {
             logConfigurationSaveFailure(context, EXTRA_RESTORE_BACKGROUND_BLUETOOTH);
+            return false;
         }
+        return publish(context);
     }
 
     private static void logConfigurationSaveFailure(Context context, String setting) {

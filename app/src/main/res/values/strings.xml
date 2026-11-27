@@ -43,4 +43,7 @@
     <string name="protection_indicator_hide_disabled">Hidden in Recents: disabled</string>
     <string name="protection_indicator_close_enabled">Close via X allowed: enabled</string>
     <string name="protection_indicator_close_disabled">Close via X allowed: disabled</string>
+<string name="media_settings_update_failed">Unable to save or send Media settings. Check Events.</string>
+<string name="voltage_settings_save_failed">Unable to save Voltage settings.</string>
+<string name="voltage_publish_failed">Voltage settings saved, but the system notification failed. Check Events.</string>
 </resources>

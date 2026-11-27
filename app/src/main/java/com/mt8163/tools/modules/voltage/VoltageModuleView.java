@@ -5,6 +5,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.EventLogger;
@@ -54,9 +55,16 @@ public final class VoltageModuleView {
     private static boolean saveAndPublishVoltageOffset(Context context, int seekBarProgress) {
         float voltageOffset = (Math.max(0, Math.min(40, seekBarProgress)) - 20) / 10.0f;
         float previousVoltageOffset = VoltageSettingsStore.getOffset(context);
-        if (!VoltageSettingsStore.saveOffset(context, voltageOffset)) return false;
+        if (!VoltageSettingsStore.saveOffset(context, voltageOffset)) {
+            Toast.makeText(context, R.string.voltage_settings_save_failed,
+                    Toast.LENGTH_SHORT).show();
+            return false;
+        }
 
-        VoltageSettingsStore.publish(context);
+        if (!VoltageSettingsStore.publish(context)) {
+            Toast.makeText(context, R.string.voltage_publish_failed,
+                    Toast.LENGTH_SHORT).show();
+        }
         if (Float.compare(previousVoltageOffset, voltageOffset) != 0) {
             EventLogger.log(context, "Voltage", "settingsChanged",
                     context.getString(R.string.voltage_offset_changed,

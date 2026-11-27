@@ -49,8 +49,8 @@ public final class VoltageSettingsStore {
                 .getBoolean(KEY_ENABLED, false);
     }
 
-    public static void publish(Context context) {
-        if (context == null) return;
+    public static boolean publish(Context context) {
+        if (context == null) return false;
 
         Context app = context.getApplicationContext();
         boolean enabled = isModuleEnabled(app);
@@ -63,7 +63,7 @@ public final class VoltageSettingsStore {
         if (!saved) {
             EventLogger.log(app, "Voltage", "configurationSave",
                     "Failed to persist hook settings");
-            return;
+            return false;
         }
 
         Intent intent = new Intent(ACTION_CONFIG_CHANGED);
@@ -73,12 +73,14 @@ public final class VoltageSettingsStore {
 
         try {
             app.sendBroadcast(intent);
+            return true;
         } catch (RuntimeException error) {
             String message = "Failed to send configuration broadcast: "
                     + error.getClass().getSimpleName()
                     + (error.getMessage() == null ? "" : ": " + error.getMessage());
             Log.e("MT8163Tools", message, error);
             EventLogger.log(app, "Voltage", "configurationBroadcast", message);
+            return false;
         }
     }
 

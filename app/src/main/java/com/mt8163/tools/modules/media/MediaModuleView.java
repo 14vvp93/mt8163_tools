@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.mt8163.tools.R;
 
@@ -46,11 +47,14 @@ public final class MediaModuleView {
                 MediaSettingsStore.isPlaybackNotifications(this.context));
 
         restoreBackgroundMediaSwitch.setOnCheckedChangeListener((button, checked) ->
-                MediaSettingsStore.setRestoreBackgroundMedia(this.context, checked));
+                showSettingsErrorIfNeeded(MediaSettingsStore.setRestoreBackgroundMedia(
+                        this.context, checked)));
         restoreBackgroundBluetoothSwitch.setOnCheckedChangeListener((button, checked) ->
-                MediaSettingsStore.setRestoreBackgroundBluetooth(this.context, checked));
+                showSettingsErrorIfNeeded(MediaSettingsStore.setRestoreBackgroundBluetooth(
+                        this.context, checked)));
         playbackNotificationsSwitch.setOnCheckedChangeListener((button, checked) ->
-                MediaSettingsStore.setPlaybackNotifications(this.context, checked));
+                showSettingsErrorIfNeeded(MediaSettingsStore.setPlaybackNotifications(
+                        this.context, checked)));
 
         root.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
@@ -67,6 +71,13 @@ public final class MediaModuleView {
 
         if (root.isAttachedToWindow()) registerMediaSnapshotReceiver();
         refreshMediaSnapshot();
+    }
+
+    private void showSettingsErrorIfNeeded(boolean successful) {
+        if (!successful) {
+            Toast.makeText(context, R.string.media_settings_update_failed,
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void refreshMediaSnapshot() {
