@@ -1,10 +1,12 @@
 package com.mt8163.tools.xposed.hooks.protection;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Bundle;
 import android.view.View;
 import android.view.ViewParent;
 
@@ -13,6 +15,7 @@ import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
 import com.mt8163.tools.modules.protection.ProtectionTaskMatcher;
 import com.mt8163.tools.xposed.PackageHook;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,10 +35,16 @@ public final class ProtectionHook implements PackageHook {
     private static final String KEY_APPLICATIONS = "applications";
     private static final Object LOCK = new Object();
     private static final ThreadLocal<CleanerState> CLEANER_STATE = new ThreadLocal<>();
+    private static final List<XC_MethodHook.Unhook> FEATURE_HOOKS = new ArrayList<>();
 
     private static boolean applicationHookInstalled;
+    private static boolean recentsLifecycleHooksInstalled;
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
+    private static boolean recentsStackModified;
+    private static ClassLoader systemUiClassLoader;
+    private static WeakReference<Activity> recentsActivity = new WeakReference<>(null);
+    private static BroadcastReceiver configurationReceiver;
 
     @Override
     public boolean supports(String packageName) {
@@ -51,6 +60,7 @@ public final class ProtectionHook implements PackageHook {
         }
 
         synchronized (LOCK) {
+            systemUiClassLoader = param.classLoader;
             if (!applicationHookInstalled) {
                 XposedHelpers.findAndHookMethod(
                         APPLICATION_CLASS,
@@ -68,14 +78,108 @@ public final class ProtectionHook implements PackageHook {
                 applicationHookInstalled = true;
             }
 
-            if (!hooksInstalled) {
-                installRecentsHooks(param.classLoader);
-                installMemoryCleanerHooks(param.classLoader);
-                hooksInstalled = true;
+            if (!recentsLifecycleHooksInstalled) {
+                installRecentsLifecycleHooks(param.classLoader);
+                recentsLifecycleHooksInstalled = true;
             }
         }
 
-        XposedBridge.log("MT8163 Tools: Protection SystemUI hooks installed");
+        loadConfiguration();
+        XposedBridge.log("MT8163 Tools: Protection SystemUI support hooks installed");
+    }
+
+    @Override
+    public String moduleId() {
+        return "protection";
+    }
+
+    @Override
+    public void uninstall() {
+        ProtectionTaskMatcher.update(ProtectionConfig.empty());
+        disableFeatureHooks();
+    }
+
+    private static void installRecentsLifecycleHooks(ClassLoader loader) {
+        XposedHelpers.findAndHookMethod(
+                "com.android.systemui.recents.RecentsActivity",
+                loader,
+                "onCreate",
+                Bundle.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        if (param.thisObject instanceof Activity) {
+                            synchronized (LOCK) {
+                                recentsActivity = new WeakReference<>((Activity) param.thisObject);
+                            }
+                        }
+                    }
+                });
+
+        XposedHelpers.findAndHookMethod(
+                "com.android.systemui.recents.RecentsActivity",
+                loader,
+                "onDestroy",
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) {
+                        synchronized (LOCK) {
+                            if (recentsActivity.get() == param.thisObject) {
+                                recentsActivity = new WeakReference<>(null);
+                            }
+                        }
+                    }
+                });
+    }
+
+    private static void enableFeatureHooks() {
+        synchronized (LOCK) {
+            if (hooksInstalled || systemUiClassLoader == null) return;
+            installRecentsHooks(systemUiClassLoader);
+            installMemoryCleanerHooks(systemUiClassLoader);
+            hooksInstalled = true;
+        }
+    }
+
+    private static void disableFeatureHooks() {
+        synchronized (LOCK) {
+            for (int i = FEATURE_HOOKS.size() - 1; i >= 0; i--) {
+                try {
+                    FEATURE_HOOKS.get(i).unhook();
+                } catch (Throwable error) {
+                    XposedBridge.log("MT8163 Tools: Protection unhook failed: " + error);
+                }
+            }
+            FEATURE_HOOKS.clear();
+            hooksInstalled = false;
+            CLEANER_STATE.remove();
+        }
+        refreshRecentsIfNeeded();
+    }
+
+    private static void refreshRecentsIfNeeded() {
+        if (!recentsStackModified) return;
+
+        Activity activity;
+        synchronized (LOCK) {
+            activity = recentsActivity.get();
+        }
+
+        if (activity == null || !Boolean.TRUE.equals(readField(activity, "mIsVisible"))) {
+            recentsStackModified = false;
+            return;
+        }
+
+        activity.runOnUiThread(() -> {
+            try {
+                XposedHelpers.callMethod(activity, "reloadTaskStack",
+                        activity.isInMultiWindowMode(), false);
+                recentsStackModified = false;
+                XposedBridge.log("MT8163 Tools: Protection Recents stack refreshed");
+            } catch (Throwable error) {
+                XposedBridge.log("MT8163 Tools: Protection Recents refresh failed: " + error);
+            }
+        });
     }
 
     private static void installRecentsHooks(ClassLoader loader) {
@@ -364,7 +468,10 @@ public final class ProtectionHook implements PackageHook {
             }
         }
 
-        if (changed) call(stack, "setTasks", visibleTasks, false);
+        if (changed) {
+            call(stack, "setTasks", visibleTasks, false);
+            recentsStackModified = true;
+        }
     }
 
     private static Object getTaskFromView(View view) {
@@ -456,7 +563,7 @@ public final class ProtectionHook implements PackageHook {
         synchronized (LOCK) {
             if (receiverRegistered) return;
 
-            BroadcastReceiver receiver = new BroadcastReceiver() {
+            configurationReceiver = new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context receiverContext, Intent intent) {
                     if (intent == null
@@ -467,7 +574,7 @@ public final class ProtectionHook implements PackageHook {
             };
 
             try {
-                appContext.registerReceiver(receiver,
+                appContext.registerReceiver(configurationReceiver,
                         new IntentFilter(ProtectionSettingsStore.ACTION_CONFIG_CHANGED),
                         "com.mt8163.tools.permission.UPDATE_PROTECTION_CONFIG",
                         null);
@@ -484,6 +591,7 @@ public final class ProtectionHook implements PackageHook {
     }
 
     private static void loadConfiguration() {
+        ProtectionConfig config;
         try {
             XSharedPreferences preferences =
                     new XSharedPreferences(APP_PACKAGE, SETTINGS_FILE);
@@ -491,16 +599,24 @@ public final class ProtectionHook implements PackageHook {
 
             boolean enabled = preferences.getBoolean(KEY_ENABLED, false);
             String applications = preferences.getString(KEY_APPLICATIONS, "{}");
-            ProtectionTaskMatcher.update(ProtectionConfig.fromJson(enabled, applications));
+            config = ProtectionConfig.fromJson(enabled, applications);
         } catch (Throwable error) {
             XposedBridge.log("MT8163 Tools: Protection configuration load failed: " + error);
-            ProtectionTaskMatcher.update(ProtectionConfig.empty());
+            config = ProtectionConfig.empty();
+        }
+
+        ProtectionTaskMatcher.update(config);
+        if (config.isEnabled()) {
+            enableFeatureHooks();
+        } else {
+            disableFeatureHooks();
         }
     }
 
     private static void installHook(String name, HookInstaller installer) {
         try {
-            installer.install();
+            XC_MethodHook.Unhook unhook = installer.install();
+            if (unhook != null) FEATURE_HOOKS.add(unhook);
             XposedBridge.log("MT8163 Tools: Protection installed " + name);
         } catch (Throwable error) {
             XposedBridge.log("MT8163 Tools: Protection failed to install "
@@ -509,7 +625,7 @@ public final class ProtectionHook implements PackageHook {
     }
 
     private interface HookInstaller {
-        void install() throws Throwable;
+        XC_MethodHook.Unhook install() throws Throwable;
     }
 
     private enum ProtectionType {
