@@ -6,4 +6,11 @@ public interface PackageHook {
     boolean supports(String packageName);
 
     void install(XC_LoadPackage.LoadPackageParam param) throws Throwable;
+
+    default String moduleId() {
+        return getClass().getSimpleName();
+    }
+
+    default void uninstall() throws Throwable {
+    }
 }
