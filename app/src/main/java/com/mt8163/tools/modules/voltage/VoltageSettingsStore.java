@@ -32,10 +32,15 @@ public final class VoltageSettingsStore {
         return isValidOffset(value) ? value : 0.0f;
     }
 
-    public static void saveOffset(Context context, float value) {
-        if (isValidOffset(value)) {
-            settings(context).edit().putFloat(KEY_OFFSET, value).commit();
+    public static boolean saveOffset(Context context, float value) {
+        if (!isValidOffset(value)) return false;
+
+        boolean saved = settings(context).edit().putFloat(KEY_OFFSET, value).commit();
+        if (!saved) {
+            EventLogger.log(context, "Voltage", "settingsSave",
+                    "Failed to persist voltage offset");
         }
+        return saved;
     }
 
     public static boolean isModuleEnabled(Context context) {
