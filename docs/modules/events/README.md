@@ -29,6 +29,8 @@ The module name is displayed in red and the source in green.
 - Oldest records are removed after the limit is exceeded.
 - The display loads 100 records at a time and loads older records when scrolling to the top.
 - Database reads and export preparation run outside the UI thread.
+- Android 9 retries database lock contention for up to 2.5 seconds before returning a lock error; failed writes are counted and logged.
+- SQLite's default corruption handler logs and deletes a corrupted database. A new empty database is created on the next open; corrupted history cannot be recovered.
 - Module filtering affects display, copy, and filtered export only. It does not delete records.
 - Export supports the current filter or the complete history as UTF-8 TXT.
 - Rejected or failed writes are counted and shown in the Events view.
