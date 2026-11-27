@@ -50,6 +50,11 @@ public final class BluetoothMusicClient {
                 return;
             }
 
+            synchronized (lock) {
+                if (closed || completed || queryStarted) return;
+                queryStarted = true;
+            }
+
             if (ACTIVE_QUERIES.incrementAndGet() > MAX_ACTIVE_QUERIES) {
                 ACTIVE_QUERIES.decrementAndGet();
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
@@ -90,7 +95,8 @@ public final class BluetoothMusicClient {
 
     public BluetoothMusicClient(Context context, Listener listener) {
         if (context == null) throw new IllegalArgumentException("context == null");
-        this.context = context.getApplicationContext();
+        Context appContext = context.getApplicationContext();
+        this.context = appContext != null ? appContext : context;
         this.listener = listener;
     }
 
@@ -125,11 +131,6 @@ public final class BluetoothMusicClient {
     }
 
     private void querySnapshot(IBinder binder) {
-        synchronized (lock) {
-            if (closed || completed || queryStarted) return;
-            queryStarted = true;
-        }
-
         String state;
         try {
             state = queryBoolean(binder, TRANSACTION_IS_A2DP_PLAYING)
