@@ -380,12 +380,12 @@ public final class ProtectionHook implements PackageHook {
                         new XC_MethodHook() {
                             @Override
                             protected void beforeHookedMethod(MethodHookParam param) {
-                                CleanerState parent = CLEANER_STATE.get();
-                                if (parent == null) return;
+                                CleanerState state = CLEANER_STATE.get();
+                                if (state == null) return;
 
-                                CleanerState state = new CleanerState();
-                                state.parent = parent;
-                                CLEANER_STATE.set(state);
+                                state.protectCurrentTask = false;
+                                state.taskId = -1;
+                                state.packageName = null;
 
                                 if (param.args == null || param.args.length == 0) return;
 
@@ -397,11 +397,6 @@ public final class ProtectionHook implements PackageHook {
                                 state.packageName = identity == null
                                         ? null : identity.packageName;
                                 if (state.protectCurrentTask) param.setResult(null);
-                            }
-
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam param) {
-                                restoreCleanerState();
                             }
                         }));
 
