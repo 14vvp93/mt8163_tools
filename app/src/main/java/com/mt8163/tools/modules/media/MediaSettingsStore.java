@@ -31,8 +31,6 @@ public final class MediaSettingsStore {
     private static final String MODULE_SETTINGS = "mt8163_tools";
     private static final String HOOK_SETTINGS = "media_hook_config";
     private static final String STATE_SETTINGS = "media_state";
-    private static final String MEDIA_PREFIX = "media_";
-    private static final String BLUETOOTH_PREFIX = "bluetooth_";
 
     private MediaSettingsStore() {
     }
@@ -105,21 +103,26 @@ public final class MediaSettingsStore {
                                        String playbackState, boolean isForeground) {
         if (context == null) return false;
 
-        String source = packageName == null ? "" : packageName;
+        String source = packageName == null ? "" : packageName.trim();
         String state = normalizePlaybackState(playbackState);
-        boolean bluetooth = BLUETOOTH_SOURCE_PACKAGE.equals(source);
-        String prefix = bluetooth ? BLUETOOTH_PREFIX : MEDIA_PREFIX;
 
         try {
-            boolean saved = stateSettings(context.getApplicationContext()).edit()
-                    .putString(EXTRA_SOURCE_PACKAGE, source)
-                    .putString(EXTRA_PLAYBACK_STATE, state)
-                    .putBoolean(EXTRA_IS_FOREGROUND, isForeground)
-                    .putBoolean(prefix + "snapshot_saved", true)
-                    .putString(prefix + EXTRA_SOURCE_PACKAGE, source)
-                    .putString(prefix + EXTRA_PLAYBACK_STATE, state)
-                    .putBoolean(prefix + EXTRA_IS_FOREGROUND, isForeground)
-                    .commit();
+            SharedPreferences.Editor editor =
+                    stateSettings(context.getApplicationContext()).edit()
+                            .putString(EXTRA_SOURCE_PACKAGE, source)
+                            .putString(EXTRA_PLAYBACK_STATE, state)
+                            .putBoolean(EXTRA_IS_FOREGROUND, isForeground);
+
+            editor.remove("media_snapshot_saved")
+                    .remove("media_source_package")
+                    .remove("media_playback_state")
+                    .remove("media_is_foreground")
+                    .remove("bluetooth_snapshot_saved")
+                    .remove("bluetooth_source_package")
+                    .remove("bluetooth_playback_state")
+                    .remove("bluetooth_is_foreground");
+
+            boolean saved = editor.commit();
             if (saved) {
                 Intent updated = new Intent(ACTION_SNAPSHOT_UPDATED);
                 updated.setPackage(context.getApplicationContext().getPackageName());
@@ -131,54 +134,6 @@ public final class MediaSettingsStore {
         }
     }
 
-    public static String getMediaSnapshotPackage(Context context) {
-        return getSnapshotPackage(context, MEDIA_PREFIX);
-    }
-
-    public static String getBluetoothSnapshotPackage(Context context) {
-        return getSnapshotPackage(context, BLUETOOTH_PREFIX);
-    }
-
-    public static String getMediaSnapshotPlaybackState(Context context) {
-        return getSnapshotPlaybackState(context, MEDIA_PREFIX);
-    }
-
-    public static String getBluetoothSnapshotPlaybackState(Context context) {
-        return getSnapshotPlaybackState(context, BLUETOOTH_PREFIX);
-    }
-
-    public static String getMediaSnapshotWindowState(Context context) {
-        return getSnapshotWindowState(context, MEDIA_PREFIX);
-    }
-
-    public static String getBluetoothSnapshotWindowState(Context context) {
-        return getSnapshotWindowState(context, BLUETOOTH_PREFIX);
-    }
-
-    private static String getSnapshotPackage(Context context, String prefix) {
-        if (context == null || !hasSnapshot(context, prefix)) return "";
-        return stateSettings(context.getApplicationContext())
-                .getString(prefix + EXTRA_SOURCE_PACKAGE, "");
-    }
-
-    private static String getSnapshotPlaybackState(Context context, String prefix) {
-        if (!hasSnapshot(context, prefix)) return PLAYBACK_UNKNOWN;
-        return stateSettings(context.getApplicationContext())
-                .getString(prefix + EXTRA_PLAYBACK_STATE, PLAYBACK_UNKNOWN);
-    }
-
-    private static String getSnapshotWindowState(Context context, String prefix) {
-        if (!hasSnapshot(context, prefix)) return "Unknown";
-        return stateSettings(context.getApplicationContext())
-                .getBoolean(prefix + EXTRA_IS_FOREGROUND, false)
-                ? "Foreground" : "Background";
-    }
-
-    private static boolean hasSnapshot(Context context, String prefix) {
-        return context != null && stateSettings(context.getApplicationContext())
-                .getBoolean(prefix + "snapshot_saved", false);
-    }
-
     public static String getSourcePackage(Context context) {
         return context == null ? "" : stateSettings(context.getApplicationContext())
                 .getString(EXTRA_SOURCE_PACKAGE, "");
@@ -186,12 +141,16 @@ public final class MediaSettingsStore {
 
     public static String getPlaybackState(Context context) {
         return context == null ? "" : stateSettings(context.getApplicationContext())
-                .getString(EXTRA_PLAYBACK_STATE, "");
+                .getString(EXTRA_PLAYBACK_STATE, PLAYBACK_UNKNOWN);
     }
 
     public static boolean isForeground(Context context) {
         return context != null && stateSettings(context.getApplicationContext())
                 .getBoolean(EXTRA_IS_FOREGROUND, false);
+    }
+
+    public static boolean isBluetoothSource(Context context) {
+        return BLUETOOTH_SOURCE_PACKAGE.equals(getSourcePackage(context));
     }
 
     public static String normalizePlaybackState(String state) {
