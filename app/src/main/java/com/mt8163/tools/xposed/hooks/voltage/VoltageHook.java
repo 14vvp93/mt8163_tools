@@ -149,9 +149,19 @@ public final class VoltageHook implements PackageHook {
                 }
             }
         } finally {
+            boolean retry;
             synchronized (LOCK) {
                 installInProgress = false;
+                retry = installRequested;
                 installRequested = false;
+            }
+
+            if (retry) {
+                try {
+                    install(param);
+                } catch (Throwable error) {
+                    logInstallFailure("Voltage hook retry failed", error);
+                }
             }
         }
     }
