@@ -2,6 +2,7 @@ package com.mt8163.tools.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Log;
 
 public final class PreferencesManager {
     private static final String PREFERENCES_NAME = "mt8163_tools";
@@ -19,8 +20,11 @@ public final class PreferencesManager {
     }
 
     public void setModuleEnabled(String moduleId, boolean enabled) {
-        preferences.edit()
+        boolean saved = preferences.edit()
                 .putBoolean(MODULE_ENABLED_KEY_PREFIX + moduleId, enabled)
                 .commit();
+        if (!saved) {
+            Log.e("MT8163Tools", "Failed to persist module state: " + moduleId);
+        }
     }
 }
