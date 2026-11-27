@@ -13,6 +13,8 @@ public final class DialogHelper {
     private static final int COMPACT_WIDTH_DP = 480;
     private static final int SCREEN_MARGIN_DP = 48;
 
+    private static Dialog activeDialog;
+
     private DialogHelper() {
     }
 
@@ -24,14 +26,30 @@ public final class DialogHelper {
         show(activity, dialog, content, COMPACT_WIDTH_DP, 0);
     }
 
-    private static void show(Activity activity, Dialog dialog, View content,
-                             int maxWidthDp, int maxHeightDp) {
+    private static synchronized void show(Activity activity, Dialog dialog, View content,
+                                           int maxWidthDp, int maxHeightDp) {
         if (activity == null || dialog == null || content == null
-                || activity.isFinishing() || activity.isDestroyed()) return;
+                || activity.isFinishing() || activity.isDestroyed()
+                || dialog.isShowing()) return;
+
+        if (activeDialog != null && activeDialog.isShowing()) return;
+        activeDialog = null;
 
         dialog.setContentView(content);
         dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
+        dialog.setOnDismissListener(dismissedDialog -> {
+            synchronized (DialogHelper.class) {
+                if (activeDialog == dismissedDialog) activeDialog = null;
+            }
+        });
+
+        activeDialog = dialog;
+        try {
+            dialog.show();
+        } catch (RuntimeException error) {
+            activeDialog = null;
+            throw error;
+        }
 
         Window window = dialog.getWindow();
         if (window == null) return;
