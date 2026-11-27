@@ -146,7 +146,6 @@ public final class MediaHook implements PackageHook {
                         }
                     });
             logEvent("accHookInstalled", "MCU ACC receiver hook installed");
-            logEvent("accHookInstalled", "MCU ACC receiver hook installed");
             return hook;
         } catch (Throwable error) {
             reportError("accHook", error);
@@ -299,8 +298,10 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void captureSnapshot() {
+        final long generation;
         synchronized (LOCK) {
             if (!moduleEnabled || !snapshotInProgress) return;
+            generation = lifecycleGeneration;
         }
         Context context = systemContext;
         String packageName = "";
@@ -317,7 +318,7 @@ public final class MediaHook implements PackageHook {
             isForeground = isSourceForeground(packageName);
 
             if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
-                captureBluetoothSnapshot(context, packageName, isForeground);
+                captureBluetoothSnapshot(context, packageName, isForeground, generation);
                 return;
             }
 
@@ -329,24 +330,25 @@ public final class MediaHook implements PackageHook {
             reportError("snapshot", error);
         }
 
-        completeSnapshot(context, packageName, playbackState, isForeground);
+        completeSnapshot(context, packageName, playbackState, isForeground, generation);
     }
 
     private static void captureBluetoothSnapshot(Context context, String packageName,
-                                                 boolean isForeground) {
+                                                 boolean isForeground, long generation) {
         if (!isModuleEnabled()) return;
         if (context == null) {
             completeSnapshot(null, packageName,
-                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
+                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground, generation);
             return;
         }
 
         BluetoothMusicClient client = new BluetoothMusicClient(context, state ->
                 completeSnapshot(context, packageName,
-                        MediaSettingsStore.normalizePlaybackState(state), isForeground));
+                        MediaSettingsStore.normalizePlaybackState(state), isForeground, generation));
         boolean accepted;
         synchronized (LOCK) {
-            accepted = snapshotInProgress && moduleEnabled;
+            accepted = snapshotInProgress && moduleEnabled
+                    && lifecycleGeneration == generation;
             if (accepted) bluetoothClient = client;
         }
         if (!accepted) {
@@ -360,15 +362,17 @@ public final class MediaHook implements PackageHook {
             }
             client.disconnect();
             completeSnapshot(context, packageName,
-                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
+                    MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground, generation);
             logEvent("bluetoothBindFailed", "Unable to bind BluetoothMusicService");
         }
     }
 
     private static void completeSnapshot(Context context, String packageName,
-                                         String playbackState, boolean isForeground) {
+                                         String playbackState, boolean isForeground,
+                                         long generation) {
         synchronized (LOCK) {
-            if (!moduleEnabled || !snapshotInProgress) return;
+            if (!moduleEnabled || !snapshotInProgress
+                    || lifecycleGeneration != generation) return;
             bluetoothClient = null;
         }
 
@@ -376,13 +380,13 @@ public final class MediaHook implements PackageHook {
         String state = MediaSettingsStore.normalizePlaybackState(playbackState);
 
         if (context == null) {
-            completeSnapshotSave(false, source, state, isForeground);
+            completeSnapshotSave(false, source, state, isForeground, generation);
             return;
         }
 
         if (!BLUETOOTH_SOURCE_PACKAGE.equals(source)
                 && MediaSettingsStore.PLAYBACK_PLAYING.equals(state)) {
-            pauseActivePlayer(source);
+            if (isLifecycleActive(generation)) pauseActivePlayer(source);
         }
 
         Intent intent = new Intent(ACTION_STATE_CHANGED);
@@ -395,20 +399,22 @@ public final class MediaHook implements PackageHook {
                 @Override
                 public void onReceive(Context resultContext, Intent resultIntent) {
                     boolean saved = getResultCode() == Activity.RESULT_OK;
-                    completeSnapshotSave(saved, source, state, isForeground);
+                    completeSnapshotSave(saved, source, state, isForeground, generation);
                 }
             }, null, Activity.RESULT_CANCELED, null, null);
         } catch (RuntimeException error) {
             reportError("snapshotBroadcast", error);
-            completeSnapshotSave(false, source, state, isForeground);
+            completeSnapshotSave(false, source, state, isForeground, generation);
         }
     }
 
     private static void completeSnapshotSave(boolean saved, String source,
-                                             String state, boolean isForeground) {
+                                             String state, boolean isForeground,
+                                             long generation) {
         boolean startRestore = false;
         synchronized (LOCK) {
-            if (!moduleEnabled || !snapshotInProgress) return;
+            if (!moduleEnabled || !snapshotInProgress
+                    || lifecycleGeneration != generation) return;
             snapshotInProgress = false;
             if (saved) {
                 logEvent("snapshotSaved", "sourcePackage=" + display(source)
@@ -456,12 +462,14 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void requestSnapshotForRestore() {
+        final long generation;
         synchronized (LOCK) {
             if (!moduleEnabled || !restoreInProgress) return;
+            generation = lifecycleGeneration;
         }
         Context context = systemContext;
         if (context == null) {
-            finishRestore();
+            finishRestore(generation);
             return;
         }
 
@@ -471,10 +479,11 @@ public final class MediaHook implements PackageHook {
             context.sendOrderedBroadcast(request, null, new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context resultContext, Intent resultIntent) {
+                    if (!isLifecycleActive(generation)) return;
                     Bundle result = getResultExtras(false);
                     if (getResultCode() != Activity.RESULT_OK || result == null) {
                         logEvent("restoreSnapshot", "No persisted Snapshot available");
-                        finishRestore();
+                        finishRestore(generation);
                         return;
                     }
 
@@ -489,17 +498,15 @@ public final class MediaHook implements PackageHook {
                             EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
 
                     synchronized (LOCK) {
-                        if (!moduleEnabled || !enabled || !accState || !restoreInProgress) {
-                            finishRestoreLocked();
-                            return;
-                        }
+                        if (lifecycleGeneration != generation || !moduleEnabled
+                                || !enabled || !accState || !restoreInProgress) return;
                         restoreBackgroundMedia = restoreMedia;
                         restoreBackgroundBluetooth = restoreBluetooth;
                     }
 
                     if (packageName.isEmpty()) {
                         logEvent("restoreSnapshot", "Snapshot source is empty");
-                        finishRestore();
+                        finishRestore(generation);
                         return;
                     }
 
@@ -509,11 +516,12 @@ public final class MediaHook implements PackageHook {
 
                     MediaRestorer.Cancellable operation = MediaRestorer.restore(
                             context, packageName, playbackState, foreground,
-                            restoreMedia, restoreBluetooth, MediaHook::finishRestore);
+                            restoreMedia, restoreBluetooth, () -> finishRestore(generation));
 
                     boolean cancelOperation;
                     synchronized (LOCK) {
-                        cancelOperation = !restoreInProgress || !moduleEnabled || !accState;
+                        cancelOperation = lifecycleGeneration != generation
+                                || !restoreInProgress || !moduleEnabled || !accState;
                         if (!cancelOperation) activeRestoration = operation;
                     }
                     if (cancelOperation) operation.cancel();
@@ -521,13 +529,19 @@ public final class MediaHook implements PackageHook {
             }, null, Activity.RESULT_CANCELED, null, null);
         } catch (RuntimeException error) {
             reportError("restoreSnapshot", error);
-            finishRestore();
+            finishRestore(generation);
         }
     }
 
-    private static void finishRestore() {
+    private static void finishRestore(long generation) {
         synchronized (LOCK) {
-            finishRestoreLocked();
+            if (lifecycleGeneration == generation) finishRestoreLocked();
+        }
+    }
+
+    private static boolean isLifecycleActive(long generation) {
+        synchronized (LOCK) {
+            return moduleEnabled && lifecycleGeneration == generation;
         }
     }
 
