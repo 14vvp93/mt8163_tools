@@ -63,7 +63,7 @@ public final class MediaHook implements PackageHook {
     private static boolean snapshotInProgress;
     private static boolean restorePending;
     private static boolean restoreInProgress;
-    private static Context systemContext;
+    private static volatile Context systemContext;
     private static Object windowManagerService;
     private static BluetoothMusicClient bluetoothClient;
     private static MediaRestorer.Cancellable activeRestoration;
