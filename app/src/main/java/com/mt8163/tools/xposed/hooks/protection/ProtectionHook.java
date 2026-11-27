@@ -36,9 +36,10 @@ public final class ProtectionHook implements PackageHook {
     private static final Object LOCK = new Object();
     private static final ThreadLocal<CleanerState> CLEANER_STATE = new ThreadLocal<>();
     private static final List<XC_MethodHook.Unhook> FEATURE_HOOKS = new ArrayList<>();
+    private static final List<XC_MethodHook.Unhook> SUPPORT_HOOKS = new ArrayList<>();
 
-    private static boolean applicationHookInstalled;
-    private static boolean recentsLifecycleHooksInstalled;
+    private static boolean supportHooksInstalled;
+    private static boolean featureHookInstallFailed;
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
     private static boolean recentsStackModified;
@@ -61,26 +62,8 @@ public final class ProtectionHook implements PackageHook {
 
         synchronized (LOCK) {
             systemUiClassLoader = param.classLoader;
-            if (!applicationHookInstalled) {
-                XposedHelpers.findAndHookMethod(
-                        APPLICATION_CLASS,
-                        param.classLoader,
-                        "onCreate",
-                        new XC_MethodHook() {
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam hookParam) {
-                                if (hookParam.thisObject instanceof Context) {
-                                    registerConfigurationReceiver(
-                                            (Context) hookParam.thisObject);
-                                }
-                            }
-                        });
-                applicationHookInstalled = true;
-            }
-
-            if (!recentsLifecycleHooksInstalled) {
-                installRecentsLifecycleHooks(param.classLoader);
-                recentsLifecycleHooksInstalled = true;
+            if (!supportHooksInstalled) {
+                installSupportHooks(param.classLoader);
             }
         }
 
@@ -99,57 +82,96 @@ public final class ProtectionHook implements PackageHook {
         disableFeatureHooks();
     }
 
-    private static void installRecentsLifecycleHooks(ClassLoader loader) {
-        XposedHelpers.findAndHookMethod(
-                "com.android.systemui.recents.RecentsActivity",
-                loader,
-                "onCreate",
-                Bundle.class,
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        if (param.thisObject instanceof Activity) {
-                            synchronized (LOCK) {
-                                recentsActivity = new WeakReference<>((Activity) param.thisObject);
+    private static void installSupportHooks(ClassLoader loader) throws Throwable {
+        List<XC_MethodHook.Unhook> installed = new ArrayList<>();
+        try {
+            installed.add(XposedHelpers.findAndHookMethod(
+                    APPLICATION_CLASS,
+                    loader,
+                    "onCreate",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam hookParam) {
+                            if (hookParam.thisObject instanceof Context) {
+                                registerConfigurationReceiver((Context) hookParam.thisObject);
                             }
                         }
-                    }
-                });
+                    }));
+            installed.addAll(installRecentsLifecycleHooks(loader));
+            SUPPORT_HOOKS.addAll(installed);
+            supportHooksInstalled = true;
+            XposedBridge.log("MT8163 Tools: Protection support hooks installed");
+        } catch (Throwable error) {
+            unhookAll(installed, "support");
+            throw error;
+        }
+    }
 
-        XposedHelpers.findAndHookMethod(
-                "com.android.systemui.recents.RecentsActivity",
-                loader,
-                "onDestroy",
-                new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) {
-                        synchronized (LOCK) {
-                            if (recentsActivity.get() == param.thisObject) {
-                                recentsActivity = new WeakReference<>(null);
+    private static List<XC_MethodHook.Unhook> installRecentsLifecycleHooks(
+            ClassLoader loader) throws Throwable {
+        List<XC_MethodHook.Unhook> installed = new ArrayList<>();
+        try {
+            installed.add(XposedHelpers.findAndHookMethod(
+                    "com.android.systemui.recents.RecentsActivity",
+                    loader,
+                    "onCreate",
+                    Bundle.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            if (param.thisObject instanceof Activity) {
+                                synchronized (LOCK) {
+                                    recentsActivity = new WeakReference<>(
+                                            (Activity) param.thisObject);
+                                }
                             }
                         }
-                    }
-                });
+                    }));
+
+            installed.add(XposedHelpers.findAndHookMethod(
+                    "com.android.systemui.recents.RecentsActivity",
+                    loader,
+                    "onDestroy",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            synchronized (LOCK) {
+                                if (recentsActivity.get() == param.thisObject) {
+                                    recentsActivity = new WeakReference<>(null);
+                                }
+                            }
+                        }
+                    }));
+            return installed;
+        } catch (Throwable error) {
+            unhookAll(installed, "support");
+            throw error;
+        }
     }
 
     private static void enableFeatureHooks() {
         synchronized (LOCK) {
             if (hooksInstalled || systemUiClassLoader == null) return;
+
+            featureHookInstallFailed = false;
             installRecentsHooks(systemUiClassLoader);
             installMemoryCleanerHooks(systemUiClassLoader);
+
+            if (featureHookInstallFailed) {
+                unhookAll(FEATURE_HOOKS, "feature");
+                FEATURE_HOOKS.clear();
+                hooksInstalled = false;
+                XposedBridge.log("MT8163 Tools: Protection feature installation rolled back");
+                return;
+            }
+
             hooksInstalled = true;
         }
     }
 
     private static void disableFeatureHooks() {
         synchronized (LOCK) {
-            for (int i = FEATURE_HOOKS.size() - 1; i >= 0; i--) {
-                try {
-                    FEATURE_HOOKS.get(i).unhook();
-                } catch (Throwable error) {
-                    XposedBridge.log("MT8163 Tools: Protection unhook failed: " + error);
-                }
-            }
+            unhookAll(FEATURE_HOOKS, "feature");
             FEATURE_HOOKS.clear();
             hooksInstalled = false;
             CLEANER_STATE.remove();
@@ -616,11 +638,26 @@ public final class ProtectionHook implements PackageHook {
     private static void installHook(String name, HookInstaller installer) {
         try {
             XC_MethodHook.Unhook unhook = installer.install();
-            if (unhook != null) FEATURE_HOOKS.add(unhook);
+            if (unhook == null) {
+                throw new IllegalStateException("Hook returned no Unhook handle");
+            }
+            FEATURE_HOOKS.add(unhook);
             XposedBridge.log("MT8163 Tools: Protection installed " + name);
         } catch (Throwable error) {
+            featureHookInstallFailed = true;
             XposedBridge.log("MT8163 Tools: Protection failed to install "
                     + name + ": " + error);
+        }
+    }
+
+    private static void unhookAll(List<XC_MethodHook.Unhook> hooks, String type) {
+        for (int i = hooks.size() - 1; i >= 0; i--) {
+            try {
+                hooks.get(i).unhook();
+            } catch (Throwable error) {
+                XposedBridge.log("MT8163 Tools: Protection " + type
+                        + " unhook failed: " + error);
+            }
         }
     }
 
