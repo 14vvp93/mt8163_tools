@@ -302,15 +302,7 @@ public final class ProtectionModuleView {
             filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
             filter.addDataScheme("package");
 
-            context.registerReceiver(new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context receiverContext, Intent intent) {
-                    synchronized (APPLICATION_CACHE_LOCK) {
-                        installedApplicationsCache = null;
-                        applicationIconCache.clear();
-                    }
-                }
-            }, filter);
+            context.registerReceiver(new PackageChangeReceiver(), filter);
             packageReceiverRegistered = true;
         }
     }
@@ -361,6 +353,16 @@ public final class ProtectionModuleView {
 
     private void showToast(int messageResource) {
         Toast.makeText(protectionActivity, messageResource, Toast.LENGTH_SHORT).show();
+    }
+
+    private static final class PackageChangeReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            synchronized (APPLICATION_CACHE_LOCK) {
+                installedApplicationsCache = null;
+                applicationIconCache.clear();
+            }
+        }
     }
 
     private static final class ProtectedApplicationEntry {
