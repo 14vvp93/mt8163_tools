@@ -124,9 +124,16 @@ public final class EventManager {
         }
         try {
             reader.execute(() -> {
-                List<EventRecord> records = enabled
-                        ? database.read(modules, limit, beforeId) : Collections.emptyList();
-                main.post(() -> callback.accept(enabled ? records : Collections.emptyList()));
+                List<EventRecord> records;
+                try {
+                    records = enabled
+                            ? database.read(modules, limit, beforeId) : Collections.emptyList();
+                } catch (RuntimeException error) {
+                    dropped.incrementAndGet();
+                    records = Collections.emptyList();
+                }
+                List<EventRecord> result = records;
+                main.post(() -> callback.accept(enabled ? result : Collections.emptyList()));
             });
         } catch (RejectedExecutionException error) {
             dropped.incrementAndGet();
