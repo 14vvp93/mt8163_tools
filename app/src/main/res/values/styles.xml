@@ -49,5 +49,5 @@
 <style name="SidebarModuleName"><item name="android:textColor">@color/sidebar_text_tint</item><item name="android:textSize">@dimen/text_button</item><item name="android:textStyle">bold</item></style>
 <style name="EventsCount"><item name="android:textColor">@color/text_secondary</item><item name="android:textSize">@dimen/text_label</item></style>
 <style name="AutorunPlaceholder"><item name="android:textColor">@color/text_muted</item><item name="android:textSize">@dimen/text_button</item></style>
-<style name="VoltageSeekBar"><item name="android:maxHeight">@dimen/seekbar_height</item><item name="android:minHeight">@dimen/seekbar_height</item><item name="android:progressBackgroundTint">@color/line</item><item name="android:progressTint">@color/neon_red</item><item name="android:thumbTint">@color/white</item><item name="android:splitTrack">false</item></style>
+<style name="VoltageSeekBar"><item name="android:progressDrawable">@drawable/voltage_seekbar_track</item><item name="android:maxHeight">@dimen/seekbar_height</item><item name="android:minHeight">@dimen/seekbar_height</item><item name="android:thumbTint">@color/white</item><item name="android:splitTrack">false</item></style>
 </resources>
