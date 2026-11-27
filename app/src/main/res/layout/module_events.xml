@@ -35,6 +35,11 @@
                 android:src="@drawable/ic_events_filter"
                 android:tooltipText="@string/events_filter_accessibility" />
         </LinearLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/border_width"
+            android:layout_marginTop="@dimen/spacing_md"
+            android:background="@color/line" />
         <TextView style="@style/EventsCount" android:id="@+id/events_count" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:paddingStart="@dimen/spacing_sm"
             android:paddingTop="@dimen/spacing_md" android:paddingEnd="@dimen/spacing_sm"
