@@ -20,8 +20,7 @@ public final class VoltageModuleView {
         TextView voltageOffsetValue = root.findViewById(R.id.voltage_offset_value);
         Button voltageResetButton = root.findViewById(R.id.voltage_reset);
 
-        int seekBarProgress = Math.max(0, Math.min(40,
-                Math.round(VoltageSettingsStore.getOffset(context) * 10.0f) + 20));
+        int seekBarProgress = progressFromOffset(VoltageSettingsStore.getOffset(context));
         voltageOffsetSeekBar.setProgress(seekBarProgress);
         voltageOffsetValue.setText(formatVoltageOffset(context, (seekBarProgress - 20) / 10.0f));
 
@@ -37,27 +36,43 @@ public final class VoltageModuleView {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                saveAndPublishVoltageOffset(context, seekBar.getProgress());
+                if (!saveAndPublishVoltageOffset(context, seekBar.getProgress())) {
+                    restoreSavedOffset(context, seekBar, voltageOffsetValue);
+                }
             }
         });
 
         voltageResetButton.setOnClickListener(view -> {
             voltageOffsetSeekBar.setProgress(20);
             voltageOffsetValue.setText(formatVoltageOffset(context, 0.0f));
-            saveAndPublishVoltageOffset(context, 20);
+            if (!saveAndPublishVoltageOffset(context, 20)) {
+                restoreSavedOffset(context, voltageOffsetSeekBar, voltageOffsetValue);
+            }
         });
     }
 
-    private static void saveAndPublishVoltageOffset(Context context, int seekBarProgress) {
+    private static boolean saveAndPublishVoltageOffset(Context context, int seekBarProgress) {
         float voltageOffset = (Math.max(0, Math.min(40, seekBarProgress)) - 20) / 10.0f;
         float previousVoltageOffset = VoltageSettingsStore.getOffset(context);
-        VoltageSettingsStore.saveOffset(context, voltageOffset);
+        if (!VoltageSettingsStore.saveOffset(context, voltageOffset)) return false;
+
         VoltageSettingsStore.publish(context);
         if (Float.compare(previousVoltageOffset, voltageOffset) != 0) {
             EventLogger.log(context, "Voltage", "settingsChanged",
                     context.getString(R.string.voltage_offset_changed,
                             previousVoltageOffset, voltageOffset));
         }
+        return true;
+    }
+
+    private static void restoreSavedOffset(Context context, SeekBar seekBar, TextView valueView) {
+        float savedOffset = VoltageSettingsStore.getOffset(context);
+        seekBar.setProgress(progressFromOffset(savedOffset));
+        valueView.setText(formatVoltageOffset(context, savedOffset));
+    }
+
+    private static int progressFromOffset(float offset) {
+        return Math.max(0, Math.min(40, Math.round(offset * 10.0f) + 20));
     }
 
     private static String formatVoltageOffset(Context context, float voltageOffset) {
