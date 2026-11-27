@@ -720,11 +720,21 @@ public final class MediaRestorer {
                 }
             }
 
-            String connectionState = profileState == 1
-                    ? "connecting: true" : "connected: " + connected;
+            String connectionState;
+            switch (profileState) {
+                case 1:
+                    connectionState = "connecting";
+                    break;
+                case BLUETOOTH_STATE_CONNECTED:
+                    connectionState = "connected";
+                    break;
+                default:
+                    connectionState = "disconnected";
+                    break;
+            }
             logEvent(context, a2dp ? "bluetoothA2dpStateChanged"
                             : "bluetoothAvrcpStateChanged",
-                    "Profile state: " + profileState + ", " + connectionState);
+                    connectionState);
             handler.post(this::updatePlayDelay);
         }
 
