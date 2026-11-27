@@ -79,8 +79,13 @@ public final class MediaModuleView {
             return;
         }
 
-        setBadge(mediaSnapshotSourceText, getMediaSnapshotSourceLabel(),
-                R.color.media_badge_info_background, R.color.media_badge_info_text);
+        if (MediaSettingsStore.isBluetoothSource(context)) {
+            setBadge(mediaSnapshotSourceText, R.string.media_snapshot_bluetooth,
+                    R.color.media_badge_info_background, R.color.media_badge_info_text);
+        } else {
+            setBadge(mediaSnapshotSourceText, R.string.media_snapshot_media_player,
+                    R.color.media_badge_success_background, R.color.media_badge_success_text);
+        }
         setBadge(mediaSnapshotPackageText, packageName,
                 R.color.media_badge_neutral_background, R.color.media_badge_neutral_text);
 
