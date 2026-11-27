@@ -53,7 +53,6 @@ public final class MediaHook implements PackageHook {
     private static boolean accHookInstalled;
     private static boolean windowManagerHookInstalled;
     private static Unhook accHook;
-    private static Set<Unhook> windowManagerHooks = Collections.emptySet();
     private static long configurationGeneration;
     private static long lifecycleGeneration;
     private static boolean configurationLoaded;
@@ -93,8 +92,7 @@ public final class MediaHook implements PackageHook {
 
             synchronized (LOCK) {
                 if (!windowManagerHookInstalled) {
-                    windowManagerHooks = hookWindowManager(param.classLoader);
-                    windowManagerHookInstalled = !windowManagerHooks.isEmpty();
+                    windowManagerHookInstalled = hookWindowManager(param.classLoader);
                 }
                 if (moduleEnabled && !accHookInstalled) {
                     accHook = hookAccReceiver(param.classLoader);
@@ -153,7 +151,7 @@ public final class MediaHook implements PackageHook {
         }
     }
 
-    private static Set<Unhook> hookWindowManager(ClassLoader classLoader) {
+    private static boolean hookWindowManager(ClassLoader classLoader) {
         try {
             Class<?> type = XposedHelpers.findClass(WINDOW_MANAGER_CLASS, classLoader);
             Set<Unhook> hooks = XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
@@ -164,10 +162,10 @@ public final class MediaHook implements PackageHook {
                     }
                 }
             });
-            return hooks == null ? Collections.emptySet() : hooks;
+            return hooks != null && !hooks.isEmpty();
         } catch (Throwable error) {
             reportError("windowManagerHook", error);
-            return Collections.emptySet();
+            return false;
         }
     }
 
