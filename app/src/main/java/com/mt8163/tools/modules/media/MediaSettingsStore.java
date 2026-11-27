@@ -89,18 +89,35 @@ public final class MediaSettingsStore {
 
     public static void setRestoreBackgroundMedia(Context context, boolean enabled) {
         if (context == null) return;
-        context.getApplicationContext()
+        boolean saved = context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_MEDIA, enabled).commit();
-        publish(context);
+        if (saved) {
+            publish(context);
+        } else {
+            logConfigurationSaveFailure(context, EXTRA_RESTORE_BACKGROUND_MEDIA);
+        }
     }
 
     public static void setRestoreBackgroundBluetooth(Context context, boolean enabled) {
         if (context == null) return;
-        context.getApplicationContext()
+        boolean saved = context.getApplicationContext()
                 .getSharedPreferences(MODULE_SETTINGS, Context.MODE_PRIVATE)
                 .edit().putBoolean(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, enabled).commit();
-        publish(context);
+        if (saved) {
+            publish(context);
+        } else {
+            logConfigurationSaveFailure(context, EXTRA_RESTORE_BACKGROUND_BLUETOOTH);
+        }
+    }
+
+    private static void logConfigurationSaveFailure(Context context, String setting) {
+        try {
+            com.mt8163.tools.core.EventLogger.log(
+                    context.getApplicationContext(), "Media",
+                    "configurationSave", "Failed to persist " + setting);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     public static boolean saveSnapshot(Context context, String packageName,
