@@ -48,6 +48,13 @@
         android:layout_marginTop="@dimen/spacing_xs"
         android:text="@string/protection_show_system_apps" />
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/border_width"
+        android:layout_marginTop="@dimen/spacing_xs"
+        android:layout_marginBottom="@dimen/spacing_xs"
+        android:background="@color/line" />
+
     <TextView
         android:id="@+id/protection_picker_results"
         style="@style/ProtectionResultCount"
