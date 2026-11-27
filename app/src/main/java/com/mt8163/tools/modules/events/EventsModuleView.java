@@ -35,92 +35,92 @@ public final class EventsModuleView {
     private static final SimpleDateFormat DATE =
             new SimpleDateFormat("dd.MM.yy HH:mm:ss", Locale.getDefault());
 
-    private static EventManager manager;
-    private static Activity activity;
-    private static LayoutInflater inflater;
-    private static LinearLayout entries;
-    private static ScrollView scroll;
-    private static TextView count;
-    private static Button filterButton;
-    private static List<String> availableModules = new ArrayList<>();
-    private static final Set<String> selectedModules = new HashSet<>();
-    private static boolean allModules = true;
-    private static boolean autoScroll = true;
-    private static boolean loadingOlder;
-    private static boolean hasMore;
-    private static long oldestLoadedId = Long.MAX_VALUE;
-    private static String exportMode = "all";
+    private static EventManager eventsManager;
+    private static Activity eventsActivity;
+    private static LayoutInflater eventsInflater;
+    private static LinearLayout eventEntriesContainer;
+    private static ScrollView eventsScrollView;
+    private static TextView eventsCountText;
+    private static Button eventsFilterButton;
+    private static List<String> availableEventModules = new ArrayList<>();
+    private static final Set<String> selectedEventModules = new HashSet<>();
+    private static boolean allEventModulesSelected = true;
+    private static boolean eventsAutoScrollEnabled = true;
+    private static boolean loadingOlderEvents;
+    private static boolean hasMoreEvents;
+    private static long oldestLoadedEventId = Long.MAX_VALUE;
+    private static String eventsExportMode = "all";
 
     private EventsModuleView() {
     }
 
     public static View create(Activity owner, List<ModuleContract> modules) {
         destroy();
-        activity = owner;
-        inflater = LayoutInflater.from(owner);
-        manager = EventManager.get(owner);
-        availableModules = new ArrayList<>();
-        for (ModuleContract module : modules) availableModules.add(owner.getString(module.getNameRes()));
-        selectedModules.clear();
-        allModules = true;
-        autoScroll = true;
-        loadingOlder = false;
-        hasMore = false;
-        oldestLoadedId = Long.MAX_VALUE;
+        eventsActivity = owner;
+        eventsInflater = LayoutInflater.from(owner);
+        eventsManager = EventManager.get(owner);
+        availableEventModules = new ArrayList<>();
+        for (ModuleContract module : modules) availableEventModules.add(owner.getString(module.getNameRes()));
+        selectedEventModules.clearEvents();
+        allEventModulesSelected = true;
+        eventsAutoScrollEnabled = true;
+        loadingOlderEvents = false;
+        hasMoreEvents = false;
+        oldestLoadedEventId = Long.MAX_VALUE;
 
-        View root = inflater.inflate(R.layout.module_events, null, false);
-        entries = root.findViewById(R.id.events_entries);
-        scroll = root.findViewById(R.id.events_scroll);
-        count = root.findViewById(R.id.events_count);
-        filterButton = root.findViewById(R.id.events_filter);
+        View root = eventsInflater.inflate(R.layout.module_events, null, false);
+        eventEntriesContainer = root.findViewById(R.id.events_entries);
+        eventsScrollView = root.findViewById(R.id.events_scroll);
+        eventsCountText = root.findViewById(R.id.events_count);
+        eventsFilterButton = root.findViewById(R.id.events_filter);
 
-        root.findViewById(R.id.events_refresh).setOnClickListener(view -> refresh());
-        root.findViewById(R.id.events_copy).setOnClickListener(view -> copy());
-        root.findViewById(R.id.events_clear).setOnClickListener(view -> clear());
-        root.findViewById(R.id.events_export).setOnClickListener(view -> export());
-        filterButton.setOnClickListener(view -> chooseFilter());
+        root.findViewById(R.id.events_refresh).setOnClickListener(view -> refreshEvents());
+        root.findViewById(R.id.events_copy).setOnClickListener(view -> copyEvents());
+        root.findViewById(R.id.events_clear).setOnClickListener(view -> clearEvents());
+        root.findViewById(R.id.events_export).setOnClickListener(view -> exportEvents());
+        eventsFilterButton.setOnClickListener(view -> showEventsFilterDialog());
 
-        scroll.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
-            boolean wasAtBottom = autoScroll;
-            autoScroll = y + scroll.getHeight() >= entries.getHeight()
-                    - activity.getResources().getDimensionPixelSize(R.dimen.spacing_xxl);
-            if (y < oldY && y <= activity.getResources()
+        eventsScrollView.setOnScrollChangeListener((View view, int x, int y, int oldX, int oldY) -> {
+            boolean wasAtBottom = eventsAutoScrollEnabled;
+            eventsAutoScrollEnabled = y + eventsScrollView.getHeight() >= eventEntriesContainer.getHeight()
+                    - eventsActivity.getResources().getDimensionPixelSize(R.dimen.spacing_xxl);
+            if (y < oldY && y <= eventsActivity.getResources()
                     .getDimensionPixelSize(R.dimen.events_load_older_threshold)
-                    && hasMore && !loadingOlder) {
-                loadOlder();
-            } else if (!wasAtBottom && autoScroll) {
-                refresh();
+                    && hasMoreEvents && !loadingOlderEvents) {
+                loadOlderEvents();
+            } else if (!wasAtBottom && eventsAutoScrollEnabled) {
+                refreshEvents();
             }
         });
 
-        manager.setListener(() -> {
-            if (manager != null && manager.isEnabled() && autoScroll) refresh();
+        eventsManager.setListener(() -> {
+            if (eventsManager != null && eventsManager.isEnabled() && eventsAutoScrollEnabled) refreshEvents();
         });
-        refresh();
+        refreshEvents();
         return root;
     }
 
     private static List<String> filter() {
-        return allModules ? null : new ArrayList<>(selectedModules);
+        return allEventModulesSelected ? null : new ArrayList<>(selectedEventModules);
     }
 
-    private static void chooseFilter() {
-        if (activity == null || manager == null) return;
+    private static void showEventsFilterDialog() {
+        if (eventsActivity == null || eventsManager == null) return;
 
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_events_filter, null, false);
+        Dialog dialog = new Dialog(eventsActivity);
+        View root = eventsInflater.inflate(R.layout.dialog_events_filter, null, false);
         CheckBox all = root.findViewById(R.id.events_filter_all);
         LinearLayout options = root.findViewById(R.id.events_filter_options);
         Button apply = root.findViewById(R.id.events_filter_apply);
         Button cancel = root.findViewById(R.id.events_filter_cancel);
 
-        all.setChecked(allModules);
+        all.setChecked(allEventModulesSelected);
         List<CheckBox> moduleChecks = new ArrayList<>();
-        for (String module : availableModules) {
-            CheckBox option = (CheckBox) inflater.inflate(
+        for (String module : availableEventModules) {
+            CheckBox option = (CheckBox) eventsInflater.inflate(
                     R.layout.item_events_filter, options, false);
             option.setText(module);
-            option.setChecked(!allModules && selectedModules.contains(module));
+            option.setChecked(!allEventModulesSelected && selectedEventModules.contains(module));
             options.addView(option);
             moduleChecks.add(option);
         }
@@ -128,94 +128,94 @@ public final class EventsModuleView {
         all.setOnCheckedChangeListener((button, checked) -> {
             for (CheckBox option : moduleChecks) option.setEnabled(!checked);
         });
-        for (CheckBox option : moduleChecks) option.setEnabled(!allModules);
+        for (CheckBox option : moduleChecks) option.setEnabled(!allEventModulesSelected);
 
         apply.setOnClickListener(view -> {
-            selectedModules.clear();
-            allModules = all.isChecked();
-            if (!allModules) {
+            selectedEventModules.clearEvents();
+            allEventModulesSelected = all.isChecked();
+            if (!allEventModulesSelected) {
                 for (int i = 0; i < moduleChecks.size(); i++) {
                     if (moduleChecks.get(i).isChecked()) {
-                        selectedModules.add(availableModules.get(i));
+                        selectedEventModules.add(availableEventModules.get(i));
                     }
                 }
-                if (selectedModules.isEmpty()) allModules = true;
+                if (selectedEventModules.isEmpty()) allEventModulesSelected = true;
             }
-            if (allModules) {
-                filterButton.setText(R.string.events_filter_all);
+            if (allEventModulesSelected) {
+                eventsFilterButton.setText(R.string.events_filter_all);
             } else {
-                filterButton.setText(activity.getString(R.string.events_filter_selected,
-                        String.join(", ", selectedModules)));
+                eventsFilterButton.setText(eventsActivity.getString(R.string.events_filter_selected,
+                        String.join(", ", selectedEventModules)));
             }
             dialog.dismiss();
-            manager.logLifecycle("filterChanged", filterButton.getText().toString());
-            refresh();
+            eventsManager.logLifecycle("filterChanged", eventsFilterButton.getText().toString());
+            refreshEvents();
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
         showDialog(dialog, root);
     }
 
-    private static void refresh() {
-        if (manager == null || !manager.isEnabled() || entries == null) return;
-        EventManager current = manager;
+    private static void refreshEvents() {
+        if (eventsManager == null || !eventsManager.isEnabled() || eventEntriesContainer == null) return;
+        EventManager current = eventsManager;
         current.readAsync(filter(), PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
-            if (manager != current || entries == null || activity == null
+            if (eventsManager != current || eventEntriesContainer == null || eventsActivity == null
                     || !current.isEnabled()) return;
-            entries.removeAllViews();
-            hasMore = records.size() > PAGE_SIZE;
-            if (hasMore) records.remove(records.size() - 1);
-            oldestLoadedId = records.isEmpty() ? Long.MAX_VALUE
+            eventEntriesContainer.removeAllViews();
+            hasMoreEvents = records.size() > PAGE_SIZE;
+            if (hasMoreEvents) records.remove(records.size() - 1);
+            oldestLoadedEventId = records.isEmpty() ? Long.MAX_VALUE
                     : records.get(records.size() - 1).id;
-            for (int i = records.size() - 1; i >= 0; i--) addRecord(records.get(i));
-            count.setText(activity.getString(R.string.events_count_format,
+            for (int i = records.size() - 1; i >= 0; i--) addEventRecord(records.get(i));
+            eventsCountText.setText(eventsActivity.getString(R.string.events_count_format,
                     records.size(), current.getDroppedCount(), EventDatabase.MAX_RECORDS));
-            autoScroll = true;
-            scroll.post(() -> {
-                if (scroll != null) scroll.fullScroll(View.FOCUS_DOWN);
+            eventsAutoScrollEnabled = true;
+            eventsScrollView.post(() -> {
+                if (eventsScrollView != null) eventsScrollView.fullScroll(View.FOCUS_DOWN);
             });
         });
     }
 
-    private static void loadOlder() {
-        if (manager == null || entries == null || !hasMore || loadingOlder) return;
-        loadingOlder = true;
-        int oldHeight = entries.getHeight();
-        int oldScrollY = scroll.getScrollY();
-        EventManager current = manager;
-        current.readAsync(filter(), PAGE_SIZE + 1, oldestLoadedId, records -> {
-            if (manager != current || entries == null || scroll == null) {
-                loadingOlder = false;
+    private static void loadOlderEvents() {
+        if (eventsManager == null || eventEntriesContainer == null || !hasMoreEvents || loadingOlderEvents) return;
+        loadingOlderEvents = true;
+        int oldHeight = eventEntriesContainer.getHeight();
+        int oldScrollY = eventsScrollView.getScrollY();
+        EventManager current = eventsManager;
+        current.readAsync(filter(), PAGE_SIZE + 1, oldestLoadedEventId, records -> {
+            if (eventsManager != current || eventEntriesContainer == null || eventsScrollView == null) {
+                loadingOlderEvents = false;
                 return;
             }
-            hasMore = records.size() > PAGE_SIZE;
-            if (hasMore) records.remove(records.size() - 1);
+            hasMoreEvents = records.size() > PAGE_SIZE;
+            if (hasMoreEvents) records.remove(records.size() - 1);
             if (!records.isEmpty()) {
-                oldestLoadedId = records.get(records.size() - 1).id;
-                for (int i = 0; i < records.size(); i++) addRecordAtTop(records.get(i));
+                oldestLoadedEventId = records.get(records.size() - 1).id;
+                for (int i = 0; i < records.size(); i++) addEventRecordAtTop(records.get(i));
             }
-            count.setText(activity.getString(R.string.events_count_loaded,
-                    entries.getChildCount(), current.getDroppedCount(),
+            eventsCountText.setText(eventsActivity.getString(R.string.events_count_loaded,
+                    eventEntriesContainer.getChildCount(), current.getDroppedCount(),
                     EventDatabase.MAX_RECORDS));
-            scroll.post(() -> {
-                if (entries != null && scroll != null) {
-                    scroll.scrollTo(0, oldScrollY + entries.getHeight() - oldHeight);
+            eventsScrollView.post(() -> {
+                if (eventEntriesContainer != null && eventsScrollView != null) {
+                    eventsScrollView.scrollTo(0, oldScrollY + eventEntriesContainer.getHeight() - oldHeight);
                 }
-                loadingOlder = false;
+                loadingOlderEvents = false;
             });
         });
     }
 
-    private static void addRecordAtTop(EventRecord record) {
-        addRecord(record, 0);
+    private static void addEventRecordAtTop(EventRecord record) {
+        addEventRecord(record, 0);
     }
 
-    private static void addRecord(EventRecord record) {
-        addRecord(record, -1);
+    private static void addEventRecord(EventRecord record) {
+        addEventRecord(record, -1);
     }
 
-    private static void addRecord(EventRecord record, int index) {
-        View row = inflater.inflate(R.layout.item_event_record, entries, false);
+    private static void addEventRecord(EventRecord record, int index) {
+        View row = eventsInflater.inflate(R.layout.item_event_record, eventEntriesContainer, false);
         ((TextView) row.findViewById(R.id.event_record_date))
                 .setText(DATE.format(new Date(record.timestamp)));
         ((TextView) row.findViewById(R.id.event_record_module))
@@ -224,11 +224,11 @@ public final class EventsModuleView {
                 .setText("[" + record.source + "]:");
         ((TextView) row.findViewById(R.id.event_record_message))
                 .setText(record.message);
-        if (index < 0) entries.addView(row);
-        else entries.addView(row, index);
+        if (index < 0) eventEntriesContainer.addView(row);
+        else eventEntriesContainer.addView(row, index);
     }
 
-    private static String exportText(List<EventRecord> records) {
+    private static String buildEventsExportText(List<EventRecord> records) {
         StringBuilder text = new StringBuilder();
         for (int i = records.size() - 1; i >= 0; i--) {
             EventRecord record = records.get(i);
@@ -240,13 +240,13 @@ public final class EventsModuleView {
         return text.toString();
     }
 
-    private static void copy() {
-        EventManager current = manager;
-        Activity owner = activity;
+    private static void copyEvents() {
+        EventManager current = eventsManager;
+        Activity owner = eventsActivity;
         if (current == null || owner == null) return;
         current.readAllAsync(filter(), records -> {
-            if (manager != current || activity != owner) return;
-            String text = exportText(records);
+            if (eventsManager != current || eventsActivity != owner) return;
+            String text = buildEventsExportText(records);
             if (text.isEmpty()) {
                 Toast.makeText(owner, R.string.events_nothing_to_copy, Toast.LENGTH_SHORT).show();
                 return;
@@ -259,27 +259,27 @@ public final class EventsModuleView {
         });
     }
 
-    private static void clear() {
-        if (activity == null || manager == null) return;
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_events_clear, null, false);
+    private static void clearEvents() {
+        if (eventsActivity == null || eventsManager == null) return;
+        Dialog dialog = new Dialog(eventsActivity);
+        View root = eventsInflater.inflate(R.layout.dialog_events_clear, null, false);
         Button confirm = root.findViewById(R.id.events_clear_confirm);
         Button cancel = root.findViewById(R.id.events_clear_cancel);
         confirm.setOnClickListener(view -> {
-            autoScroll = true;
-            manager.clear();
+            eventsAutoScrollEnabled = true;
+            eventsManager.clearEvents();
             dialog.dismiss();
-            Toast.makeText(activity, R.string.events_cleared, Toast.LENGTH_SHORT).show();
-            refresh();
+            Toast.makeText(eventsActivity, R.string.events_cleared, Toast.LENGTH_SHORT).show();
+            refreshEvents();
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
         showDialog(dialog, root);
     }
 
-    private static void export() {
-        if (activity == null || manager == null) return;
-        Dialog dialog = new Dialog(activity);
-        View root = inflater.inflate(R.layout.dialog_events_export, null, false);
+    private static void exportEvents() {
+        if (eventsActivity == null || eventsManager == null) return;
+        Dialog dialog = new Dialog(eventsActivity);
+        View root = eventsInflater.inflate(R.layout.dialog_events_export, null, false);
         Button filtered = root.findViewById(R.id.events_export_filtered);
         Button all = root.findViewById(R.id.events_export_all);
         Button cancel = root.findViewById(R.id.events_export_cancel);
@@ -291,9 +291,9 @@ public final class EventsModuleView {
     }
 
     private static void startExport(Dialog dialog, boolean filtered) {
-        exportMode = filtered ? "filtered" : "all";
-        manager.logLifecycle("exportHistory", filtered
-                ? "Filtered export requested" : "Full history export requested");
+        eventsExportMode = filtered ? "filtered" : "all";
+        eventsManager.logLifecycle("exportHistory", filtered
+                ? "Filtered exportEvents requested" : "Full history exportEvents requested");
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
@@ -301,7 +301,7 @@ public final class EventsModuleView {
                 + new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
                 .format(new Date()) + ".txt");
         dialog.dismiss();
-        activity.startActivityForResult(intent, EXPORT_REQUEST);
+        eventsActivity.startActivityForResult(intent, EXPORT_REQUEST);
     }
 
     private static void showDialog(Dialog dialog, View root) {
@@ -311,32 +311,32 @@ public final class EventsModuleView {
     }
 
     public static void destroy() {
-        if (manager != null) manager.setListener(null);
-        activity = null;
-        inflater = null;
-        entries = null;
-        scroll = null;
-        count = null;
-        filterButton = null;
-        manager = null;
-        availableModules = new ArrayList<>();
-        selectedModules.clear();
-        loadingOlder = false;
+        if (eventsManager != null) eventsManager.setListener(null);
+        eventsActivity = null;
+        eventsInflater = null;
+        eventEntriesContainer = null;
+        eventsScrollView = null;
+        eventsCountText = null;
+        eventsFilterButton = null;
+        eventsManager = null;
+        availableEventModules = new ArrayList<>();
+        selectedEventModules.clearEvents();
+        loadingOlderEvents = false;
     }
 
     public static boolean onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != EXPORT_REQUEST) return false;
-        if (activity == null || manager == null) return true;
+        if (eventsActivity == null || eventsManager == null) return true;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return true;
 
-        Activity owner = activity;
-        EventManager current = manager;
+        Activity owner = eventsActivity;
+        EventManager current = eventsManager;
         Uri uri = data.getData();
-        current.readAllAsync("filtered".equals(exportMode) ? filter() : null, records -> {
-            if (activity != owner || manager != current) return;
+        current.readAllAsync("filtered".equals(eventsExportMode) ? filter() : null, records -> {
+            if (eventsActivity != owner || eventsManager != current) return;
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
-                if (output == null) throw new IllegalStateException("Cannot open export destination");
-                output.write(exportText(records).getBytes(StandardCharsets.UTF_8));
+                if (output == null) throw new IllegalStateException("Cannot open exportEvents destination");
+                output.write(buildEventsExportText(records).getBytes(StandardCharsets.UTF_8));
                 Toast.makeText(owner, R.string.events_export_completed, Toast.LENGTH_SHORT).show();
             } catch (Exception error) {
                 Toast.makeText(owner, owner.getString(R.string.events_export_failed,
