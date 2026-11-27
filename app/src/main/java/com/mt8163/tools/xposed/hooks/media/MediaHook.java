@@ -582,13 +582,13 @@ public final class MediaHook implements PackageHook {
         final String message;
         if (result == MediaRestorer.Result.RESUMED) {
             if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
-                message = "Bluetooth: Playback resumed";
+                message = context.getString(R.string.media_toast_bluetooth_resumed);
             } else {
-                message = getApplicationLabel(context, packageName)
-                        + ": Playback resumed";
+                message = context.getString(R.string.media_toast_playback_resumed,
+                        getApplicationLabel(context, packageName));
             }
         } else if (result == MediaRestorer.Result.FAILED) {
-            message = "Failed to resume playback";
+            message = context.getString(R.string.media_toast_resume_failed);
         } else {
             return;
         }
@@ -606,7 +606,7 @@ public final class MediaHook implements PackageHook {
     }
 
     private static String getApplicationLabel(Context context, String packageName) {
-        if (packageName == null || packageName.trim().isEmpty()) return "Media Player";
+        if (packageName == null || packageName.trim().isEmpty()) return context.getString(R.string.media_player);
         try {
             PackageManager packageManager = context.getPackageManager();
             ApplicationInfo applicationInfo = packageManager.getApplicationInfo(
