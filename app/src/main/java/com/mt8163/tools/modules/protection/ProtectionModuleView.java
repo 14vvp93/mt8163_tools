@@ -133,7 +133,7 @@ public final class ProtectionModuleView {
         });
         cancel.setOnClickListener(view -> protectionDialog.dismiss());
 
-        showDialog(protectionDialog, protectionRootView);
+        DialogHelper.showCompact(protectionActivity, protectionDialog, protectionRootView);
     }
 
     private void confirmRemoveApplication(ProtectedApplicationEntry app) {
@@ -155,7 +155,7 @@ public final class ProtectionModuleView {
         });
         cancel.setOnClickListener(view -> protectionDialog.dismiss());
 
-        showDialog(protectionDialog, protectionRootView);
+        DialogHelper.showCompact(protectionActivity, protectionDialog, protectionRootView);
     }
 
     private void showApplicationPicker() {
@@ -190,7 +190,7 @@ public final class ProtectionModuleView {
         });
         showSystemAppsSwitch.setOnCheckedChangeListener((button, checked) -> render.run());
 
-        showDialog(protectionDialog, protectionRootView, true);
+        DialogHelper.showSelection(protectionActivity, protectionDialog, protectionRootView);
         render.run();
     }
 
@@ -258,13 +258,6 @@ public final class ProtectionModuleView {
         applicationPickerList.addView(row);
     }
 
-    private void showDialog(Dialog protectionDialog, View content) {
-        showDialog(protectionDialog, content, false);
-    }
-
-    private void showDialog(Dialog protectionDialog, View content, boolean large) {
-        DialogHelper.show(protectionActivity, protectionDialog, content, large);
-    }
 
     private List<ProtectedApplicationEntry> loadInstalledApplications() {
         List<ProtectedApplicationEntry> result = new ArrayList<>();
