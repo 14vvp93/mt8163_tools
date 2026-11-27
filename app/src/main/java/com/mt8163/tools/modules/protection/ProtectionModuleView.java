@@ -45,6 +45,7 @@ public final class ProtectionModuleView {
             Executors.newSingleThreadExecutor();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
     private static List<ProtectedApplicationEntry> installedApplicationsCache;
+    private static long applicationCacheGeneration;
     private static final Map<String, Drawable.ConstantState> applicationIconCache = new HashMap<>();
     private static boolean packageReceiverRegistered;
 
@@ -296,8 +297,10 @@ public final class ProtectionModuleView {
 
 
     private List<ProtectedApplicationEntry> loadInstalledApplications() {
+        final long cacheGeneration;
         synchronized (APPLICATION_CACHE_LOCK) {
             if (installedApplicationsCache != null) return installedApplicationsCache;
+            cacheGeneration = applicationCacheGeneration;
         }
 
         List<ProtectedApplicationEntry> result = new ArrayList<>();
@@ -315,6 +318,7 @@ public final class ProtectionModuleView {
         sortApplications(result);
         List<ProtectedApplicationEntry> cached = Collections.unmodifiableList(result);
         synchronized (APPLICATION_CACHE_LOCK) {
+            if (cacheGeneration != applicationCacheGeneration) return cached;
             if (installedApplicationsCache == null) installedApplicationsCache = cached;
             return installedApplicationsCache;
         }
@@ -388,6 +392,7 @@ public final class ProtectionModuleView {
         @Override
         public void onReceive(Context context, Intent intent) {
             synchronized (APPLICATION_CACHE_LOCK) {
+                applicationCacheGeneration++;
                 installedApplicationsCache = null;
                 applicationIconCache.clear();
             }
