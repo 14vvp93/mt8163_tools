@@ -62,6 +62,7 @@ public final class MediaModuleView {
             }
         });
 
+        if (root.isAttachedToWindow()) registerSnapshotReceiver();
         refreshSnapshots();
     }
 
