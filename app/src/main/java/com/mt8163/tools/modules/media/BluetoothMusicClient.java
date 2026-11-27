@@ -10,9 +10,8 @@ import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class BluetoothMusicClient {
     public interface Listener {
@@ -29,13 +28,8 @@ public final class BluetoothMusicClient {
     private static final int TRANSACTION_IS_A2DP_PLAYING = 3;
     private static final long BIND_TIMEOUT_MS = 5000L;
 
-    private static final ExecutorService BINDER_WORKER =
-            Executors.newSingleThreadExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "MediaBluetoothSnapshot");
-                thread.setDaemon(true);
-                return thread;
-            });
-    private static final AtomicBoolean BINDER_WORKER_BUSY = new AtomicBoolean();
+    private static final int MAX_ACTIVE_QUERIES = 2;
+    private static final AtomicInteger ACTIVE_QUERIES = new AtomicInteger();
 
     private final Context context;
     private final Listener listener;
@@ -57,21 +51,24 @@ public final class BluetoothMusicClient {
                 return;
             }
 
-            if (!BINDER_WORKER_BUSY.compareAndSet(false, true)) {
+            if (ACTIVE_QUERIES.incrementAndGet() > MAX_ACTIVE_QUERIES) {
+                ACTIVE_QUERIES.decrementAndGet();
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
                 return;
             }
 
+            Thread worker = new Thread(() -> {
+                try {
+                    querySnapshot(binder);
+                } finally {
+                    ACTIVE_QUERIES.decrementAndGet();
+                }
+            }, "MediaBluetoothSnapshot");
+            worker.setDaemon(true);
             try {
-                BINDER_WORKER.execute(() -> {
-                    try {
-                        querySnapshot(binder);
-                    } finally {
-                        BINDER_WORKER_BUSY.set(false);
-                    }
-                });
+                worker.start();
             } catch (RuntimeException error) {
-                BINDER_WORKER_BUSY.set(false);
+                ACTIVE_QUERIES.decrementAndGet();
                 finish(MediaSettingsStore.PLAYBACK_UNKNOWN);
             }
         }
