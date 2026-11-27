@@ -319,6 +319,7 @@ public final class VoltageHook implements PackageHook {
 
             if (rawVoltage == 0.0f) {
                 synchronized (LOCK) {
+                    if (!moduleEnabled || !batteryHookInstalled) return;
                     mcuService = service;
                     hasRawVoltage = false;
                     hasReportedVoltageApplied = false;
@@ -328,6 +329,7 @@ public final class VoltageHook implements PackageHook {
             if (!isValidRawVoltage(rawVoltage)) return;
 
             synchronized (LOCK) {
+                if (!moduleEnabled || !batteryHookInstalled) return;
                 mcuService = service;
                 rawBatteryVoltage = rawVoltage;
                 hasRawVoltage = true;
