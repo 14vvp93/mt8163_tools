@@ -22,6 +22,7 @@ public final class MediaModuleView {
     private final TextView mediaSnapshotPlaybackText;
     private final TextView mediaSnapshotWindowText;
     private boolean snapshotReceiverRegistered;
+    private boolean suppressSettingCallbacks;
 
     private final BroadcastReceiver mediaSnapshotReceiver = new BroadcastReceiver() {
         @Override
@@ -46,15 +47,27 @@ public final class MediaModuleView {
         playbackNotificationsSwitch.setChecked(
                 MediaSettingsStore.isPlaybackNotifications(this.context));
 
-        restoreBackgroundMediaSwitch.setOnCheckedChangeListener((button, checked) ->
-                showSettingsErrorIfNeeded(MediaSettingsStore.setRestoreBackgroundMedia(
-                        this.context, checked)));
-        restoreBackgroundBluetoothSwitch.setOnCheckedChangeListener((button, checked) ->
-                showSettingsErrorIfNeeded(MediaSettingsStore.setRestoreBackgroundBluetooth(
-                        this.context, checked)));
-        playbackNotificationsSwitch.setOnCheckedChangeListener((button, checked) ->
-                showSettingsErrorIfNeeded(MediaSettingsStore.setPlaybackNotifications(
-                        this.context, checked)));
+        restoreBackgroundMediaSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingCallbacks) return;
+            boolean successful = MediaSettingsStore.setRestoreBackgroundMedia(
+                    this.context, checked);
+            handleSettingsResult(button, successful,
+                    MediaSettingsStore.isRestoreBackgroundMedia(this.context));
+        });
+        restoreBackgroundBluetoothSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingCallbacks) return;
+            boolean successful = MediaSettingsStore.setRestoreBackgroundBluetooth(
+                    this.context, checked);
+            handleSettingsResult(button, successful,
+                    MediaSettingsStore.isRestoreBackgroundBluetooth(this.context));
+        });
+        playbackNotificationsSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (suppressSettingCallbacks) return;
+            boolean successful = MediaSettingsStore.setPlaybackNotifications(
+                    this.context, checked);
+            handleSettingsResult(button, successful,
+                    MediaSettingsStore.isPlaybackNotifications(this.context));
+        });
 
         root.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
@@ -73,11 +86,15 @@ public final class MediaModuleView {
         refreshMediaSnapshot();
     }
 
-    private void showSettingsErrorIfNeeded(boolean successful) {
-        if (!successful) {
-            Toast.makeText(context, R.string.media_settings_update_failed,
-                    Toast.LENGTH_SHORT).show();
-        }
+    private void handleSettingsResult(Switch target, boolean successful,
+                                       boolean persistedValue) {
+        if (successful) return;
+
+        Toast.makeText(context, R.string.media_settings_update_failed,
+                Toast.LENGTH_SHORT).show();
+        suppressSettingCallbacks = true;
+        target.setChecked(persistedValue);
+        suppressSettingCallbacks = false;
     }
 
     private void refreshMediaSnapshot() {
