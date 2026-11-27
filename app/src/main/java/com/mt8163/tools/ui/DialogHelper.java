@@ -8,9 +8,9 @@ import android.view.Window;
 import android.view.WindowManager;
 
 public final class DialogHelper {
-    private static final int SELECTION_WIDTH_DP = 720;
-    private static final int SELECTION_MAX_HEIGHT_DP = 560;
-    private static final int COMPACT_WIDTH_DP = 440;
+    private static final int SELECTION_WIDTH_DP = 760;
+    private static final int SELECTION_MAX_HEIGHT_DP = 580;
+    private static final int COMPACT_WIDTH_DP = 480;
     private static final int SCREEN_MARGIN_DP = 48;
 
     private DialogHelper() {
