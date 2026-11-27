@@ -293,7 +293,8 @@ public final class EventsModuleView {
     private static void startExport(Dialog dialog, boolean filtered) {
         eventsExportMode = filtered ? "filtered" : "all";
         eventsManager.logLifecycle("exportHistory", filtered
-                ? eventsActivity.getString(R.string.events_export_filtered_requested)\n                : eventsActivity.getString(R.string.events_export_all_requested));
+                ? eventsActivity.getString(R.string.events_export_filtered_requested)
+                : eventsActivity.getString(R.string.events_export_all_requested));
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/plain");
