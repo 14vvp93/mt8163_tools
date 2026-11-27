@@ -8,15 +8,26 @@ import android.view.Window;
 import android.view.WindowManager;
 
 public final class DialogHelper {
-    private static final int DIALOG_WIDTH_DP = 720;
-    private static final int DIALOG_MAX_HEIGHT_DP = 560;
+    private static final int SELECTION_WIDTH_DP = 720;
+    private static final int SELECTION_MAX_HEIGHT_DP = 560;
+    private static final int COMPACT_WIDTH_DP = 440;
     private static final int SCREEN_MARGIN_DP = 48;
 
     private DialogHelper() {
     }
 
-    public static void show(Activity activity, Dialog dialog, View content, boolean large) {
-        if (activity == null || dialog == null || content == null || activity.isFinishing()) return;
+    public static void showSelection(Activity activity, Dialog dialog, View content) {
+        show(activity, dialog, content, SELECTION_WIDTH_DP, SELECTION_MAX_HEIGHT_DP);
+    }
+
+    public static void showCompact(Activity activity, Dialog dialog, View content) {
+        show(activity, dialog, content, COMPACT_WIDTH_DP, 0);
+    }
+
+    private static void show(Activity activity, Dialog dialog, View content,
+                             int maxWidthDp, int maxHeightDp) {
+        if (activity == null || dialog == null || content == null
+                || activity.isFinishing() || activity.isDestroyed()) return;
 
         dialog.setContentView(content);
         dialog.setCanceledOnTouchOutside(true);
@@ -29,12 +40,13 @@ public final class DialogHelper {
         activity.getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
         int margin = dp(metrics, SCREEN_MARGIN_DP);
-        int width = Math.min(dp(metrics, DIALOG_WIDTH_DP), metrics.widthPixels - margin);
-        int height = large
-                ? Math.min(dp(metrics, DIALOG_MAX_HEIGHT_DP), metrics.heightPixels - margin)
+        int availableWidth = Math.max(1, metrics.widthPixels - margin);
+        int width = Math.min(dp(metrics, maxWidthDp), availableWidth);
+        int height = maxHeightDp > 0
+                ? Math.min(dp(metrics, maxHeightDp), Math.max(1, metrics.heightPixels - margin))
                 : WindowManager.LayoutParams.WRAP_CONTENT;
 
-        window.setLayout(Math.max(1, width), height);
+        window.setLayout(width, height);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
 
