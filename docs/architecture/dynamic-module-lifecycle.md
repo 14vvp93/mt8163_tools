@@ -1,137 +1,75 @@
-# Dynamic Module Lifecycle
-
-## Purpose
-
-Modules must be enabled and disabled at runtime without rebooting the head unit. Disabling a module must stop its feature hooks and operations while preserving its saved configuration.
-
-This document describes the agreed design. It does not describe an implemented feature; code changes and device validation are still required.
+# Module Lifecycle
 
 ## Runtime model
 
-Each module owns its feature hooks and runtime resources. The module lifecycle is managed independently in each process where that module runs.
+Module settings are stored by the application. Runtime hooks execute in their target process and receive configuration updates through protected broadcasts.
 
-1. **Enable**
-   - Read the latest persisted configuration.
-   - Install the module's hooks.
-   - Start the operations and listeners required by the module.
-   - Mark the module enabled only after successful installation.
-2. **Disable**
-   - Stop accepting new module work.
-   - Cancel or finish active module operations safely.
-   - Unhook every hook installed by the module.
-   - Restore any system state changed by the module.
-   - Release temporary resources and references.
-   - Preserve saved settings and persistent user data.
-3. **Re-enable**
-   - Read the latest configuration again.
-   - Recreate required resources and install hooks.
-   - Avoid duplicate hooks or duplicate listeners.
+The processes are independent:
 
-Repeated enable/disable requests must be safe and idempotent.
+| Module | Target process |
+|---|---|
+| Media | `android` |
+| Voltage | `android` |
+| Protection | `com.android.systemui` main process |
+| Events | Application process |
+| Autorun | No runtime hook |
 
-## Hook ownership and cleanup
+A setting change in the application process does not directly change static state in another process. The target process must receive and apply the configuration update.
 
-- Each module stores every Unhook handle returned by its feature-hook installations.
-- Hook installations that return multiple handles must retain every handle.
-- Hook installations must be rolled back if a later installation step fails.
-- Cleanup must be safe after partial installation or when a resource was never created.
-- Shared support hooks must be identified separately from feature hooks and must not perform module feature work.
+## Xposed registration
 
-The PackageHook contract is expected to expose an uninstall() operation in addition to its existing package support and installation methods. HookRegistry will coordinate module lifecycle transitions.
+`XposedEntry` forwards package-load callbacks to `HookRegistry`.
 
-## Lifecycle safety
+- `android` receives Media and Voltage hooks.
+- The main `com.android.systemui` process receives the Protection hook.
+- `SystemBootstrap` and `SystemConfigReceiver` provide shared SystemServer initialization and configuration delivery.
 
-Module transitions must be synchronized so callbacks cannot continue changing system state after disable cleanup has completed.
+`HookRegistry.setModuleEnabled()` delegates enable and disable operations to the corresponding `PackageHook`.
 
-The implementation must:
-- Prevent duplicate installation.
-- Prevent new work from starting during shutdown.
-- Handle partial installation failures by rolling back successful steps.
-- Cancel asynchronous work before releasing resources it may use.
-- Clear transient references to avoid leaks.
-- Keep module configuration separate from runtime enabled state.
-
-A failed enable must leave the module disabled and clean up any partial installation. A repeated disable must be safe when the module is already disabled.
-
-## Process and configuration coordination
-
-The modules run in different Android processes:
-- **Voltage and Media:** android / system_server.
-- **Protection:** com.android.systemui.
-
-Each process has its own static runtime state. Updating a setting in the app process alone is therefore insufficient.
-
-The configuration update flow must:
-1. Persist the new configuration.
-2. Send the appropriate protected configuration broadcast.
-3. Let the receiver in each target process reload the persisted configuration.
-4. Apply the module transition in that process.
-
-Shared infrastructure must remain available regardless of individual module states. SystemBootstrap hooks and the shared SystemConfigReceiver are infrastructure, not feature hooks, and must not be removed when one module is disabled.
-
-## Module-specific behavior
-
-### Voltage
-
-When disabled:
-- Stop processing new voltage callbacks.
-- Unhook all Voltage feature hooks.
-- Restore the latest actual raw MCU voltage received by the module to the MCU service field.
-- Do not write a guessed value if no raw voltage has been received or the service is unavailable.
-- Ensure no in-flight callback can reapply the offset after restoration.
-
-The saved offset and other configuration remain available for the next enable.
+## Enable and disable behavior
 
 ### Media
 
-When disabled:
-- Stop accepting new Media operations.
-- Cancel any active restoration or pending module operation.
-- Close the BluetoothMusicClient.
-- Clear transient operation state.
-- Unhook the ACC receiver feature hook.
-- Preserve the saved snapshot and module configuration for re-enable.
+- The WindowManagerService constructor hook is support infrastructure. It captures the service instance used for foreground-source detection and remains installed across Media toggles.
+- The ACC receiver hook is the Media feature hook. It is installed when enabled and removed when disabled.
+- Disabling cancels active restoration, closes the Bluetooth client, and clears transient operation state.
+- The saved Snapshot and settings are preserved.
 
-The WindowManagerService constructor hook is a lightweight support hook. It only captures the long-lived service instance needed for foreground-source detection; it remains installed across Media toggles, and its service reference is retained so re-enabling Media does not require restarting system_server. It does not perform snapshot or playback work while Media is disabled.
+### Voltage
 
-Media uses one shared last-snapshot record. The saved state is displayed only in the matching section (Media Player or Bluetooth); the other section displays Unknown when the snapshot does not match or contains no data.
+- The MCU service constructor and battery-packet hooks are feature hooks.
+- Disabling restores the latest valid raw MCU voltage to `mBatteryVoltage`, then removes both hooks and clears transient runtime references.
+- The saved offset remains available for the next enable.
 
 ### Protection
 
-When disabled:
-- Stop applying Recents and Memory Cleaner filtering.
-- Unhook all Protection feature hooks and clear temporary filtering state, including thread-local state.
-- Keep the configuration receiver active as shared lifecycle infrastructure so a later enable broadcast can reactivate Protection.
-- Keep lightweight SystemUIApplication and RecentsActivity lifecycle support hooks active; they only register the receiver and track the current RecentsActivity instance.
-- If filtering modified the in-memory task stack, reload it through RecentsActivity.reloadTaskStack() after removing the filtering hooks. If Recents is not visible, its normal onStart reload will rebuild the stack when opened.
-- Preserve Protection settings for re-enable.
+- SystemUIApplication initialization and Recents activity tracking hooks are support hooks. They remain available for configuration delivery and Recents lifecycle tracking.
+- Recents dismissal/filtering and Memory Cleaner hooks are feature hooks.
+- Disabling clears the active task matcher and removes the feature hooks. Support hooks remain installed so a later configuration update can enable Protection again.
+- If the Recents stack was modified, the implementation requests a native stack refresh after feature hooks are removed.
 
-The target ROM's private RecentsActivity.reloadTaskStack(boolean, boolean) method builds a fresh RecentsTaskLoadPlan and publishes a new MultiWindowStateChangedEvent. The implementation invokes this native path only after unhooking the stack filters, so the rebuilt list is not filtered again. Its behavior must still be verified on the actual head unit, including when Recents is open and when multi-window mode is active.
+### Events
 
-## Performance expectations
+Events is not an Xposed hook. Disabling the module stops accepting new events and completes its storage shutdown path while preserving existing records.
 
-No persistent performance increase is expected from this design.
-- An enabled module has approximately its normal hook and operation overhead.
-- A disabled module no longer runs its feature callbacks or operations.
-- Enabling and disabling cause short-lived work for hook installation/removal and cleanup.
-- Shared infrastructure remains active because it coordinates configuration and system lifecycle events.
+### Autorun
 
-The implementation should remain event-driven. It must not introduce polling loops or periodic timers.
+Autorun currently has no runtime implementation or Xposed hook.
 
-## Validation requirements
+## Resource ownership
 
-Before considering the feature complete, verify on the target device:
-- Every module can be enabled and disabled without rebooting the head unit.
-- Repeated toggles do not create duplicate hooks, receivers, or clients.
-- Partial installation failures clean up all successfully installed resources.
-- Voltage restores the latest real MCU value and does not reapply the offset after disable.
-- Media stops active work, closes its Bluetooth client, and retains its saved snapshot.
-- Protection restores hidden Recents entries without restarting SystemUI.
-- Configuration changes reach the correct processes.
-- Disabled modules do not continue performing feature work.
+Each hook implementation retains its Xposed `Unhook` handles and removes the feature hooks it owns. Shared support hooks are kept separate from feature hooks.
 
-## Current status
+Cleanup must tolerate partial installation and repeated disable requests. Asynchronous operations must be cancelled or invalidated before resources they use are released.
 
-Initial runtime lifecycle support is implemented for Voltage, Media, and Protection. Protection keeps its configuration and RecentsActivity tracking hooks as shared support infrastructure while unhooking its Recents and Memory Cleaner feature hooks when disabled.
+## Execution constraints
 
-The changes have not yet been built or validated on the target device. Protection's Recents refresh and all module transitions require on-device validation before the feature is considered complete.
+- Runtime work is event-driven.
+- No polling loops or periodic timers.
+- Configuration updates are delivered through broadcasts.
+- No module may depend on Events storage or UI.
+- Static state must not be treated as shared across Android processes.
+
+## Validation status
+
+Source implementation is present for Media, Voltage, and Protection lifecycle handling. Actual hook resolution, vendor behavior, configuration delivery, and UI behavior still require validation on the target head unit.
