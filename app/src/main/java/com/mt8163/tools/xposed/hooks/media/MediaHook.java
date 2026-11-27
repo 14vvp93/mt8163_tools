@@ -12,15 +12,19 @@ import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
 import com.mt8163.tools.modules.media.MediaRestorer;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
+import com.mt8163.tools.xposed.HookRegistry;
 import com.mt8163.tools.xposed.PackageHook;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodHook.Unhook;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public final class MediaHook implements PackageHook {
     private static final String APP_PACKAGE = "com.mt8163.tools";
@@ -48,7 +52,10 @@ public final class MediaHook implements PackageHook {
     private static boolean installInProgress;
     private static boolean accHookInstalled;
     private static boolean windowManagerHookInstalled;
+    private static Unhook accHook;
+    private static Set<Unhook> windowManagerHooks = Collections.emptySet();
     private static long configurationGeneration;
+    private static long lifecycleGeneration;
     private static boolean configurationLoaded;
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
@@ -68,19 +75,30 @@ public final class MediaHook implements PackageHook {
     }
 
     @Override
+    public String moduleId() {
+        return "media";
+    }
+
+    @Override
     public void install(XC_LoadPackage.LoadPackageParam param) {
+        boolean loadConfiguration;
         synchronized (LOCK) {
             if (installInProgress || (accHookInstalled && windowManagerHookInstalled)) return;
             installInProgress = true;
+            loadConfiguration = !configurationLoaded;
         }
 
         try {
+            if (loadConfiguration) loadConfiguration();
+
             synchronized (LOCK) {
-                if (!accHookInstalled) {
-                    accHookInstalled = hookAccReceiver(param.classLoader);
-                }
                 if (!windowManagerHookInstalled) {
-                    windowManagerHookInstalled = hookWindowManager(param.classLoader);
+                    windowManagerHooks = hookWindowManager(param.classLoader);
+                    windowManagerHookInstalled = !windowManagerHooks.isEmpty();
+                }
+                if (moduleEnabled && !accHookInstalled) {
+                    accHook = hookAccReceiver(param.classLoader);
+                    accHookInstalled = accHook != null;
                 }
             }
         } finally {
@@ -90,15 +108,15 @@ public final class MediaHook implements PackageHook {
         }
 
         synchronized (LOCK) {
-            if (!accHookInstalled && !windowManagerHookInstalled) {
+            if (moduleEnabled && !accHookInstalled && !windowManagerHookInstalled) {
                 throw new IllegalStateException("No Media hooks were installed");
             }
         }
     }
 
-    private static boolean hookAccReceiver(ClassLoader classLoader) {
+    private static Unhook hookAccReceiver(ClassLoader classLoader) {
         try {
-            XposedHelpers.findAndHookMethod(
+            Unhook hook = XposedHelpers.findAndHookMethod(
                     ACC_RECEIVER_CLASS,
                     classLoader,
                     "onReceive",
@@ -107,6 +125,7 @@ public final class MediaHook implements PackageHook {
                     new XC_MethodHook() {
                         @Override
                         protected void beforeHookedMethod(MethodHookParam param) {
+                            if (!isModuleEnabled()) return;
                             if (param.args == null || param.args.length < 2
                                     || !(param.args[1] instanceof Intent)) return;
                             Intent intent = (Intent) param.args[1];
@@ -118,6 +137,7 @@ public final class MediaHook implements PackageHook {
 
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) {
+                            if (!isModuleEnabled()) return;
                             if (param.args == null || param.args.length < 2
                                     || !(param.args[1] instanceof Intent)) return;
                             Intent intent = (Intent) param.args[1];
@@ -126,29 +146,35 @@ public final class MediaHook implements PackageHook {
                         }
                     });
             logEvent("accHookInstalled", "MCU ACC receiver hook installed");
-            return true;
+            logEvent("accHookInstalled", "MCU ACC receiver hook installed");
+            return hook;
         } catch (Throwable error) {
             reportError("accHook", error);
-            return false;
+            return null;
         }
     }
 
-    private static boolean hookWindowManager(ClassLoader classLoader) {
+    private static Set<Unhook> hookWindowManager(ClassLoader classLoader) {
         try {
             Class<?> type = XposedHelpers.findClass(WINDOW_MANAGER_CLASS, classLoader);
-            XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
+            Set<Unhook> hooks = XposedBridge.hookAllConstructors(type, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
                     synchronized (LOCK) {
                         windowManagerService = param.thisObject;
                     }
-
                 }
             });
-            return true;
+            return hooks == null ? Collections.emptySet() : hooks;
         } catch (Throwable error) {
             reportError("windowManagerHook", error);
-            return false;
+            return Collections.emptySet();
+        }
+    }
+
+    private static boolean isModuleEnabled() {
+        synchronized (LOCK) {
+            return moduleEnabled;
         }
     }
 
@@ -166,6 +192,7 @@ public final class MediaHook implements PackageHook {
         MediaRestorer.Cancellable cancelRestore = null;
 
         synchronized (LOCK) {
+            if (!moduleEnabled) return;
             boolean previousState = accState;
             accState = nextState;
             changed = previousState != accState;
@@ -221,12 +248,11 @@ public final class MediaHook implements PackageHook {
             return;
         }
 
-        BluetoothMusicClient cancelClient = null;
-        MediaRestorer.Cancellable cancelRestore = null;
         boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
         boolean changed;
         synchronized (LOCK) {
-            changed = configurationLoaded && moduleEnabled != enabled;
+            changed = moduleEnabled != enabled;
+            if (changed) lifecycleGeneration++;
             configurationGeneration++;
             moduleEnabled = enabled;
             restoreBackgroundMedia = intent.getBooleanExtra(
@@ -234,21 +260,10 @@ public final class MediaHook implements PackageHook {
             restoreBackgroundBluetooth = intent.getBooleanExtra(
                     EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
             configurationLoaded = true;
-
-            if (!enabled) {
-                snapshotInProgress = false;
-                restorePending = false;
-                restoreInProgress = false;
-                cancelClient = bluetoothClient;
-                bluetoothClient = null;
-                cancelRestore = activeRestoration;
-                activeRestoration = null;
-            }
         }
 
-        if (cancelClient != null) cancelClient.disconnect();
-        if (cancelRestore != null) cancelRestore.cancel();
         if (changed) {
+            HookRegistry.setModuleEnabled("media", enabled);
             logEvent("configurationChanged", "Media enabled: " + enabled);
         }
     }
@@ -284,6 +299,9 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void captureSnapshot() {
+        synchronized (LOCK) {
+            if (!moduleEnabled || !snapshotInProgress) return;
+        }
         Context context = systemContext;
         String packageName = "";
         String playbackState = MediaSettingsStore.PLAYBACK_UNKNOWN;
@@ -316,6 +334,7 @@ public final class MediaHook implements PackageHook {
 
     private static void captureBluetoothSnapshot(Context context, String packageName,
                                                  boolean isForeground) {
+        if (!isModuleEnabled()) return;
         if (context == null) {
             completeSnapshot(null, packageName,
                     MediaSettingsStore.PLAYBACK_UNKNOWN, isForeground);
@@ -389,6 +408,7 @@ public final class MediaHook implements PackageHook {
                                              String state, boolean isForeground) {
         boolean startRestore = false;
         synchronized (LOCK) {
+            if (!moduleEnabled || !snapshotInProgress) return;
             snapshotInProgress = false;
             if (saved) {
                 logEvent("snapshotSaved", "sourcePackage=" + display(source)
@@ -436,6 +456,9 @@ public final class MediaHook implements PackageHook {
     }
 
     private static void requestSnapshotForRestore() {
+        synchronized (LOCK) {
+            if (!moduleEnabled || !restoreInProgress) return;
+        }
         Context context = systemContext;
         if (context == null) {
             finishRestore();
@@ -548,6 +571,42 @@ public final class MediaHook implements PackageHook {
                 : error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage());
         XposedBridge.log("MT8163 Tools: Media " + source + ": " + message);
         logEvent("hookError", source + ": " + message);
+    }
+
+    @Override
+    public void uninstall() {
+        Unhook receiverHook;
+        BluetoothMusicClient client;
+        MediaRestorer.Cancellable restoration;
+
+        synchronized (LOCK) {
+            moduleEnabled = false;
+            lifecycleGeneration++;
+            snapshotInProgress = false;
+            restorePending = false;
+            restoreInProgress = false;
+
+            receiverHook = accHook;
+            accHook = null;
+            accHookInstalled = false;
+
+            client = bluetoothClient;
+            bluetoothClient = null;
+            restoration = activeRestoration;
+            activeRestoration = null;
+        }
+
+        if (receiverHook != null) {
+            try {
+                receiverHook.unhook();
+            } catch (Throwable error) {
+                reportError("accUnhook", error);
+            }
+        }
+        if (client != null) client.disconnect();
+        if (restoration != null) restoration.cancel();
+
+        logEvent("moduleDisabled", "Media operations stopped and ACC hook removed");
     }
 
     private static void logEvent(String source, String message) {
