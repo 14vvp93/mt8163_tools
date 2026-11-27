@@ -152,7 +152,8 @@ public final class MediaRestorer {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
                             complete(Result.RESUMED);
-                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR) {
+                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR
+                                && playRequested) {
                             complete(Result.FAILED);
                         }
                     }
@@ -435,7 +436,7 @@ public final class MediaRestorer {
         private boolean playDelayScheduled;
         private boolean playTaskSubmitted;
         private boolean playCommitted;
-        private boolean playRequested;
+        private volatile boolean playRequested;
         private boolean controllerCallbackRegistered;
         private MediaController vendorController;
         private int profileStateVersion;
@@ -452,7 +453,8 @@ public final class MediaRestorer {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
                             complete(Result.RESUMED);
-                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR) {
+                        } else if (playbackState.getState() == PlaybackState.STATE_ERROR
+                                && playRequested) {
                             complete(Result.FAILED);
                         }
                     }
