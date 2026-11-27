@@ -354,7 +354,7 @@ public final class VoltageHook implements PackageHook {
 
     private static void applyCurrentVoltageLocked(boolean reportApplied) {
         if (mcuService == null || !hasRawVoltage || !moduleEnabled
-                || rawBatteryVoltage == 0.0f || voltageOffset == 0.0f) return;
+                || rawBatteryVoltage == 0.0f) return;
 
         float outputVoltage = rawBatteryVoltage + voltageOffset;
         if (Float.isNaN(outputVoltage) || Float.isInfinite(outputVoltage)) return;
