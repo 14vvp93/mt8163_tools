@@ -4,11 +4,11 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +26,8 @@ public final class EventManager {
     private final Object writeLock = new Object();
     private final ThreadPoolExecutor writer = new ThreadPoolExecutor(
             1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(512));
-    private final ExecutorService reader = Executors.newSingleThreadExecutor();
+    private final ThreadPoolExecutor reader = new ThreadPoolExecutor(
+            1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(32));
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicLong dropped = new AtomicLong();
     private final AtomicBoolean notificationPending = new AtomicBoolean();
@@ -126,21 +127,20 @@ public final class EventManager {
             main.post(() -> callback.accept(Collections.emptyList()));
             return;
         }
+        List<String> moduleFilter = modules == null ? null : new ArrayList<>(modules);
         try {
             reader.execute(() -> {
                 List<EventRecord> records;
                 try {
                     records = enabled
-                            ? database.read(modules, limit, beforeId) : Collections.emptyList();
+                            ? database.read(moduleFilter, limit, beforeId) : Collections.emptyList();
                 } catch (RuntimeException error) {
-                    dropped.incrementAndGet();
                     records = Collections.emptyList();
                 }
                 List<EventRecord> result = records;
                 main.post(() -> callback.accept(enabled ? result : Collections.emptyList()));
             });
         } catch (RejectedExecutionException error) {
-            dropped.incrementAndGet();
             main.post(() -> callback.accept(Collections.emptyList()));
         }
     }
@@ -166,28 +166,42 @@ public final class EventManager {
     }
 
     public void clear() {
-        if (!enabled) return;
+        clear(null);
+    }
+
+    public void clear(Consumer<Boolean> callback) {
+        if (!enabled) {
+            postClearResult(callback, false);
+            return;
+        }
         synchronized (writeLock) {
             generation++;
             writer.getQueue().clear();
             try {
                 writer.execute(() -> {
+                    boolean cleared = false;
                     synchronized (writeLock) {
-                        if (!enabled) return;
-                        try {
-                            database.clear();
-                            database.insert(System.currentTimeMillis(), "Events",
-                                    "clearHistory", "Event history cleared");
-                        } catch (RuntimeException error) {
-                            dropped.incrementAndGet();
-                            return;
+                        if (enabled) {
+                            try {
+                                database.clearAndInsert(System.currentTimeMillis(), "Events",
+                                        "clearHistory", "Event history cleared");
+                                cleared = true;
+                            } catch (RuntimeException error) {
+                                dropped.incrementAndGet();
+                            }
                         }
                     }
-                    notifyListener();
+                    if (cleared) notifyListener();
+                    postClearResult(callback, cleared);
                 });
             } catch (RejectedExecutionException error) {
                 dropped.incrementAndGet();
+                postClearResult(callback, false);
             }
         }
+    }
+
+    private void postClearResult(Consumer<Boolean> callback, boolean cleared) {
+        if (callback != null) main.post(() -> callback.accept(cleared));
     }
 }
