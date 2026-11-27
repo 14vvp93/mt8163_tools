@@ -48,4 +48,4 @@ Use the Core API:
 EventLogger.log(context, "Voltage", "voltageCorrected", "11.8 V -> 12.4 V");
 ```
 
-Use the module name returned by `ModuleContract.getName()` and a stable source identifier. Do not submit repeated high-frequency values unless they represent a meaningful state change.
+Use a stable module label and source identifier. `ModuleContract` exposes `getId()` and `getNameRes()`; it does not expose `getName()`. Do not submit repeated high-frequency values unless they represent a meaningful state change.
