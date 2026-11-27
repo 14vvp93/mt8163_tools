@@ -1,27 +1,20 @@
-# Project structure
+# Project Structure
 
-This document describes the implemented repository structure and dependency boundaries.
+This document describes the current source layout and dependency boundaries on `development`.
 
 ## Repository layout
 
 ~~~text
 MT8163 Tools/
 ├── .github/workflows/
-│   ├── ci.yml
-│   ├── html-preview.yml
-│   └── manual-build.yml
 ├── app/
-│   ├── build.gradle
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml
 │       │   ├── assets/xposed_init
 │       │   ├── java/com/mt8163/tools/
-│       │   │   ├── MainApplication.java
 │       │   │   ├── core/
 │       │   │   ├── modules/
-│       │   │   │   ├── ModuleCatalog.java
-│       │   │   │   ├── ModuleUiContract.java
 │       │   │   │   ├── autorun/
 │       │   │   │   ├── events/
 │       │   │   │   ├── media/
@@ -29,95 +22,104 @@ MT8163 Tools/
 │       │   │   │   └── voltage/
 │       │   │   ├── ui/
 │       │   │   └── xposed/
-│       │   │       └── hooks/
+│       │   │       ├── hooks/
+│       │   │       │   ├── media/
+│       │   │       │   ├── protection/
+│       │   │       │   └── voltage/
+│       │   │       ├── HookRegistry.java
+│       │   │       ├── PackageHook.java
+│       │   │       ├── SystemBootstrap.java
+│       │   │       ├── SystemConfigReceiver.java
+│       │   │       └── XposedEntry.java
 │       │   └── res/
-│       └── test/java/com/mt8163/tools/modules/
+│       └── test/
 ├── docs/
 │   ├── architecture/
 │   ├── modules/
 │   └── xposed/
-├── preview/index.html
+├── preview/
 ├── gradle/
-│   └── wrapper/
-│       ├── gradle-wrapper.jar
-│       └── gradle-wrapper.properties
 ├── gradlew
-├── gradlew.bat
-├── gradle.properties
-└── settings.gradle
+└── gradlew.bat
 ~~~
 
-All project documentation belongs under the repository-root docs/ directory and is written in English.
+All project documentation belongs in the repository-root `docs/` directory and is written in English.
 
-## Core
+## Application architecture
 
-com.mt8163.tools.core contains shared contracts and infrastructure:
+### Core
 
-- ModuleContract — module identity, title/layout resources, and enabled state.
-- ModuleRegistry — stores and exposes the supplied module definitions; it does not instantiate or import feature implementations.
-- PreferencesManager — persists module enabled states.
-- EventLogger — shared event submission interface.
+`com.mt8163.tools.core` contains shared contracts and infrastructure:
 
-Core does not construct concrete feature modules or reference module UI classes.
+- `ModuleContract` — module identity, title/layout resources, and enabled state.
+- `ModuleRegistry` — stores and exposes module definitions.
+- `PreferencesManager` — persists module enabled states.
+- `EventLogger` — shared event-submission API.
 
-## Feature modules
+Core does not construct feature modules or depend on their UI implementations.
 
-Each module owns its settings, runtime implementation, UI binding, and Xposed hook package where applicable.
+### Modules
 
-ModuleCatalog is the application composition root. It creates modules in sidebar order and injects them into ModuleRegistry.
+Each feature module owns its settings, runtime logic, and UI implementation under `modules/<module>/`.
 
-ModuleUiContract lets a module create its own content view and handle its enabled transition, content cleanup, and activity results. MainActivity depends on this shared interface rather than importing individual module view classes or dispatching by module ID.
+`ModuleCatalog` is the composition root. It creates the modules in UI order and supplies them to the registry.
 
-| Module | UI/runtime package | Hook package | State |
-|---|---|---|---|
-| Media | modules/media | xposed/hooks/media | Implemented; device validation pending |
-| Protection | modules/protection | xposed/hooks/protection | Implemented; device validation pending |
-| Voltage | modules/voltage | xposed/hooks/voltage | Implemented; device validation pending |
-| Events | modules/events | xposed/hooks/events | Event storage and UI implemented |
-| Autorun | modules/autorun | Reserved | Placeholder only; outside the current work package |
+`ModuleUiContract` lets each module create its content view and handle module-specific lifecycle callbacks and activity results. The application shell uses these shared contracts rather than importing feature view classes.
 
-Feature modules do not depend on one another. Event producers use Core's EventLogger; they do not depend on Events storage or UI.
+| Module | Package | Current state |
+|---|---|---|
+| Media | `modules/media` | ACC Snapshot and playback restoration implemented |
+| Protection | `modules/protection` | Recents and Memory Cleaner protection implemented |
+| Voltage | `modules/voltage` | MCU voltage offset implemented |
+| Events | `modules/events` | Event storage and history UI implemented |
+| Autorun | `modules/autorun` | UI placeholder only |
 
-## UI
+Modules do not depend on one another. Event producers use Core's `EventLogger`; they do not access Events storage or UI.
 
-com.mt8163.tools.ui contains the activity shell, shared module header, sidebar adapter, and dialog helpers. It owns navigation and the common module contract, not individual module layouts or behavior.
+### UI
 
-Module views are inflated and bound by their owning module through ModuleUiContract. Visual properties remain in Android resources.
+`com.mt8163.tools.ui` contains the shared activity shell, navigation, and common UI infrastructure. Individual module layouts and view behavior remain in their owning module packages.
 
-## Xposed integration
+## Xposed architecture
 
-The project uses Legacy XposedBridge API 82.
+Xposed integration is separate from the application modules:
 
-- XposedEntry is the registered Legacy entry point.
-- HookRegistry dispatches package-load callbacks to module hooks.
-- PackageHook defines package support, installation, and uninstall operations.
-- Feature hooks remain isolated under xposed/hooks/<module>/.
+- `XposedEntry` — Legacy Xposed package-load entry point, registered through `assets/xposed_init`.
+- `HookRegistry` — routes package-load callbacks and module enable/disable requests.
+- `PackageHook` — common hook contract: target-package support, installation, module ID, and uninstallation.
+- `SystemBootstrap` — installs SystemServer startup hooks and initializes shared configuration delivery.
+- `SystemConfigReceiver` — routes Media and Voltage configuration broadcasts in `system_server`.
+- `xposed/hooks/<module>/` — module-specific Xposed implementations.
 
-Target packages:
-- android — Media and Voltage.
-- com.android.systemui — Protection.
+Current hook routing:
 
-## Runtime configuration
+| Target process | Hook | Module |
+|---|---|---|
+| `android` | `MediaHook` | Media |
+| `android` | `VoltageHook` | Voltage |
+| `com.android.systemui` main process | `ProtectionHook` | Protection |
 
-The application process persists settings and publishes module-specific configuration to the target process using explicit package broadcasts protected by signature-level permissions. Each hook reads its initial configuration and handles subsequent changes in its own process.
+Events and Autorun do not have Xposed hooks. Events is an application-side event consumer; Autorun is currently a UI placeholder.
 
-Static fields are process-local; application-process state must not be treated as shared memory with system_server or SystemUI.
+## Configuration and process boundaries
 
-## Build and verification
+Media and Voltage hooks run in `system_server`. Protection runs in the main `com.android.systemui` process. Static fields are process-local and are not shared between the application, SystemServer, and SystemUI.
 
-- Android min/target SDK: 28.
-- Compile SDK: 35.
-- Java source/target: 17.
-- Android Gradle Plugin: 8.7.3.
-- Gradle: 8.9.
-- CI runs lint and unit tests only.
-- APK Build is manual-only.
-- Gradle Wrapper is pinned to Gradle 8.9.
+The application persists settings and publishes module-specific configuration through explicit broadcasts protected by the corresponding permissions. Each target process loads its initial configuration and handles subsequent updates locally.
+
+## Platform and build
+
+- Android 9 / API 28.
+- Legacy XposedBridge API 82, running under LSPosed.
+- Compile SDK 35; Java 17.
+- Android Gradle Plugin 8.7.3; Gradle Wrapper 8.9.
+- CI runs lint and unit tests.
+- Debug APK builds are manual-only.
 
 ## Device constraints
 
-- Android 9 / API 28.
 - 1280×720 at 160 dpi (mdpi).
-- Keep UI content within the target display without unnecessary scrolling.
-- Use event-driven callbacks, listeners, broadcasts, and lifecycle events; do not add polling.
-- Runtime behavior involving vendor Binder services, MCU fields, MediaSession, LSPosed preferences, and SystemUI internals must be validated on the actual head unit.
+- Keep layouts usable within the target display.
+- Use callbacks, listeners, broadcasts, and lifecycle events.
+- Do not introduce polling or periodic timers.
+- Framework and vendor behavior must be validated on the actual head unit.
