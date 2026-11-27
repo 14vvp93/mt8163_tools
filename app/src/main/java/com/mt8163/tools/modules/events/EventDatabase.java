@@ -79,6 +79,24 @@ public final class EventDatabase extends SQLiteOpenHelper {
         getWritableDatabase().delete("events", null, null);
     }
 
+    public synchronized void clearAndInsert(long timestamp, String module,
+                                            String source, String message) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("events", null, null);
+            ContentValues values = new ContentValues();
+            values.put("timestamp", timestamp);
+            values.put("module", module);
+            values.put("source", source);
+            values.put("message", message);
+            db.insertOrThrow("events", null, values);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     public synchronized int count() {
         try (Cursor cursor = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM events", null)) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
