@@ -665,6 +665,7 @@ public final class ProtectionHook implements PackageHook {
         ProtectionTaskMatcher.update(config);
         if (config.isEnabled()) {
             enableFeatureHooks();
+            refreshRecentsIfNeeded();
         } else {
             disableFeatureHooks();
         }
