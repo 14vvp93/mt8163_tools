@@ -2,8 +2,14 @@ package com.mt8163.tools.modules.protection;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
@@ -22,13 +28,19 @@ import com.mt8163.tools.ui.DialogHelper;
 import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 public final class ProtectionModuleView {
     private static final int MAX_PROTECTION_PICKER_RESULTS = 10;
+    private static final Object APPLICATION_CACHE_LOCK = new Object();
+    private static List<ProtectedApplicationEntry> installedApplicationsCache;
+    private static final Map<String, Drawable.ConstantState> applicationIconCache = new HashMap<>();
+    private static boolean packageReceiverRegistered;
 
     private final Activity protectionActivity;
     private final PackageManager protectionPackageManager;
@@ -38,6 +50,7 @@ public final class ProtectionModuleView {
     public ProtectionModuleView(View protectionRootView, Activity protectionActivity) {
         this.protectionActivity = protectionActivity;
         protectionPackageManager = protectionActivity.getPackageManager();
+        registerPackageChangeReceiver(protectionActivity.getApplicationContext());
         protectionInflater = LayoutInflater.from(protectionActivity);
         protectionApplicationsContainer = protectionRootView.findViewById(R.id.protection_applications);
         protectionRootView.findViewById(R.id.protection_add_application)
@@ -75,11 +88,7 @@ public final class ProtectionModuleView {
                 ProtectionSettingsStore.getApplicationSettings(protectionActivity, app.info.packageName);
 
         ImageView icon = card.findViewById(R.id.protection_app_icon);
-        try {
-            icon.setImageDrawable(protectionPackageManager.getApplicationIcon(app.info));
-        } catch (RuntimeException error) {
-            icon.setImageResource(android.R.drawable.sym_def_app_icon);
-        }
+        icon.setImageDrawable(getCachedApplicationIcon(app));
 
         TextView name = card.findViewById(R.id.protection_app_name);
         name.setText(app.label);
@@ -235,11 +244,7 @@ public final class ProtectionModuleView {
     private void addPickerRow(ProtectedApplicationEntry app, LinearLayout applicationPickerList, Dialog protectionDialog) {
         View row = protectionInflater.inflate(R.layout.item_protection_picker, applicationPickerList, false);
         ImageView icon = row.findViewById(R.id.protection_picker_app_icon);
-        try {
-            icon.setImageDrawable(protectionPackageManager.getApplicationIcon(app.info));
-        } catch (RuntimeException error) {
-            icon.setImageResource(android.R.drawable.sym_def_app_icon);
-        }
+        icon.setImageDrawable(getCachedApplicationIcon(app));
 
         ((TextView) row.findViewById(R.id.protection_picker_app_name)).setText(app.label);
         ((TextView) row.findViewById(R.id.protection_picker_package))
@@ -260,6 +265,10 @@ public final class ProtectionModuleView {
 
 
     private List<ProtectedApplicationEntry> loadInstalledApplications() {
+        synchronized (APPLICATION_CACHE_LOCK) {
+            if (installedApplicationsCache != null) return installedApplicationsCache;
+        }
+
         List<ProtectedApplicationEntry> result = new ArrayList<>();
         try {
             List<ApplicationInfo> installed =
@@ -276,7 +285,56 @@ public final class ProtectionModuleView {
             showToast(R.string.protection_load_failed);
         }
         sortApplications(result);
-        return result;
+        List<ProtectedApplicationEntry> cached = Collections.unmodifiableList(result);
+        synchronized (APPLICATION_CACHE_LOCK) {
+            if (installedApplicationsCache == null) installedApplicationsCache = cached;
+            return installedApplicationsCache;
+        }
+    }
+
+    private void registerPackageChangeReceiver(Context context) {
+        synchronized (APPLICATION_CACHE_LOCK) {
+            if (packageReceiverRegistered) return;
+
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+            filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+            filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+            filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
+            filter.addDataScheme("package");
+
+            context.registerReceiver(new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context receiverContext, Intent intent) {
+                    synchronized (APPLICATION_CACHE_LOCK) {
+                        installedApplicationsCache = null;
+                        applicationIconCache.clear();
+                    }
+                }
+            }, filter);
+            packageReceiverRegistered = true;
+        }
+    }
+
+    private Drawable getCachedApplicationIcon(ProtectedApplicationEntry app) {
+        synchronized (APPLICATION_CACHE_LOCK) {
+            Drawable.ConstantState state = applicationIconCache.get(app.info.packageName);
+            if (state != null) return state.newDrawable(protectionActivity.getResources()).mutate();
+        }
+
+        try {
+            Drawable drawable = protectionPackageManager.getApplicationIcon(app.info);
+            Drawable.ConstantState state = drawable.getConstantState();
+            if (state != null) {
+                synchronized (APPLICATION_CACHE_LOCK) {
+                    applicationIconCache.put(app.info.packageName, state);
+                }
+                return state.newDrawable(protectionActivity.getResources()).mutate();
+            }
+            return drawable;
+        } catch (RuntimeException error) {
+            return protectionActivity.getDrawable(android.R.drawable.sym_def_app_icon);
+        }
     }
 
     private String getApplicationLabel(ApplicationInfo info) {
