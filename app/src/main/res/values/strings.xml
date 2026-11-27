@@ -37,4 +37,10 @@
 <string name="voltage_module_disabled">Voltage module disabled</string>
 <string name="protection_module_enabled">Protection module enabled</string>
 <string name="protection_module_disabled">Protection module disabled</string>
+    <string name="protection_indicator_cleaner_enabled">Protected from Memory Cleaner: enabled</string>
+    <string name="protection_indicator_cleaner_disabled">Protected from Memory Cleaner: disabled</string>
+    <string name="protection_indicator_hide_enabled">Hidden in Recents: enabled</string>
+    <string name="protection_indicator_hide_disabled">Hidden in Recents: disabled</string>
+    <string name="protection_indicator_close_enabled">Close via X allowed: enabled</string>
+    <string name="protection_indicator_close_disabled">Close via X allowed: disabled</string>
 </resources>

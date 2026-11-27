@@ -170,6 +170,15 @@ The vendor service has its own active-session listener and assigns its internal 
 
 Also verify the effect of `persist.sys.BTMusicAutoPlay`. Vendor AutoPlay may independently send PLAY when Bluetooth reconnects, including when the stored Snapshot is `paused` or `unknown`.
 
+## Playback confirmation
+
+Standard MediaSession and Bluetooth playback confirmation compare
+PlaybackState.getLastPositionUpdateTime() with the elapsed-realtime timestamp recorded immediately before PLAY dispatch. A missing timestamp (0) is treated as stale confirmation. A PLAYING state reported before the dispatch point completes as SKIPPED; a later state can complete as RESUMED.
+
+The MediaSession timestamp describes a playback-position update, not a guaranteed state-transition timestamp. Vendor implementations may retain an old timestamp or update it asynchronously. This classification is therefore a guard against stale callbacks, not proof of the exact transition time. Validate it on the target head unit before treating Bluetooth restoration as device-verified.
+
+Standard restoration uses one five-second total deadline for session discovery and playback confirmation. Bluetooth restoration retains its separate 30-second deadline.
+
 ## Resource and execution rules
 
 - No polling or periodic checks.

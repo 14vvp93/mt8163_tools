@@ -4,6 +4,7 @@ import android.app.Application;
 
 import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
+import com.mt8163.tools.modules.ModuleCatalog;
 import com.mt8163.tools.modules.events.EventManager;
 import com.mt8163.tools.modules.media.MediaSettingsStore;
 import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
@@ -17,9 +18,10 @@ public final class MainApplication extends Application {
     public void onCreate() {
         super.onCreate();
         preferencesManager = new PreferencesManager(this);
-        moduleRegistry = new ModuleRegistry();
+        moduleRegistry = new ModuleRegistry(ModuleCatalog.create());
         moduleRegistry.loadStates(preferencesManager);
-        EventManager.get(this).setEnabled(preferencesManager.getModuleEnabled("events", true));
+        EventManager.get(this).setEnabled(
+                preferencesManager.getModuleEnabled("events", true));
         VoltageSettingsStore.publish(this);
         MediaSettingsStore.publish(this);
         ProtectionSettingsStore.publish(this);

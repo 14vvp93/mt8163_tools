@@ -140,6 +140,8 @@ public final class MediaRestorer {
         private boolean listenerRegistered;
         private boolean controllerCallbackRegistered;
         private boolean playRequested;
+        private boolean playCommitted;
+        private long playDispatchElapsedRealtime;
         private MediaController activeController;
 
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
@@ -151,7 +153,14 @@ public final class MediaRestorer {
                     public void onPlaybackStateChanged(PlaybackState playbackState) {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
-                            complete(Result.RESUMED);
+                            long updateTime = playbackState.getLastPositionUpdateTime();
+                            boolean startedBeforePlay;
+                            synchronized (lock) {
+                                startedBeforePlay = state.get() != State.PLAY_SENT
+                                        || PlaybackConfirmation.startedBeforeDispatch(
+                                        playCommitted, updateTime, playDispatchElapsedRealtime);
+                            }
+                            complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
                                 && playRequested) {
                             complete(Result.FAILED);
@@ -241,12 +250,14 @@ public final class MediaRestorer {
         private void registerListener() {
             try {
                 manager.addOnActiveSessionsChangedListener(listener, null, handler);
+                boolean keepListener;
                 synchronized (lock) {
-                    if (state.get() == State.ACTIVE) {
-                        listenerRegistered = true;
-                    } else {
-                        manager.removeOnActiveSessionsChangedListener(listener);
-                    }
+                    keepListener = state.get() == State.ACTIVE;
+                    if (keepListener) listenerRegistered = true;
+                }
+                if (!keepListener) {
+                    manager.removeOnActiveSessionsChangedListener(listener);
+                    return;
                 }
                 logEvent(context, "mediaSessionListenerRegistered", "Source: " + packageName);
             } catch (RuntimeException error) {
@@ -280,6 +291,8 @@ public final class MediaRestorer {
                     if (state.get() != State.ACTIVE) return;
                     activeController = controller;
                     state.set(State.PLAY_SENT);
+                    playCommitted = true;
+                    playDispatchElapsedRealtime = Long.MAX_VALUE;
                 }
 
                 controller.registerCallback(playbackCallback, handler);
@@ -304,15 +317,11 @@ public final class MediaRestorer {
                     return;
                 }
 
-                handler.removeCallbacks(timeout);
-                if (!handler.postDelayed(timeout, MEDIA_TIMEOUT_MS)) {
-                    logEvent(context, "mediaRestoreFailed",
-                            "Unable to schedule playback confirmation");
-                    complete(Result.FAILED);
-                    return;
+                synchronized (lock) {
+                    if (state.get() != State.PLAY_SENT) return;
+                    playRequested = true;
+                    playDispatchElapsedRealtime = SystemClock.elapsedRealtime();
                 }
-
-                playRequested = true;
                 controller.getTransportControls().play();
                 logEvent(context, "mediaPlaySent",
                         "TransportControls.play(): " + packageName);
@@ -472,7 +481,8 @@ public final class MediaRestorer {
                                 State current = state.get();
                                 startedBeforePlay = current == State.ACTIVE
                                         || (current == State.PLAY_SENT
-                                        && updateTime <= playDispatchElapsedRealtime);
+                                        && PlaybackConfirmation.startedBeforeDispatch(
+                                        true, updateTime, playDispatchElapsedRealtime));
                             }
                             complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
@@ -577,12 +587,14 @@ public final class MediaRestorer {
         private void registerListener() {
             try {
                 manager.addOnActiveSessionsChangedListener(listener, null, handler);
+                boolean keepListener;
                 synchronized (lock) {
-                    if (state.get() == State.ACTIVE) {
-                        listenerRegistered = true;
-                    } else {
-                        manager.removeOnActiveSessionsChangedListener(listener);
-                    }
+                    keepListener = state.get() == State.ACTIVE;
+                    if (keepListener) listenerRegistered = true;
+                }
+                if (!keepListener) {
+                    manager.removeOnActiveSessionsChangedListener(listener);
+                    return;
                 }
                 logEvent(context, "bluetoothSessionListenerRegistered",
                         "Waiting for vendor MediaSession");

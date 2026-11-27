@@ -10,18 +10,10 @@ import android.widget.ListView;
 
 import com.mt8163.tools.MainApplication;
 import com.mt8163.tools.R;
-import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.core.ModuleContract;
 import com.mt8163.tools.core.ModuleRegistry;
 import com.mt8163.tools.core.PreferencesManager;
-import com.mt8163.tools.modules.events.EventManager;
-import com.mt8163.tools.modules.events.EventsModuleView;
-import com.mt8163.tools.modules.media.MediaModuleView;
-import com.mt8163.tools.modules.media.MediaSettingsStore;
-import com.mt8163.tools.modules.protection.ProtectionModuleView;
-import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
-import com.mt8163.tools.modules.voltage.VoltageModuleView;
-import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
+import com.mt8163.tools.modules.ModuleUiContract;
 
 import java.util.List;
 
@@ -33,6 +25,7 @@ public final class MainActivity extends Activity {
     private FrameLayout moduleHeaderContainer;
     private FrameLayout moduleContentContainer;
     private View disabledModuleOverlay;
+    private ModuleUiContract currentModuleUi;
     private int selectedModulePosition;
 
     @Override
@@ -61,8 +54,14 @@ public final class MainActivity extends Activity {
     private void showModule(int position) {
         if (position < 0 || position >= registeredModules.size()) return;
 
+        if (currentModuleUi != null) currentModuleUi.onContentRemoved();
+        currentModuleUi = null;
         selectedModulePosition = position;
         ModuleContract selectedModule = registeredModules.get(position);
+        if (selectedModule instanceof ModuleUiContract) {
+            currentModuleUi = (ModuleUiContract) selectedModule;
+        }
+
         sidebarAdapter.setSelectedPosition(position);
         moduleHeaderContainer.removeAllViews();
 
@@ -70,56 +69,27 @@ public final class MainActivity extends Activity {
                 .inflate(R.layout.view_module_header, moduleHeaderContainer, false);
         ModuleHeaderView.bind(moduleHeaderView, selectedModule, enabled -> {
             moduleRegistry.saveState(selectedModule, preferencesManager);
-
-            if ("events".equals(selectedModule.getId())) {
-                EventManager eventsManager = EventManager.get(this);
-                eventsManager.setEnabled(enabled);
-                eventsManager.logLifecycle(enabled ? "moduleEnabled" : "moduleDisabled",
-                        getString(enabled ? R.string.events_module_enabled : R.string.events_module_disabled));
+            if (selectedModule instanceof ModuleUiContract) {
+                ModuleUiContract moduleUi = (ModuleUiContract) selectedModule;
+                moduleUi.onEnabledChanged(this, enabled);
+                if (moduleUi.recreateContentOnEnabledChange()) {
+                    sidebarAdapter.notifyDataSetChanged();
+                    showModule(selectedModulePosition);
+                    return;
+                }
             }
-
-            if ("voltage".equals(selectedModule.getId())) {
-                EventLogger.log(this, "Voltage",
-                        enabled ? "moduleEnabled" : "moduleDisabled",
-                        getString(enabled ? R.string.voltage_module_enabled : R.string.voltage_module_disabled));
-                VoltageSettingsStore.publish(this);
-            }
-
-            if ("media".equals(selectedModule.getId())) {
-                MediaSettingsStore.publish(this);
-            }
-
-            if ("protection".equals(selectedModule.getId())) {
-                EventLogger.log(this, "Protection",
-                        enabled ? "moduleEnabled" : "moduleDisabled",
-                        getString(enabled ? R.string.protection_module_enabled : R.string.protection_module_disabled));
-                ProtectionSettingsStore.publish(this);
-            }
-
             sidebarAdapter.notifyDataSetChanged();
-            if ("events".equals(selectedModule.getId())) showModule(selectedModulePosition);
-            else updateSelectedModuleVisibility();
+            updateSelectedModuleVisibility();
         });
         moduleHeaderContainer.addView(moduleHeaderView);
 
-        EventsModuleView.destroy();
         moduleContentContainer.removeAllViews();
-        if ("events".equals(selectedModule.getId())) {
-            if (selectedModule.isEnabled()) {
-                moduleContentContainer.addView(EventsModuleView.create(this, registeredModules));
-            }
-        } else {
-            View moduleView = LayoutInflater.from(this)
-                    .inflate(selectedModule.getLayoutRes(), moduleContentContainer, false);
-            moduleContentContainer.addView(moduleView);
-            if ("voltage".equals(selectedModule.getId())) {
-                VoltageModuleView.bind(moduleView, this);
-            } else if ("media".equals(selectedModule.getId())) {
-                new MediaModuleView(moduleView, this);
-            } else if ("protection".equals(selectedModule.getId())) {
-                new ProtectionModuleView(moduleView, this);
-            }
-        }
+        View moduleView = currentModuleUi == null
+                ? LayoutInflater.from(this).inflate(
+                selectedModule.getLayoutRes(), moduleContentContainer, false)
+                : currentModuleUi.createContentView(
+                this, moduleContentContainer, registeredModules);
+        if (moduleView != null) moduleContentContainer.addView(moduleView);
         updateSelectedModuleVisibility();
     }
 
@@ -131,13 +101,18 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        EventsModuleView.destroy();
+        if (currentModuleUi != null) currentModuleUi.onContentRemoved();
+        currentModuleUi = null;
         super.onDestroy();
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        EventsModuleView.onActivityResult(requestCode, resultCode, data);
+        for (ModuleContract module : registeredModules) {
+            if (module instanceof ModuleUiContract
+                    && ((ModuleUiContract) module).onActivityResult(
+                    requestCode, resultCode, data)) return;
+        }
     }
 }

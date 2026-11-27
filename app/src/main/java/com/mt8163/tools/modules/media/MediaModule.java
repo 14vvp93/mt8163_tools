@@ -1,9 +1,17 @@
 package com.mt8163.tools.modules.media;
 
+import android.app.Activity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.FrameLayout;
+
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.ModuleContract;
+import com.mt8163.tools.modules.ModuleUiContract;
 
-public final class MediaModule implements ModuleContract {
+import java.util.List;
+
+public final class MediaModule implements ModuleContract, ModuleUiContract {
     private boolean enabled;
 
     @Override public String getId() { return "media"; }
@@ -12,4 +20,18 @@ public final class MediaModule implements ModuleContract {
     @Override public boolean isEnabledByDefault() { return false; }
     @Override public boolean isEnabled() { return enabled; }
     @Override public void setEnabled(boolean value) { enabled = value; }
+
+    @Override
+    public View createContentView(Activity activity, FrameLayout container,
+                                  List<ModuleContract> modules) {
+        View view = LayoutInflater.from(activity)
+                .inflate(getLayoutRes(), container, false);
+        new MediaModuleView(view, activity);
+        return view;
+    }
+
+    @Override
+    public void onEnabledChanged(Activity activity, boolean enabled) {
+        MediaSettingsStore.publish(activity);
+    }
 }

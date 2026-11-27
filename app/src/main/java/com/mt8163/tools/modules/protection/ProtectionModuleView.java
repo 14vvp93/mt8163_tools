@@ -115,7 +115,23 @@ public final class ProtectionModuleView {
     }
 
     private static void setProtectionIndicatorState(View protectionRootView, int id, boolean enabled) {
-        protectionRootView.findViewById(id).setActivated(enabled);
+        View indicator = protectionRootView.findViewById(id);
+        indicator.setActivated(enabled);
+
+        int enabledDescription;
+        int disabledDescription;
+        if (id == R.id.protection_indicator_cleaner) {
+            enabledDescription = R.string.protection_indicator_cleaner_enabled;
+            disabledDescription = R.string.protection_indicator_cleaner_disabled;
+        } else if (id == R.id.protection_indicator_hide) {
+            enabledDescription = R.string.protection_indicator_hide_enabled;
+            disabledDescription = R.string.protection_indicator_hide_disabled;
+        } else {
+            enabledDescription = R.string.protection_indicator_close_enabled;
+            disabledDescription = R.string.protection_indicator_close_disabled;
+        }
+        indicator.setContentDescription(protectionRootView.getContext().getString(
+                enabled ? enabledDescription : disabledDescription));
     }
 
     private void showApplicationSettings(ProtectedApplicationEntry app) {
