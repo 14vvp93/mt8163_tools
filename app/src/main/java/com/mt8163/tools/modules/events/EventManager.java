@@ -122,34 +122,46 @@ public final class EventManager {
         });
     }
 
+    public static final class ReadResult {
+        public final boolean success;
+        public final List<EventRecord> records;
+
+        private ReadResult(boolean success, List<EventRecord> records) {
+            this.success = success;
+            this.records = records;
+        }
+    }
+
     public void readAsync(List<String> modules, int limit, long beforeId,
-                          Consumer<List<EventRecord>> callback) {
+                          Consumer<ReadResult> callback) {
         if (callback == null) return;
         if (!enabled) {
-            main.post(() -> callback.accept(Collections.emptyList()));
+            main.post(() -> callback.accept(new ReadResult(true, Collections.emptyList())));
             return;
         }
         List<String> moduleFilter = modules == null ? null : new ArrayList<>(modules);
         try {
             reader.execute(() -> {
-                List<EventRecord> records;
+                ReadResult result;
                 try {
-                    records = enabled
+                    List<EventRecord> records = enabled
                             ? database.read(moduleFilter, limit, beforeId) : Collections.emptyList();
+                    result = new ReadResult(true, records);
                 } catch (RuntimeException error) {
                     Log.e(TAG, "Failed to read event history", error);
-                    records = Collections.emptyList();
+                    result = new ReadResult(false, Collections.emptyList());
                 }
-                List<EventRecord> result = records;
-                main.post(() -> callback.accept(enabled ? result : Collections.emptyList()));
+                ReadResult readResult = result;
+                main.post(() -> callback.accept(enabled
+                        ? readResult : new ReadResult(true, Collections.emptyList())));
             });
         } catch (RejectedExecutionException error) {
             Log.w(TAG, "Event read queue is full", error);
-            main.post(() -> callback.accept(Collections.emptyList()));
+            main.post(() -> callback.accept(new ReadResult(false, Collections.emptyList())));
         }
     }
 
-    public void readAllAsync(List<String> modules, Consumer<List<EventRecord>> callback) {
+    public void readAllAsync(List<String> modules, Consumer<ReadResult> callback) {
         readAsync(modules, EventDatabase.MAX_RECORDS, Long.MAX_VALUE, callback);
     }
 
