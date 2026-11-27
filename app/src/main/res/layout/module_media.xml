@@ -112,6 +112,52 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_md"
+                android:text="@string/media_notifications_title" />
+
+            <LinearLayout
+                style="@style/ModuleSettingRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_md">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/ModuleSettingLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/media_playback_notifications" />
+
+                    <TextView
+                        style="@style/ProtectionPickerPackage"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/media_playback_notifications_summary" />
+                </LinearLayout>
+
+                <Switch
+                    style="@style/ModuleSettingSwitch"
+                    android:id="@+id/media_playback_notifications"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/media_playback_notifications" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/border_width"
+                android:layout_marginTop="@dimen/spacing_lg"
+                android:background="@color/line" />
+
+            <TextView
+                style="@style/ModuleSectionLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_md"
                 android:text="@string/media_last_snapshot" />
 
             <LinearLayout
