@@ -18,6 +18,7 @@ import android.widget.Toast;
 
 import com.mt8163.tools.R;
 import com.mt8163.tools.core.ModuleContract;
+import com.mt8163.tools.ui.DialogHelper;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -153,7 +154,7 @@ public final class EventsModuleView {
         });
         cancel.setOnClickListener(view -> dialog.dismiss());
 
-        showDialog(dialog, root);
+        showDialog(dialog, root, true);
     }
 
     private static void refreshEvents() {
@@ -306,9 +307,11 @@ public final class EventsModuleView {
     }
 
     private static void showDialog(Dialog dialog, View root) {
-        dialog.setContentView(root);
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
+        showDialog(dialog, root, false);
+    }
+
+    private static void showDialog(Dialog dialog, View root, boolean large) {
+        DialogHelper.show(eventsActivity, dialog, root, large);
     }
 
     public static void destroy() {
