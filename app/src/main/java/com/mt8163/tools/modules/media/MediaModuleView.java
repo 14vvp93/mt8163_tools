@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.View;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.mt8163.tools.R;
 
@@ -90,8 +89,6 @@ public final class MediaModuleView {
                                        boolean persistedValue) {
         if (successful) return;
 
-        Toast.makeText(context, R.string.media_settings_update_failed,
-                Toast.LENGTH_SHORT).show();
         suppressSettingCallbacks = true;
         target.setChecked(persistedValue);
         suppressSettingCallbacks = false;
