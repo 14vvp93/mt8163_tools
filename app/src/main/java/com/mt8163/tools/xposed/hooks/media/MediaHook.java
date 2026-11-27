@@ -4,9 +4,12 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.os.Bundle;
+import android.widget.Toast;
 
 import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.modules.media.BluetoothMusicClient;
@@ -43,6 +46,7 @@ public final class MediaHook implements PackageHook {
     private static final String EXTRA_RESTORE_BACKGROUND_MEDIA = "restore_background_media";
     private static final String EXTRA_RESTORE_BACKGROUND_BLUETOOTH =
             "restore_background_bluetooth";
+    private static final String EXTRA_PLAYBACK_NOTIFICATIONS = "playback_notifications";
     private static final String EXTRA_SOURCE_PACKAGE = "source_package";
     private static final String EXTRA_PLAYBACK_STATE = "playback_state";
     private static final String EXTRA_IS_FOREGROUND = "is_foreground";
@@ -59,6 +63,7 @@ public final class MediaHook implements PackageHook {
     private static boolean moduleEnabled;
     private static boolean restoreBackgroundMedia;
     private static boolean restoreBackgroundBluetooth;
+    private static boolean playbackNotifications;
     private static boolean accState = true;
     private static boolean snapshotInProgress;
     private static boolean restorePending;
@@ -276,6 +281,8 @@ public final class MediaHook implements PackageHook {
                     EXTRA_RESTORE_BACKGROUND_MEDIA, restoreBackgroundMedia);
             restoreBackgroundBluetooth = intent.getBooleanExtra(
                     EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
+            playbackNotifications = intent.getBooleanExtra(
+                    EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications);
             configurationLoaded = true;
         }
 
@@ -301,12 +308,15 @@ public final class MediaHook implements PackageHook {
                     EXTRA_RESTORE_BACKGROUND_MEDIA, false);
             boolean restoreBluetooth = preferences.getBoolean(
                     EXTRA_RESTORE_BACKGROUND_BLUETOOTH, false);
+            boolean notifications = preferences.getBoolean(
+                    EXTRA_PLAYBACK_NOTIFICATIONS, false);
 
             synchronized (LOCK) {
                 if (configurationGeneration != generation) return;
                 moduleEnabled = enabled;
                 restoreBackgroundMedia = restoreMedia;
                 restoreBackgroundBluetooth = restoreBluetooth;
+                playbackNotifications = notifications;
                 configurationLoaded = true;
             }
             logEvent("configurationLoaded", "Media settings loaded: enabled=" + enabled);
@@ -534,7 +544,12 @@ public final class MediaHook implements PackageHook {
 
                     MediaRestorer.Cancellable operation = MediaRestorer.restore(
                             context, packageName, playbackState, foreground,
-                            restoreMedia, restoreBluetooth, () -> finishRestore(generation));
+                            restoreMedia, restoreBluetooth, result -> {
+                                if (isLifecycleActive(generation)) {
+                                    showPlaybackToast(context, packageName, result);
+                                }
+                                finishRestore(generation);
+                            });
 
                     boolean cancelOperation;
                     synchronized (LOCK) {
@@ -554,6 +569,49 @@ public final class MediaHook implements PackageHook {
     private static void finishRestore(long generation) {
         synchronized (LOCK) {
             if (lifecycleGeneration == generation) finishRestoreLocked();
+        }
+    }
+
+    private static void showPlaybackToast(Context context, String packageName,
+                                          MediaRestorer.Result result) {
+        boolean enabled;
+        synchronized (LOCK) {
+            enabled = moduleEnabled && accState && playbackNotifications;
+        }
+        if (!enabled || context == null || result == null) return;
+
+        String message;
+        if (result == MediaRestorer.Result.RESUMED) {
+            if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
+                message = "Bluetooth: Playback resumed";
+            } else {
+                message = getApplicationLabel(context, packageName)
+                        + ": Playback resumed";
+            }
+        } else if (result == MediaRestorer.Result.FAILED) {
+            message = "Failed to resume playback";
+        } else {
+            return;
+        }
+
+        try {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+        } catch (RuntimeException error) {
+            reportError("playbackToast", error);
+        }
+    }
+
+    private static String getApplicationLabel(Context context, String packageName) {
+        if (packageName == null || packageName.trim().isEmpty()) return "Media Player";
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            ApplicationInfo applicationInfo = packageManager.getApplicationInfo(
+                    packageName, 0);
+            CharSequence label = packageManager.getApplicationLabel(applicationInfo);
+            String value = label == null ? "" : label.toString().trim();
+            return value.isEmpty() ? "Media Player" : value;
+        } catch (PackageManager.NameNotFoundException | RuntimeException error) {
+            return "Media Player";
         }
     }
 
