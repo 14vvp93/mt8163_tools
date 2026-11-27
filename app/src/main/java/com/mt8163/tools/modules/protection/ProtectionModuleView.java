@@ -8,8 +8,6 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Switch;
 import android.widget.EditText;
@@ -19,6 +17,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.mt8163.tools.R;
+import com.mt8163.tools.ui.DialogHelper;
 
 import java.text.Collator;
 import java.util.ArrayList;
@@ -191,11 +190,7 @@ public final class ProtectionModuleView {
         });
         showSystemAppsSwitch.setOnCheckedChangeListener((button, checked) -> render.run());
 
-        showDialog(protectionDialog, protectionRootView);
-        Window window = protectionDialog.getWindow();
-        if (window != null) {
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        }
+        showDialog(protectionDialog, protectionRootView, true);
         render.run();
     }
 
@@ -264,9 +259,11 @@ public final class ProtectionModuleView {
     }
 
     private void showDialog(Dialog protectionDialog, View content) {
-        protectionDialog.setContentView(content);
-        protectionDialog.setCanceledOnTouchOutside(true);
-        protectionDialog.show();
+        showDialog(protectionDialog, content, false);
+    }
+
+    private void showDialog(Dialog protectionDialog, View content, boolean large) {
+        DialogHelper.show(protectionActivity, protectionDialog, content, large);
     }
 
     private List<ProtectedApplicationEntry> loadInstalledApplications() {
