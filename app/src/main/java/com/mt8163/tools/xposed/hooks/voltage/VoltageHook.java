@@ -93,7 +93,7 @@ public final class VoltageHook implements PackageHook {
 
             boolean needsBatteryHook;
             synchronized (LOCK) {
-                needsBatteryHook = !batteryHookInstalled;
+                needsBatteryHook = moduleEnabled && !batteryHookInstalled;
             }
 
             if (needsBatteryHook) {
@@ -115,8 +115,12 @@ public final class VoltageHook implements PackageHook {
                                 }
                             });
                     synchronized (LOCK) {
-                        batteryHook = installedHook;
-                        batteryHookInstalled = batteryHook != null;
+                        if (moduleEnabled) {
+                            batteryHook = installedHook;
+                            batteryHookInstalled = batteryHook != null;
+                        } else if (installedHook != null) {
+                            installedHook.unhook();
+                        }
                     }
                 } catch (Throwable error) {
                     logInstallFailure("MCU onBattery hook failed", error);
