@@ -340,6 +340,15 @@ public final class ProtectionHook implements PackageHook {
                         }));
     }
 
+    private static void restoreCleanerState() {
+        CleanerState state = CLEANER_STATE.get();
+        if (state == null || state.parent == null) {
+            CLEANER_STATE.remove();
+        } else {
+            CLEANER_STATE.set(state.parent);
+        }
+    }
+
     private static void installMemoryCleanerHooks(ClassLoader loader) {
         installHook("Memory Cleaner lifecycle", () ->
                 XposedHelpers.findAndHookMethod(
@@ -349,12 +358,14 @@ public final class ProtectionHook implements PackageHook {
                         new XC_MethodHook() {
                             @Override
                             protected void beforeHookedMethod(MethodHookParam param) {
-                                CLEANER_STATE.set(new CleanerState());
+                                CleanerState state = new CleanerState();
+                                state.parent = CLEANER_STATE.get();
+                                CLEANER_STATE.set(state);
                             }
 
                             @Override
                             protected void afterHookedMethod(MethodHookParam param) {
-                                CLEANER_STATE.remove();
+                                restoreCleanerState();
                             }
                         }));
 
@@ -381,6 +392,11 @@ public final class ProtectionHook implements PackageHook {
                                 state.packageName = identity == null
                                         ? null : identity.packageName;
                                 if (state.protectCurrentTask) param.setResult(null);
+                            }
+
+                            @Override
+                            protected void afterHookedMethod(MethodHookParam param) {
+                                restoreCleanerState();
                             }
                         }));
 
@@ -704,5 +720,6 @@ public final class ProtectionHook implements PackageHook {
         boolean protectCurrentTask;
         int taskId = -1;
         String packageName;
+        CleanerState parent;
     }
 }
