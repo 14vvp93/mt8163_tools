@@ -71,7 +71,18 @@ public final class MediaSettingsStore {
         intent.putExtra(EXTRA_RESTORE_BACKGROUND_MEDIA, restoreMedia);
         intent.putExtra(EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBluetooth);
         intent.putExtra(EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications);
-        app.sendBroadcast(intent);
+        try {
+            app.sendBroadcast(intent);
+        } catch (RuntimeException error) {
+            String message = "Failed to send configuration broadcast: "
+                    + error.getClass().getSimpleName()
+                    + (error.getMessage() == null ? "" : ": " + error.getMessage());
+            try {
+                com.mt8163.tools.core.EventLogger.log(
+                        app, "Media", "configurationBroadcast", message);
+            } catch (RuntimeException ignored) {
+            }
+        }
     }
 
     public static boolean isEnabled(Context context) {
