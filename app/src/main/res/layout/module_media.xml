@@ -111,10 +111,11 @@
 
         <TextView
             style="@style/ModuleSectionLabel"
+            android:id="@+id/media_snapshot_source"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_md"
-            android:text="@string/media_player" />
+            android:text="@string/media_snapshot_unknown_source" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -182,91 +183,6 @@
                 <TextView
                     style="@style/ModuleBodyText"
                     android:id="@+id/media_snapshot_window"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/border_width"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:background="@color/line" />
-
-        <TextView
-            style="@style/ModuleSectionLabel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:text="@string/media_bluetooth" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="@dimen/spacing_xs">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/ModuleBodyText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/media_package_name" />
-
-                <TextView
-                    style="@style/ProtectionPickerPackage"
-                    android:id="@+id/bluetooth_snapshot_package"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:layout_marginTop="@dimen/spacing_xs">
-
-                <TextView
-                    style="@style/ModuleBodyText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/media_playback_state" />
-
-                <TextView
-                    style="@style/ModuleBodyText"
-                    android:id="@+id/bluetooth_snapshot_playback"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:layout_marginTop="@dimen/spacing_xs">
-
-                <TextView
-                    style="@style/ModuleBodyText"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/media_window_state" />
-
-                <TextView
-                    style="@style/ModuleBodyText"
-                    android:id="@+id/bluetooth_snapshot_window"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/media_unknown" />
