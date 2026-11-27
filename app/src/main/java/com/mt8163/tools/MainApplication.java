@@ -10,26 +10,26 @@ import com.mt8163.tools.modules.protection.ProtectionSettingsStore;
 import com.mt8163.tools.modules.voltage.VoltageSettingsStore;
 
 public final class MainApplication extends Application {
-    private ModuleRegistry registry;
-    private PreferencesManager preferences;
+    private ModuleRegistry moduleRegistry;
+    private PreferencesManager preferencesManager;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        preferences = new PreferencesManager(this);
-        registry = new ModuleRegistry();
-        registry.loadStates(preferences);
-        EventManager.get(this).setEnabled(preferences.getModuleEnabled("events", true));
+        preferencesManager = new PreferencesManager(this);
+        moduleRegistry = new ModuleRegistry();
+        moduleRegistry.loadStates(preferencesManager);
+        EventManager.get(this).setEnabled(preferencesManager.getModuleEnabled("events", true));
         VoltageSettingsStore.publish(this);
         MediaSettingsStore.publish(this);
         ProtectionSettingsStore.publish(this);
     }
 
     public ModuleRegistry getModuleRegistry() {
-        return registry;
+        return moduleRegistry;
     }
 
     public PreferencesManager getPreferencesManager() {
-        return preferences;
+        return preferencesManager;
     }
 }
