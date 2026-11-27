@@ -3,6 +3,7 @@ package com.mt8163.tools.modules.events;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public final class EventManager {
+    private static final String TAG = "MT8163Events";
     public interface Listener {
         void onEventsChanged();
     }
@@ -100,6 +102,7 @@ public final class EventManager {
                         database.insert(System.currentTimeMillis(), module, source, message);
                     } catch (RuntimeException error) {
                         dropped.incrementAndGet();
+                        Log.e(TAG, "Failed to write event", error);
                         return;
                     }
                 }
@@ -134,12 +137,14 @@ public final class EventManager {
                     records = enabled
                             ? database.read(moduleFilter, limit, beforeId) : Collections.emptyList();
                 } catch (RuntimeException error) {
+                    Log.e(TAG, "Failed to read event history", error);
                     records = Collections.emptyList();
                 }
                 List<EventRecord> result = records;
                 main.post(() -> callback.accept(enabled ? result : Collections.emptyList()));
             });
         } catch (RejectedExecutionException error) {
+            Log.w(TAG, "Event read queue is full", error);
             main.post(() -> callback.accept(Collections.emptyList()));
         }
     }
@@ -187,6 +192,7 @@ public final class EventManager {
                                 cleared = true;
                             } catch (RuntimeException error) {
                                 dropped.incrementAndGet();
+                                Log.e(TAG, "Failed to clear event history", error);
                             }
                         }
                     }
@@ -195,6 +201,7 @@ public final class EventManager {
                 });
             } catch (RejectedExecutionException error) {
                 dropped.incrementAndGet();
+                Log.e(TAG, "Failed to schedule event history clear", error);
                 postClearResult(callback, false);
             }
         }
