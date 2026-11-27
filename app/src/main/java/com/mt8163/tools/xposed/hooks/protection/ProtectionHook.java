@@ -42,7 +42,7 @@ public final class ProtectionHook implements PackageHook {
     private static boolean featureHookInstallFailed;
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
-    private static boolean recentsStackModified;
+    private static volatile boolean recentsStackModified;
     private static ClassLoader systemUiClassLoader;
     private static WeakReference<Activity> recentsActivity = new WeakReference<>(null);
     private static BroadcastReceiver configurationReceiver;
