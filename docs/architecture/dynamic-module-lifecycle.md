@@ -31,11 +31,11 @@ Repeated enable/disable requests must be safe and idempotent.
 
 ## Hook ownership and cleanup
 
-- Each module stores every Unhook handle returned by its Xposed hook installations.
+- Each module stores every Unhook handle returned by its feature-hook installations.
 - Hook installations that return multiple handles must retain every handle.
 - Hook installations must be rolled back if a later installation step fails.
 - Cleanup must be safe after partial installation or when a resource was never created.
-- Feature hooks must not be owned by shared infrastructure classes.
+- Shared support hooks must be identified separately from feature hooks and must not perform module feature work.
 
 The PackageHook contract is expected to expose an uninstall() operation in addition to its existing package support and installation methods. HookRegistry will coordinate module lifecycle transitions.
 
@@ -88,9 +88,11 @@ When disabled:
 - Stop accepting new Media operations.
 - Cancel any active restoration or pending module operation.
 - Close the BluetoothMusicClient.
-- Clear transient operation state and runtime references.
-- Unhook all Media feature hooks.
+- Clear transient operation state.
+- Unhook the ACC receiver feature hook.
 - Preserve the saved snapshot and module configuration for re-enable.
+
+The WindowManagerService constructor hook is a lightweight support hook. It only captures the long-lived service instance needed for foreground-source detection; it remains installed across Media toggles, and its service reference is retained so re-enabling Media does not require restarting system_server. It does not perform snapshot or playback work while Media is disabled.
 
 Media uses one shared last-snapshot record. The saved state is displayed only in the matching section (Media Player or Bluetooth); the other section displays Unknown when the snapshot does not match or contains no data.
 
@@ -130,4 +132,6 @@ Before considering the feature complete, verify on the target device:
 
 ## Current status
 
-**Design only.** No implementation changes are included in this document. The lifecycle behavior, especially Protection's Recents refresh, requires implementation and on-device validation.
+Initial runtime lifecycle support is implemented for Voltage and Media. It has not yet been built or validated on the target device.
+
+Protection lifecycle support remains pending. Protection's Recents refresh and all module transitions require on-device validation before the feature is considered complete.
