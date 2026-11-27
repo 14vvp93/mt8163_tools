@@ -103,25 +103,17 @@
             android:background="@color/line" />
 
         <TextView
-            style="@style/DialogTitle"
+            style="@style/ModuleSectionLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_md"
             android:text="@string/media_last_snapshot" />
 
-        <TextView
-            style="@style/ModuleSectionLabel"
-            android:id="@+id/media_snapshot_source"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:text="@string/media_snapshot_unknown_source" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="@dimen/spacing_xs">
+            android:layout_marginTop="@dimen/spacing_md">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -134,14 +126,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/media_package_name" />
+                    android:text="@string/media_source" />
 
                 <TextView
-                    style="@style/ProtectionPickerPackage"
-                    android:id="@+id/media_snapshot_package"
+                    android:id="@+id/media_snapshot_source"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
+                    android:ellipsize="end"
+                    android:maxWidth="220dp"
+                    android:singleLine="true"
+                    android:text="@string/media_unknown"
+                    android:textSize="@dimen/text_secondary"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -156,14 +155,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/media_playback_state" />
+                    android:text="@string/media_package_name" />
 
                 <TextView
-                    style="@style/ModuleBodyText"
-                    android:id="@+id/media_snapshot_playback"
+                    android:id="@+id/media_snapshot_package"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
+                    android:ellipsize="end"
+                    android:maxWidth="420dp"
+                    android:singleLine="true"
+                    android:text="@string/media_unknown"
+                    android:textSize="@dimen/text_secondary"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp" />
             </LinearLayout>
 
             <LinearLayout
@@ -181,11 +187,41 @@
                     android:text="@string/media_window_state" />
 
                 <TextView
-                    style="@style/ModuleBodyText"
                     android:id="@+id/media_snapshot_window"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/media_unknown" />
+                    android:text="@string/media_unknown"
+                    android:textSize="@dimen/text_secondary"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:layout_marginTop="@dimen/spacing_xs">
+
+                <TextView
+                    style="@style/ModuleBodyText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/media_playback_state" />
+
+                <TextView
+                    android:id="@+id/media_snapshot_playback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/media_unknown"
+                    android:textSize="@dimen/text_secondary"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp" />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
