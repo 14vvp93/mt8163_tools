@@ -10,7 +10,7 @@ Events collects operational events from MT8163 Tools modules and presents them i
 - LSPosed hooks in `system_server` use a separate exported receiver protected by `android.permission.DUMP`.
 - Both receivers validate the action and event fields before forwarding records to `EventManager`.
 - `EventManager` serializes SQLite writes and performs history reads on a background executor.
-- `EventsModuleView` displays the stored history.
+- `EventsModuleView` displays the stored history. Each view instance has a generation token; asynchronous callbacks and posted scroll updates from destroyed views are ignored.
 
 Other modules depend only on the Core event interface. They do not access Events storage or UI.
 
