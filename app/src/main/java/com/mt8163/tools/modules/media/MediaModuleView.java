@@ -14,18 +14,16 @@ public final class MediaModuleView {
     private final Context context;
     private final Switch restoreMedia;
     private final Switch restoreBluetooth;
-    private final TextView mediaPackage;
-    private final TextView mediaPlayback;
-    private final TextView mediaWindow;
-    private final TextView bluetoothPackage;
-    private final TextView bluetoothPlayback;
-    private final TextView bluetoothWindow;
+    private final TextView snapshotSource;
+    private final TextView snapshotPackage;
+    private final TextView snapshotPlayback;
+    private final TextView snapshotWindow;
     private boolean receiverRegistered;
 
     private final BroadcastReceiver snapshotReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            refreshSnapshots();
+            refreshSnapshot();
         }
     };
 
@@ -33,12 +31,10 @@ public final class MediaModuleView {
         this.context = context.getApplicationContext();
         restoreMedia = root.findViewById(R.id.media_restore_background_media);
         restoreBluetooth = root.findViewById(R.id.media_restore_background_bluetooth);
-        mediaPackage = root.findViewById(R.id.media_snapshot_package);
-        mediaPlayback = root.findViewById(R.id.media_snapshot_playback);
-        mediaWindow = root.findViewById(R.id.media_snapshot_window);
-        bluetoothPackage = root.findViewById(R.id.bluetooth_snapshot_package);
-        bluetoothPlayback = root.findViewById(R.id.bluetooth_snapshot_playback);
-        bluetoothWindow = root.findViewById(R.id.bluetooth_snapshot_window);
+        snapshotSource = root.findViewById(R.id.media_snapshot_source);
+        snapshotPackage = root.findViewById(R.id.media_snapshot_package);
+        snapshotPlayback = root.findViewById(R.id.media_snapshot_playback);
+        snapshotWindow = root.findViewById(R.id.media_snapshot_window);
 
         restoreMedia.setChecked(MediaSettingsStore.isRestoreBackgroundMedia(this.context));
         restoreBluetooth.setChecked(
@@ -53,7 +49,7 @@ public final class MediaModuleView {
             @Override
             public void onViewAttachedToWindow(View view) {
                 registerSnapshotReceiver();
-                refreshSnapshots();
+                refreshSnapshot();
             }
 
             @Override
@@ -63,26 +59,31 @@ public final class MediaModuleView {
         });
 
         if (root.isAttachedToWindow()) registerSnapshotReceiver();
-        refreshSnapshots();
+        refreshSnapshot();
     }
 
-    private void refreshSnapshots() {
-        mediaPackage.setText(displayPackage(
-                MediaSettingsStore.getMediaSnapshotPackage(context)));
-        mediaPlayback.setText(displayPlayback(
-                MediaSettingsStore.getMediaSnapshotPlaybackState(context)));
-        mediaWindow.setText(MediaSettingsStore.getMediaSnapshotWindowState(context));
+    private void refreshSnapshot() {
+        String packageName = MediaSettingsStore.getSourcePackage(context);
+        boolean hasSnapshot = packageName != null && !packageName.trim().isEmpty();
 
-        bluetoothPackage.setText(displayPackage(
-                MediaSettingsStore.getBluetoothSnapshotPackage(context)));
-        bluetoothPlayback.setText(displayPlayback(
-                MediaSettingsStore.getBluetoothSnapshotPlaybackState(context)));
-        bluetoothWindow.setText(MediaSettingsStore.getBluetoothSnapshotWindowState(context));
+        snapshotSource.setText(getSnapshotSourceLabel(hasSnapshot));
+        snapshotPackage.setText(hasSnapshot
+                ? packageName : context.getString(R.string.media_unknown));
+        snapshotPlayback.setText(hasSnapshot
+                ? displayPlayback(MediaSettingsStore.getPlaybackState(context))
+                : context.getString(R.string.media_unknown));
+        snapshotWindow.setText(hasSnapshot
+                ? (MediaSettingsStore.isForeground(context)
+                ? context.getString(R.string.media_foreground)
+                : context.getString(R.string.media_background))
+                : context.getString(R.string.media_unknown));
     }
 
-    private String displayPackage(String value) {
-        return value == null || value.trim().isEmpty()
-                ? context.getString(R.string.media_unknown) : value;
+    private int getSnapshotSourceLabel(boolean hasSnapshot) {
+        if (!hasSnapshot) return R.string.media_snapshot_unknown_source;
+        return MediaSettingsStore.isBluetoothSource(context)
+                ? R.string.media_snapshot_bluetooth
+                : R.string.media_snapshot_media_player;
     }
 
     private String displayPlayback(String value) {
