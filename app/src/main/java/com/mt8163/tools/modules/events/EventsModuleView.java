@@ -30,9 +30,9 @@ import java.util.Locale;
 import java.util.Set;
 
 public final class EventsModuleView {
-    private static final int EXPORT_REQUEST = 8163;
-    private static final int PAGE_SIZE = 100;
-    private static final SimpleDateFormat DATE =
+    private static final int EVENTS_EXPORT_REQUEST = 8163;
+    private static final int EVENTS_PAGE_SIZE = 100;
+    private static final SimpleDateFormat EVENT_DATE_FORMAT =
             new SimpleDateFormat("dd.MM.yy HH:mm:ss", Locale.getDefault());
 
     private static EventManager eventsManager;
@@ -100,7 +100,7 @@ public final class EventsModuleView {
         return root;
     }
 
-    private static List<String> filter() {
+    private static List<String> getSelectedEventModuleFilter() {
         return allEventModulesSelected ? null : new ArrayList<>(selectedEventModules);
     }
 
@@ -159,11 +159,11 @@ public final class EventsModuleView {
     private static void refreshEvents() {
         if (eventsManager == null || !eventsManager.isEnabled() || eventEntriesContainer == null) return;
         EventManager current = eventsManager;
-        current.readAsync(filter(), PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
+        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, Long.MAX_VALUE, records -> {
             if (eventsManager != current || eventEntriesContainer == null || eventsActivity == null
                     || !current.isEnabled()) return;
             eventEntriesContainer.removeAllViews();
-            hasMoreEvents = records.size() > PAGE_SIZE;
+            hasMoreEvents = records.size() > EVENTS_PAGE_SIZE;
             if (hasMoreEvents) records.remove(records.size() - 1);
             oldestLoadedEventId = records.isEmpty() ? Long.MAX_VALUE
                     : records.get(records.size() - 1).id;
@@ -183,12 +183,12 @@ public final class EventsModuleView {
         int oldHeight = eventEntriesContainer.getHeight();
         int oldScrollY = eventsScrollView.getScrollY();
         EventManager current = eventsManager;
-        current.readAsync(filter(), PAGE_SIZE + 1, oldestLoadedEventId, records -> {
+        current.readAsync(getSelectedEventModuleFilter(), EVENTS_PAGE_SIZE + 1, oldestLoadedEventId, records -> {
             if (eventsManager != current || eventEntriesContainer == null || eventsScrollView == null) {
                 loadingOlderEvents = false;
                 return;
             }
-            hasMoreEvents = records.size() > PAGE_SIZE;
+            hasMoreEvents = records.size() > EVENTS_PAGE_SIZE;
             if (hasMoreEvents) records.remove(records.size() - 1);
             if (!records.isEmpty()) {
                 oldestLoadedEventId = records.get(records.size() - 1).id;
@@ -217,7 +217,7 @@ public final class EventsModuleView {
     private static void addEventRecord(EventRecord record, int index) {
         View row = eventsInflater.inflate(R.layout.item_event_record, eventEntriesContainer, false);
         ((TextView) row.findViewById(R.id.event_record_date))
-                .setText(DATE.format(new Date(record.timestamp)));
+                .setText(EVENT_DATE_FORMAT.format(new Date(record.timestamp)));
         ((TextView) row.findViewById(R.id.event_record_module))
                 .setText("[" + record.module + "]");
         ((TextView) row.findViewById(R.id.event_record_source))
@@ -232,7 +232,7 @@ public final class EventsModuleView {
         StringBuilder text = new StringBuilder();
         for (int i = records.size() - 1; i >= 0; i--) {
             EventRecord record = records.get(i);
-            text.append(DATE.format(new Date(record.timestamp))).append(" [")
+            text.append(EVENT_DATE_FORMAT.format(new Date(record.timestamp))).append(" [")
                     .append(record.module).append("][")
                     .append(record.source).append("]: ")
                     .append(record.message).append('\n');
@@ -244,7 +244,7 @@ public final class EventsModuleView {
         EventManager current = eventsManager;
         Activity owner = eventsActivity;
         if (current == null || owner == null) return;
-        current.readAllAsync(filter(), records -> {
+        current.readAllAsync(getSelectedEventModuleFilter(), records -> {
             if (eventsManager != current || eventsActivity != owner) return;
             String text = buildEventsExportText(records);
             if (text.isEmpty()) {
@@ -301,7 +301,7 @@ public final class EventsModuleView {
                 + new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
                 .format(new Date()) + ".txt");
         dialog.dismiss();
-        eventsActivity.startActivityForResult(intent, EXPORT_REQUEST);
+        eventsActivity.startActivityForResult(intent, EVENTS_EXPORT_REQUEST);
     }
 
     private static void showDialog(Dialog dialog, View root) {
@@ -325,14 +325,14 @@ public final class EventsModuleView {
     }
 
     public static boolean onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode != EXPORT_REQUEST) return false;
+        if (requestCode != EVENTS_EXPORT_REQUEST) return false;
         if (eventsActivity == null || eventsManager == null) return true;
         if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return true;
 
         Activity owner = eventsActivity;
         EventManager current = eventsManager;
         Uri uri = data.getData();
-        current.readAllAsync("filtered".equals(eventsExportMode) ? filter() : null, records -> {
+        current.readAllAsync("filtered".equals(eventsExportMode) ? getSelectedEventModuleFilter() : null, records -> {
             if (eventsActivity != owner || eventsManager != current) return;
             try (OutputStream output = owner.getContentResolver().openOutputStream(uri)) {
                 if (output == null) throw new IllegalStateException("Cannot open export destination");
