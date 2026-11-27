@@ -38,7 +38,8 @@ public final class ProtectionHook implements PackageHook {
     private static final List<XC_MethodHook.Unhook> FEATURE_HOOKS = new ArrayList<>();
     private static final List<XC_MethodHook.Unhook> SUPPORT_HOOKS = new ArrayList<>();
 
-    private static boolean supportHooksInstalled;
+    private static boolean configurationHookInstalled;
+    private static boolean recentsLifecycleHooksInstalled;
     private static boolean featureHookInstallFailed;
     private static boolean hooksInstalled;
     private static boolean receiverRegistered;
@@ -83,9 +84,8 @@ public final class ProtectionHook implements PackageHook {
     }
 
     private static void installSupportHooks(ClassLoader loader) throws Throwable {
-        List<XC_MethodHook.Unhook> installed = new ArrayList<>();
-        try {
-            installed.add(XposedHelpers.findAndHookMethod(
+        if (!configurationHookInstalled) {
+            XC_MethodHook.Unhook configurationHook = XposedHelpers.findAndHookMethod(
                     APPLICATION_CLASS,
                     loader,
                     "onCreate",
@@ -96,14 +96,21 @@ public final class ProtectionHook implements PackageHook {
                                 registerConfigurationReceiver((Context) hookParam.thisObject);
                             }
                         }
-                    }));
-            installed.addAll(installRecentsLifecycleHooks(loader));
-            SUPPORT_HOOKS.addAll(installed);
-            supportHooksInstalled = true;
-            XposedBridge.log("MT8163 Tools: Protection support hooks installed");
-        } catch (Throwable error) {
-            unhookAll(installed, "support");
-            throw error;
+                    });
+            SUPPORT_HOOKS.add(configurationHook);
+            configurationHookInstalled = true;
+            XposedBridge.log("MT8163 Tools: Protection configuration hook installed");
+        }
+
+        if (!recentsLifecycleHooksInstalled) {
+            try {
+                SUPPORT_HOOKS.addAll(installRecentsLifecycleHooks(loader));
+                recentsLifecycleHooksInstalled = true;
+                XposedBridge.log("MT8163 Tools: Protection Recents lifecycle hooks installed");
+            } catch (Throwable error) {
+                XposedBridge.log("MT8163 Tools: Protection Recents lifecycle hooks failed: "
+                        + error);
+            }
         }
     }
 
