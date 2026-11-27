@@ -56,15 +56,15 @@ public final class BluetoothMusicClient {
                 return;
             }
 
-            Thread worker = new Thread(() -> {
-                try {
-                    querySnapshot(binder);
-                } finally {
-                    ACTIVE_QUERIES.decrementAndGet();
-                }
-            }, "MediaBluetoothSnapshot");
-            worker.setDaemon(true);
             try {
+                Thread worker = new Thread(() -> {
+                    try {
+                        querySnapshot(binder);
+                    } finally {
+                        ACTIVE_QUERIES.decrementAndGet();
+                    }
+                }, "MediaBluetoothSnapshot");
+                worker.setDaemon(true);
                 worker.start();
             } catch (RuntimeException error) {
                 ACTIVE_QUERIES.decrementAndGet();
