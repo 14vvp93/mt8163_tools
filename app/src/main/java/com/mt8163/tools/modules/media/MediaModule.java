@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 
 import com.mt8163.tools.R;
+import com.mt8163.tools.core.EventLogger;
 import com.mt8163.tools.core.ModuleContract;
 import com.mt8163.tools.modules.ModuleUiContract;
 
@@ -33,5 +34,10 @@ public final class MediaModule implements ModuleContract, ModuleUiContract {
     @Override
     public void onEnabledChanged(Activity activity, boolean enabled) {
         MediaSettingsStore.publish(activity);
+        EventLogger.log(activity, getId(),
+                enabled ? "moduleEnabled" : "moduleDisabled",
+                activity.getString(enabled
+                        ? R.string.events_module_enabled
+                        : R.string.events_module_disabled));
     }
 }
