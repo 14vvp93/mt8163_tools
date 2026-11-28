@@ -134,8 +134,6 @@ public final class MediaRestorer {
         private boolean listenerRegistered;
         private boolean controllerCallbackRegistered;
         private boolean playRequested;
-        private boolean playCommitted;
-        private long playDispatchElapsedRealtime;
         private MediaController activeController;
 
         private final MediaSessionManager.OnActiveSessionsChangedListener listener =
@@ -147,14 +145,12 @@ public final class MediaRestorer {
                     public void onPlaybackStateChanged(PlaybackState playbackState) {
                         if (playbackState == null) return;
                         if (playbackState.getState() == PlaybackState.STATE_PLAYING) {
-                            long updateTime = playbackState.getLastPositionUpdateTime();
-                            boolean startedBeforePlay;
+                            boolean playWasRequested;
                             synchronized (lock) {
-                                startedBeforePlay = state.get() != State.PLAY_SENT
-                                        || PlaybackConfirmation.startedBeforeDispatch(
-                                        playCommitted, updateTime, playDispatchElapsedRealtime);
+                                playWasRequested = state.get() == State.PLAY_SENT
+                                        && playRequested;
                             }
-                            complete(startedBeforePlay ? Result.SKIPPED : Result.RESUMED);
+                            complete(playWasRequested ? Result.RESUMED : Result.SKIPPED);
                         } else if (playbackState.getState() == PlaybackState.STATE_ERROR
                                 && playRequested) {
                             complete(Result.FAILED);
@@ -285,8 +281,7 @@ public final class MediaRestorer {
                     if (state.get() != State.ACTIVE) return;
                     activeController = controller;
                     state.set(State.PLAY_SENT);
-                    playCommitted = true;
-                    playDispatchElapsedRealtime = Long.MAX_VALUE;
+
                 }
 
                 controller.registerCallback(playbackCallback, handler);
@@ -314,7 +309,6 @@ public final class MediaRestorer {
                 synchronized (lock) {
                     if (state.get() != State.PLAY_SENT) return;
                     playRequested = true;
-                    playDispatchElapsedRealtime = SystemClock.elapsedRealtime();
                 }
                 controller.getTransportControls().play();
                 logEvent(context, "mediaPlaySent",

@@ -276,6 +276,9 @@ public final class MediaHook implements PackageHook {
 
         boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, false);
         boolean changed;
+        boolean restoreMedia;
+        boolean restoreBluetooth;
+        boolean notifications;
         synchronized (LOCK) {
             changed = moduleEnabled != enabled;
             if (changed) lifecycleGeneration++;
@@ -287,13 +290,17 @@ public final class MediaHook implements PackageHook {
                     EXTRA_RESTORE_BACKGROUND_BLUETOOTH, restoreBackgroundBluetooth);
             playbackNotifications = intent.getBooleanExtra(
                     EXTRA_PLAYBACK_NOTIFICATIONS, playbackNotifications);
+            restoreMedia = restoreBackgroundMedia;
+            restoreBluetooth = restoreBackgroundBluetooth;
+            notifications = playbackNotifications;
             configurationLoaded = true;
         }
 
-        if (changed) {
-            HookRegistry.setModuleEnabled("media", enabled);
-            logEvent("configurationChanged", "Media enabled: " + enabled);
-        }
+        if (changed) HookRegistry.setModuleEnabled("media", enabled);
+        logEvent("configurationChanged", "enabled=" + enabled
+                + ", restoreMedia=" + restoreMedia
+                + ", restoreBluetooth=" + restoreBluetooth
+                + ", playbackNotifications=" + notifications);
     }
 
     private static void loadConfiguration() {
@@ -323,7 +330,10 @@ public final class MediaHook implements PackageHook {
                 playbackNotifications = notifications;
                 configurationLoaded = true;
             }
-            logEvent("configurationLoaded", "Media settings loaded: enabled=" + enabled);
+            logEvent("configurationLoaded", "enabled=" + enabled
+                    + ", restoreMedia=" + restoreMedia
+                    + ", restoreBluetooth=" + restoreBluetooth
+                    + ", playbackNotifications=" + notifications);
         } catch (Throwable error) {
             reportError("configurationLoad", error);
         }
@@ -580,6 +590,9 @@ public final class MediaHook implements PackageHook {
                                           MediaRestorer.Result result) {
         if (context == null || result == null) return;
 
+        logEvent("playbackRestoreCompleted",
+                "Source: " + packageName + ", result=" + result);
+
         final String message;
         if (result == MediaRestorer.Result.RESUMED) {
             if (BLUETOOTH_SOURCE_PACKAGE.equals(packageName)) {
@@ -591,19 +604,38 @@ public final class MediaHook implements PackageHook {
         } else if (result == MediaRestorer.Result.FAILED) {
             message = context.getString(R.string.media_toast_resume_failed);
         } else {
+            logEvent("playbackToastSkipped", "No Toast for result=" + result);
             return;
         }
 
-        MAIN_HANDLER.post(() -> {
+        boolean posted = MAIN_HANDLER.post(() -> {
+            boolean enabled;
+            boolean acc;
+            boolean notifications;
             synchronized (LOCK) {
-                if (!moduleEnabled || !accState || !playbackNotifications) return;
+                enabled = moduleEnabled;
+                acc = accState;
+                notifications = playbackNotifications;
             }
+
+            if (!enabled || !acc || !notifications) {
+                logEvent("playbackToastSuppressed", "enabled=" + enabled
+                        + ", acc=" + acc
+                        + ", playbackNotifications=" + notifications);
+                return;
+            }
+
             try {
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+                logEvent("playbackToastShown", "Source: " + packageName
+                        + ", result=" + result);
             } catch (RuntimeException error) {
                 reportError("playbackToast", error);
             }
         });
+        if (!posted) {
+            logEvent("playbackToastFailed", "Main thread rejected Toast request");
+        }
     }
 
     private static String getApplicationLabel(Context context, String packageName) {
